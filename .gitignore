@@ -7,3 +7,4 @@ build/
 # Misc
 .idea
 __pycache__
+.vscode

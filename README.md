@@ -1,8 +1,10 @@
-# zkay: A Blockchain Privacy Language
+# cloak: A Blockchain Privacy Language
 
-zkay (pronounced as `[zi: keɪ]`) is a programming language which enables
-automatic compilation of intuitive data privacy specifications to NIZK-enabled
+cloak is a programming language which enables
+automatic compilation of intuitive data privacy specifications to NIZK, TEE enabled
 private smart contracts.
+
+cloak is based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
 
 ## Warning
 
@@ -13,11 +15,11 @@ particular, it uses "dummy" encryption `Enc(v,R,k)=v+k`, which is **insecure**.
 
 ### Using Docker
 
-The simplest way to run zkay is using docker. After installing docker, the docker image can be run
+The simplest way to run cloak is using docker. After installing docker, the docker image can be run
 as follows:
 
 ```bash
-/path/to/zkay$ ./zkay-docker.sh
+/path/to/cloak$ ./zkay-docker.sh
 (base) root@ae09e165bd19:/zkay_host$
 ```
 
@@ -28,17 +30,17 @@ This allows you to operate on files from your host machine.
 
 ### Directly On Host
 
-As an alternative to docker, you may install zkay on your host directly. To this end, follow
+As an alternative to docker, you may install cloak on your host directly. To this end, follow
 the instructions in the [Dockerfile](./install/Dockerfile) marked by `To install on host`.
 
-Below we show how to test your zkay installation, and how to type-check and
-compile zkay contracts from _within the docker container_. However, the
+Below we show how to test your cloak installation, and how to type-check and
+compile cloak contracts from _within the docker container_. However, the
 respective commands can similarly be _run directly on the host_ after having
-installed zkay properly.
+installed cloak properly.
 
 ## Unit Tests
 
-To run all unit tests of zkay, run:
+To run all unit tests of cloak, run:
 
 ```bash
 # run docker container
@@ -48,12 +50,12 @@ To run all unit tests of zkay, run:
 (base) root@ae09e165bd19:/zkay_host$ make test
 ```
 
-If all tests pass, your zkay installation is likely set up correctly.
+If all tests pass, your cloak installation is likely set up correctly.
 Note that running all unit tests *may take several hours*.
 
 ## Type-Check Contracts
 
-To type-check a zkay file `test.zkay` in `/path/to/contract` without compiling it, run:
+To type-check a cloak file `test.zkay` in `/path/to/contract` without compiling it, run:
 
 ```bash
 # run docker container
@@ -73,7 +75,7 @@ To compile and type-check a zkay file `test.zkay` in `/path/to/contract`, run:
 (base) root@ff2ddb8da49c:/contract_host$ python3 /zkay/src/main.py test.zkay
 ```
 
-The output comprises the transformed zkay contract, the contracts for proof verification, 
+The output comprises the transformed cloak contract, the contracts for proof verification,
 and the proof circuits in ZoKrates' domain-specific language. By default, it is placed
 in the current working directory. A different output directory can be specified using
 the `--output` command line argument.

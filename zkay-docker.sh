@@ -27,7 +27,15 @@ IMAGE=zkay
 # PREPARATION #
 ###############
 # determine directory containing this script
-BASEDIR="$(dirname "$(readlink -f "$0")")"
+
+sysname=`uname  -a`
+if [[ $sysname =~ "Darwin" ]];then
+    echo "build on mac"
+    BASEDIR="$(cd "$(dirname "$0")"; pwd)"
+else
+    echo "build on linux"
+    BASEDIR="$(dirname "$(readlink -f "$0")")"
+fi
 
 # create docker image (if it does not yet exist)
 make -C "$BASEDIR/install" image
@@ -49,6 +57,7 @@ else
 	echo "Running in docker: $@"
 	FLAGS="--workdir /zkay"
 fi
+
 
 sudo docker run \
 	-it \
