@@ -49,9 +49,8 @@ def compile_zokrates(code: str, output_directory: str, name='Verifier', scheme=d
 		with time_measure('compileZokrates'):
 			# compile
 			try:
-				run_command([zok_bin, 'compile', '-i', code_file_name], cwd=work_dir)
+				run_command([zok_bin, 'compile', '-i', code_file_name, '--light'], cwd=work_dir)
 			except SubprocessError as e:
-				print(e)
 				raise ValueError(f'Error compiling {code_file}:\n{code}') from e
 
 			# setup
@@ -85,6 +84,7 @@ def compile_zokrates(code: str, output_directory: str, name='Verifier', scheme=d
 		return output_filename, work_dir
 
 	except SubprocessError as e:
+		print(e)
 		raise ValueError('Error compiling:\n' + code) from e
 
 

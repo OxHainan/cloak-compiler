@@ -52,8 +52,8 @@ def compile(file_location, d, count, get_binaries=False):
 	
 	# compile
 	with time_measure('compileFull'):
-		ast = get_processed_ast(code)
-		code_file = compile_ast(ast, d, filename)
+		ast = get_processed_ast(code)    # get type checked zkay ast
+		code_file = compile_ast(ast, d, filename)  # compile zkay ast to soidity/zokrates DSL
 
 		if get_binaries:
 			# compilation of the solidity code is not required

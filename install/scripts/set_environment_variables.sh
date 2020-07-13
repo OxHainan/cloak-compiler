@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ###########
 # PURPOSE #
@@ -10,8 +10,11 @@
 #
 # When running `prepare-conda.sh`, this line is
 # automatically replaced by a hard-coded path
-BASEDIR=$(dirname "$(readlink -f "$0")")
+# BASEDIR=$(dirname "$(readlink -f "$0")")
 
+BASEDIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
+
+echo $BASEDIR
 # zkay
 export ZKAYDIR="$BASEDIR/../.."
 export ZKAYSRC="$ZKAYDIR/src"
