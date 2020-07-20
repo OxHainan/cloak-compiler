@@ -1,7 +1,7 @@
 from zkay_ast.analysis.partition_state import PartitionState
 from zkay_ast.analysis.side_effects import has_side_effects
 from zkay_ast.ast import FunctionDefinition, VariableDeclarationStatement, IfStatement, \
-	Block, ExpressionStatement, MeExpr, AssignmentStatement, RequireStatement, AllExpr, ReturnStatement, \
+	Block, ExpressionStatement, AllExpr, MeExpr, TeeExpr, AssignmentStatement, RequireStatement, ReturnStatement, \
 	ConstructorDefinition, FunctionCallExpr, BuiltinFunction, ConstructorOrFunctionDefinition
 from zkay_ast.visitor.visitor import AstVisitor
 
@@ -20,6 +20,7 @@ class AliasAnalysisVisitor(AstVisitor):
 		s = PartitionState()
 		s.insert(MeExpr().privacy_annotation_label())
 		s.insert(AllExpr().privacy_annotation_label())
+		s.insert(TeeExpr().privacy_annotation_label())
 		for d in ast.parent.state_variable_declarations:
 			s.insert(d.idf)
 		for p in ast.parameters:

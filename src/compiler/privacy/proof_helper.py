@@ -31,8 +31,8 @@ class ProofHelper:
 
 	def __init__(self):
 		self.zok_arguments: List[str] = []
-		self.zok_params: List[str] = []
-		self.param_docs: List[Tuple[str, str]] = []
+		self.zok_params: List[str] = []   # private input params of  main function in .zok
+		self.param_docs: List[Tuple[str, str]] = []  # annotation for params before main function in .zok
 		self.public_params = []
 
 		self.statements: List[str] = []
@@ -51,7 +51,7 @@ class ProofHelper:
 		return randomness
 
 	def add_value(self, base_name: str):
-		value = f'{base_name}Value'
+		value = f'{base_name}Value'     # true value of variable with name, base_name
 		self.zok_params += [f'private field {value}']
 		return value
 

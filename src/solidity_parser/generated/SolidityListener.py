@@ -1,4 +1,4 @@
-# Generated from Solidity.g4 by ANTLR 4.7.2
+# Generated from Solidity.g4 by ANTLR 4.7.1
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .SolidityParser import SolidityParser
@@ -446,6 +446,15 @@ class SolidityListener(ParseTreeListener):
 
     # Exit a parse tree produced by SolidityParser#NotExpr.
     def exitNotExpr(self, ctx:SolidityParser.NotExprContext):
+        pass
+
+
+    # Enter a parse tree produced by SolidityParser#TeeExpr.
+    def enterTeeExpr(self, ctx:SolidityParser.TeeExprContext):
+        pass
+
+    # Exit a parse tree produced by SolidityParser#TeeExpr.
+    def exitTeeExpr(self, ctx:SolidityParser.TeeExprContext):
         pass
 
 

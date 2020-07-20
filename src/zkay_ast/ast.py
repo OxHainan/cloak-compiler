@@ -1,6 +1,7 @@
 import abc
 import textwrap
 from string import Formatter
+from enum import Enum
 from typing import List, Dict, Union, Optional
 
 from zkay_ast.analysis.partition_state import PartitionState
@@ -33,6 +34,16 @@ class AST:
 		s = v.visit(self)
 		return s
 
+	def get_related_function(self):
+		_ast_iter = self
+		while not isinstance(_ast_iter, SourceUnit):
+			if isinstance(_ast_iter, ConstructorOrFunctionDefinition):
+				return _ast_iter
+			else:
+				_ast_iter = _ast_iter.parent
+		return None
+
+
 	def __str__(self):
 		return self.code()
 
@@ -54,6 +65,10 @@ class Expression(AST):
 	def me_expr():
 		return MeExpr()
 
+	@staticmethod
+	def tee_expr():
+		return TeeExpr()
+
 	def __init__(self):
 		super().__init__()
 		# set later by type checker
@@ -67,6 +82,9 @@ class Expression(AST):
 	def is_me_expr(self):
 		return self == Expression.me_expr()
 
+	def is_tee_expr(self):
+		return self == Expression.tee_expr()
+
 	def privacy_annotation_label(self):
 		if isinstance(self, IdentifierExpr):
 			if isinstance(self.target, Mapping):
@@ -76,6 +94,8 @@ class Expression(AST):
 		elif self.is_all_expr():
 			return self
 		elif self.is_me_expr():
+			return self
+		elif self.is_tee_expr():
 			return self
 		else:
 			return None
@@ -310,6 +330,13 @@ class AllExpr(Expression):
 	def __hash__(self):
 		return hash('all')
 
+class TeeExpr(Expression):
+
+	def __eq__(self, other):
+		return isinstance(other, TeeExpr)
+
+	def __hash__(self):
+		return hash('tee')
 
 class ReclassifyExpr(Expression):
 
@@ -641,6 +668,11 @@ class ConstructorOrFunctionDefinition(AST):
 			assert isinstance(self, FunctionDefinition)
 			return self.idf.name
 
+class FunctionPrivacyType(Enum):
+	PUB = 0
+	ZKP = 1
+	MPC = 2
+	TEE = 3
 
 class FunctionDefinition(ConstructorOrFunctionDefinition):
 
@@ -657,6 +689,9 @@ class FunctionDefinition(ConstructorOrFunctionDefinition):
 		self.return_parameters = return_parameters
 		if return_parameters is None:
 			self.return_parameters = []
+		# assigned by type_checker
+		self.privacy_type = None
+		self.privacy_related_params = None
 
 	def children_internal(self):
 		return [self.idf] + self.parameters + self.return_parameters + [self.body]
@@ -673,11 +708,18 @@ class FunctionDefinition(ConstructorOrFunctionDefinition):
 		types = [p.annotated_type for p in self.parameters]
 		return TupleType(types)
 
+	def get_privacy_participants_by_id(self, id):
+		for idf in self.privacy_participants:
+			if isinstance(idf, Identifier) and id == idf.name:
+				return idf
+		return None
+
 
 class ConstructorDefinition(ConstructorOrFunctionDefinition):
 
 	def __init__(self, parameters: List[Parameter], modifiers: List[str], body: Block):
 		super().__init__(parameters, modifiers, body)
+		self.privacy_type = None
 
 
 class StateVariableDeclaration(AST):
@@ -767,6 +809,7 @@ class CodeVisitor(AstVisitor):
 
 	def __init__(self, display_final=True):
 		super().__init__('node-or-children')
+		# super().__init__('post')
 		self.display_final = display_final
 
 	def visit_list(self, l: List[Union[AST, str]], sep='\n'):
@@ -819,6 +862,9 @@ class CodeVisitor(AstVisitor):
 	def visitAllExpr(self, _: AllExpr):
 		return 'all'
 
+	def visitTeeExpr(self, _: TeeExpr):
+		return 'tee'
+
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
 		e = self.visit(ast.expr)
 		p = self.visit(ast.privacy)
@@ -845,7 +891,7 @@ class CodeVisitor(AstVisitor):
 
 	def visitRequireStatement(self, ast: RequireStatement):
 		c = self.visit(ast.condition)
-		return f'require({c});'
+		return f'\nrequire({c});'
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
 		lhs = self.visit(ast.lhs)
@@ -908,16 +954,16 @@ class CodeVisitor(AstVisitor):
 			f = None
 		else:
 			f = 'final' if 'final' in ast.keywords else None
-		t = self.visit(ast.annotated_type)
+		t = self.visit(ast.annotated_type)     # like 'uint@me'
 		if ast.idf is None:
 			i = None
 		else:
-			i = self.visit(ast.idf)
+			i = self.visit(ast.idf)    # like 'sol'
 
 		description = [f, t, ast.storage_location, i]
 		description = [d for d in description if d is not None]
 		s = ' '.join(description)
-		return s
+		return s   # like 'uint@me sol'
 
 	def visitFunctionDefinition(self, ast: FunctionDefinition):
 		b = self.visit(ast.body)
@@ -941,7 +987,7 @@ class CodeVisitor(AstVisitor):
 		if r != '':
 			r = f'returns ({r})'
 
-		f = f"{definition}({p}) {m} {r} {body}"
+		f = f"\n{definition}({p}) {m} {r} {body}"
 		return f
 
 	def visitConstructorDefinition(self, ast: ConstructorDefinition):

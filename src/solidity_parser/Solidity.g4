@@ -241,6 +241,7 @@ Uint
 expression
   : MeKeyword # MeExpr
   | AllKeyword # AllExpr
+  | TeeKeyword # TeeExpr
   | arr=expression '[' index=expression ']' # IndexExpr
   | func=expression '(' args=functionCallArguments ')' # FunctionCallExpr
   | '(' expr=expression ')' # ParenthesisExpr
@@ -282,6 +283,7 @@ numberLiteral
 
 MeKeyword : 'me' ;
 AllKeyword : 'all' ;
+TeeKeyword : 'tee' ;
 
 annotatedTypeName
   : type_name=typeName ('@' privacy_annotation=expression)? ;

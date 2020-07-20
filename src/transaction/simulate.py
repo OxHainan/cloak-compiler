@@ -1,7 +1,7 @@
 from typing import Dict, Union, List
 
 from zkay_ast.ast import FunctionCallExpr, BuiltinFunction, BooleanLiteralExpr, NumberLiteralExpr, \
-	ReclassifyExpr, AllExpr, MeExpr, ReturnStatement, RequireStatement, AssignmentStatement, Block, TypeName, \
+	ReclassifyExpr, AllExpr, MeExpr, TeeExpr, ReturnStatement, RequireStatement, AssignmentStatement, Block, TypeName, \
 	VariableDeclaration, FunctionDefinition, IdentifierExpr, VariableDeclarationStatement, ConstructorDefinition, \
 	Expression, AST, AnnotatedTypeName, StateVariableDeclaration, ContractDefinition, Mapping, \
 	ConstructorOrFunctionDefinition, Parameter, Identifier
@@ -127,6 +127,9 @@ class Simulator(AstVisitor):
 
 	def visitAllExpr(self, _: AllExpr):
 		return 'all'
+
+	def visitTeeExpr(self, _: TeeExpr):
+		return 'tee'
 
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
 		return self.visit(ast.expr)

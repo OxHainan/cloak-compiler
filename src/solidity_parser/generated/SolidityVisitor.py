@@ -1,4 +1,4 @@
-# Generated from Solidity.g4 by ANTLR 4.7.2
+# Generated from Solidity.g4 by ANTLR 4.7.1
 from antlr4 import *
 if __name__ is not None and "." in __name__:
     from .SolidityParser import SolidityParser
@@ -251,6 +251,11 @@ class SolidityVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SolidityParser#NotExpr.
     def visitNotExpr(self, ctx:SolidityParser.NotExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SolidityParser#TeeExpr.
+    def visitTeeExpr(self, ctx:SolidityParser.TeeExprContext):
         return self.visitChildren(ctx)
 
 

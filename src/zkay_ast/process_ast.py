@@ -3,6 +3,7 @@ from zkay_ast.build_ast import build_ast
 from zkay_ast.pointers.parent_setter import set_parents
 from zkay_ast.pointers.symbol_table import link_identifiers as link
 from zkay_ast.visitor.return_checker import check_return as r
+from zkay_ast.type.type_setter import set_privacy_type as p
 from type_check.type_checker import type_check as t
 
 
@@ -22,4 +23,5 @@ def process_ast(ast, parents=True, link_identifiers=True, check_return=True, ali
 	if alias_analysis:
 		a(ast)
 	if type_check:
+		p(ast)
 		t(ast)

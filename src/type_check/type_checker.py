@@ -1,9 +1,9 @@
 from typing import Union
 
-from zkay_ast.ast import IdentifierExpr, ReturnStatement, IfStatement, \
+from zkay_ast.ast import AST, ContractDefinition, Identifier, IdentifierExpr, ReturnStatement, IfStatement, \
 	AssignmentExpr, BooleanLiteralExpr, NumberLiteralExpr, AnnotatedTypeName, Expression, TypeName, \
-	FunctionDefinition, StateVariableDeclaration, Mapping, \
-	AssignmentStatement, MeExpr, ConstructorDefinition, ReclassifyExpr, FunctionCallExpr, \
+	FunctionDefinition, FunctionPrivacyType, StateVariableDeclaration, Mapping, \
+	AssignmentStatement, MeExpr, AllExpr, TeeExpr, ConstructorDefinition, ReclassifyExpr, FunctionCallExpr, \
 	BuiltinFunction, VariableDeclarationStatement, RequireStatement
 from zkay_ast.visitor.deep_copy import deep_copy
 from zkay_ast.visitor.visitor import AstVisitor
@@ -14,29 +14,27 @@ from type_check.type_exceptions import TypeMismatchException, TypeException
 
 def type_check(ast):
 	check_final(ast)
-	v = TypeCheckVisitor()
+	v = TypeCheckVisitor(log=True)
 	v.visit(ast)
 
 
 class TypeCheckVisitor(AstVisitor):
 
-	def get_rhs(self, rhs: Expression, expected_type: AnnotatedTypeName):
+	def __init__(self, traversal='post', log=False):
+	 super().__init__(traversal=traversal, log=log)
+
+	def check_right_hand_statement(self, rhs: Expression, expected_type: AnnotatedTypeName):
+		'''
+		check right hand statement
+		'''
 		instance = rhs.instanceof(expected_type)
 		if not instance:
 			raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
-		elif instance == 'make-private':
-			return self.make_private(rhs, expected_type.privacy_annotation)
-		else:
-			return rhs
 
 	def visitAssignmentExpr(self, ast: AssignmentExpr):
 		raise TypeException("Subexpressions with side-effects are currently not supported", ast)
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
-		expected_type = ast.lhs.annotated_type
-		ast.rhs = self.get_rhs(ast.rhs, expected_type)
-		ast.annotated_type = expected_type
-
 		# prevent modifying final
 		if isinstance(ast, AssignmentExpr):
 			f = ast.statement.function
@@ -54,65 +52,13 @@ class TypeCheckVisitor(AstVisitor):
 
 	def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
 		if ast.expr:
-			ast.expr = self.get_rhs(ast.expr, ast.variable_declaration.annotated_type)
+			self.check_right_hand_statement(ast.expr, ast.variable_declaration.annotated_type)
 
-	def handle_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction, private=False):
-		# set parameter type
-		parameter_types = func.input_types()
-		# set output type
-		if private:
-			p = Expression.me_expr()
-		else:
-			p = Expression.all_expr()
-		output_type = AnnotatedTypeName(ast.func.output_type(), p)
-		# can function be evaluated privately?
-		can_be_private = func.can_be_private()
+	def check_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction, private=False):
+		if func.is_index():
+			return self.check_index(ast)
 
-		# handle special cases
-		if func.is_eq():
-			# handle eq
-
-			t = ast.args[0].annotated_type.type_name
-			parameter_types = 2*[t]
-			can_be_private = t == TypeName.uint_type() or t == TypeName.bool_type()
-
-		elif func.is_index():
-			return self.handle_index(ast)
-		elif func.is_parenthesis():
-			ast.annotated_type = ast.args[0].annotated_type
-			return
-		elif func.is_ite():
-
-			t = ast.args[1].annotated_type.type_name
-			if t == TypeName.uint_type() or t == TypeName.bool_type():
-				can_be_private = True
-
-			parameter_types = [TypeName.bool_type(), t, t]
-			output_type = AnnotatedTypeName(t, p)
-
-		for i in range(len(parameter_types)):
-			t = parameter_types[i]
-			arg = ast.args[i]
-			expected = AnnotatedTypeName(t, p)
-			instance = arg.instanceof(expected)
-			if not instance:
-				if can_be_private and not private:
-					func.is_private = True
-					return self.handle_builtin_function_call(ast, func, True)
-				else:
-					raise TypeMismatchException(expected, arg.annotated_type, ast)
-			elif instance == 'make-private':
-				# replace argument
-				ast.args[i] = self.make_private(arg, Expression.me_expr())
-			else:
-				# no action necessary
-				pass
-
-		assert(output_type is not None)
-		assert(isinstance(output_type, AnnotatedTypeName))
-		ast.annotated_type = output_type
-
-	def handle_index(self, ast: FunctionCallExpr):
+	def check_index(self, ast: FunctionCallExpr):
 		arr = ast.args[0]
 		index = ast.args[1]
 
@@ -129,47 +75,26 @@ class TypeCheckVisitor(AstVisitor):
 				raise TypeMismatchException(expected, index.annotated_type, ast)
 
 			# record indexing information
-			if index.privacy_annotation_label():
-				map_t.type_name.instantiated_key = index
-			else:
+			if not index.privacy_annotation_label():
 				raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
 
-			# determine value type
-			ast.annotated_type = map_t.type_name.value_type
 		else:
 			raise TypeException('Indexing into non-mapping', ast)
 
-	@staticmethod
-	def make_private(expr: Expression, privacy: Expression):
-		assert(privacy.privacy_annotation_label() is not None)
-
-		r = ReclassifyExpr(expr, privacy.privacy_annotation_label())
-
-		# set type
-		r.annotated_type = AnnotatedTypeName(expr.annotated_type.type_name, privacy)
-
-		# set statement
-		r.statement = expr.statement
-
-		# set parents
-		r.parent = expr.parent
-		r.annotated_type.parent = r
-		expr.parent = r
-
-		return r
-
 	def visitFunctionCallExpr(self, ast: FunctionCallExpr):
 		if isinstance(ast.func, BuiltinFunction):
-			self.handle_builtin_function_call(ast, ast.func)
+			self.check_builtin_function_call(ast, ast.func)
 		else:
 			raise TypeException('Function calls currently not supported', ast)
 
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
-		if not ast.privacy.privacy_annotation_label():
-			raise TypeException('Second argument of "reveal" cannot be used as a privacy type', ast)
-		if ast.privacy.is_all_expr() and ast.expr.annotated_type.privacy_annotation.is_all_expr():
-			raise TypeException('Redundant "reveal": Expression is already "@all"', ast)
-		ast.annotated_type = AnnotatedTypeName(ast.expr.annotated_type.type_name, ast.privacy)
+		if isinstance(ast.privacy, Identifier):
+			pass
+		else:
+			if not ast.privacy.privacy_annotation_label():
+				raise TypeException('Second argument of "reveal" cannot be used as a privacy type', ast)
+			if ast.privacy.is_all_expr() and ast.expr.annotated_type.privacy_annotation.is_all_expr():
+				raise TypeException('Redundant "reveal": Expression is already "@all"', ast)
 
 	def visitIfStatement(self, ast: IfStatement):
 		b = ast.condition
@@ -188,44 +113,32 @@ class TypeCheckVisitor(AstVisitor):
 		instance = ast.expr.instanceof(expected_types)
 		if not instance:
 			raise TypeMismatchException(expected_types, ast.expr.annotated_type, ast)
-		elif instance == 'make-private':
-			ast.expr = self.make_private(ast.expr, expected_types.privacy_annotation)
-
-	def visitBooleanLiteralExpr(self, ast: BooleanLiteralExpr):
-		ast.annotated_type = AnnotatedTypeName.bool_all()
 
 	def visitNumberLiteralExpr(self, ast: NumberLiteralExpr):
 		if ast.value < 0:
 			raise TypeException("Negative number currently not supported:", ast)
-		ast.annotated_type = AnnotatedTypeName.uint_all()
-
-	def visitMeExpr(self, ast: MeExpr):
-		ast.annotated_type = AnnotatedTypeName.address_all()
-
-	def visitIdentifierExpr(self, ast: IdentifierExpr):
-		if isinstance(ast.target, Mapping):
-			# no action necessary, the identifier will be replaced later
-			pass
-		else:
-			ast.annotated_type = deep_copy(ast.target.annotated_type)
 
 	def visitFunctionDefinition(self, ast: FunctionDefinition):
 		for t in ast.get_parameter_types():
 			ann = t.privacy_annotation
-			if ann.is_all_expr() or ann.is_me_expr():
+			if ann.is_all_expr() or ann.is_me_expr() or ann.is_tee_expr():
 				continue
 			else:
 				raise TypeException(f'Only me/all accepted as privacy type of function parameters', ast)
 
-	def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
+		print(f'Function {ast.name} checked...')
+		
+	def visitConstructorDefinition(self, ast: ConstructorDefinition):
+		print(f'Function {ast.name} checked...')
 
+	def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
 		if ast.expr:
 			# prevent private operations in declaration
 			if contains_private(ast):
 				raise TypeException('Private assignments to state variables must be in the constructor', ast)
 
 			# check type
-			self.get_rhs(ast.expr, ast.annotated_type)
+			self.check_right_hand_statement(ast.expr, ast.annotated_type)
 
 		# prevent "me" annotation
 		p = ast.annotated_type.privacy_annotation
