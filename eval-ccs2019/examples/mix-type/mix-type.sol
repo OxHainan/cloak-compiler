@@ -2,8 +2,8 @@ pragma solidity ^0.5.0;
 
 // Description: Record and grade exam answers
 // Domain: Teaching
-contract Tee {
-    // A multiple-choice exam
+contract MixType {
+    // A exam with functions in different privacy type
 
     final address examinator;
     uint pass_points;
@@ -20,18 +20,18 @@ contract Tee {
     }
 
     // should be TEE
-    function exec_tee1(uint@me amount) public {
+    function exec_tee(uint@me amount) public {
         require(tee == me);
         balance = balance + amount;
     }
 
     // // should be MPC
-    // function exec_tee2(uint@me amount) public {
+    // function exec_mpc(uint@me amount) public {
     //     balance = balance + amount;
     // }
 
     // should be ZKP
-    function exec_tee3(uint@me amount2) public {
+    function exec_zkp(uint@me amount2) public {
         balance = reveal(amount2, tee);
     }
 

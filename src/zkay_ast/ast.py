@@ -43,6 +43,15 @@ class AST:
 				_ast_iter = _ast_iter.parent
 		return None
 
+	def get_related_contract(self):
+		_ast_iter = self
+		while not isinstance(_ast_iter, SourceUnit):
+			if isinstance(_ast_iter, ContractDefinition):
+				return _ast_iter
+			else:
+				_ast_iter = _ast_iter.parent
+		return None
+
 
 	def __str__(self):
 		return self.code()
@@ -748,6 +757,8 @@ class ContractDefinition(AST):
 		self.state_variable_declarations = state_variable_declarations
 		self.constructor_definitions = constructor_definitions
 		self.function_definitions = function_definitions
+		# will be setted in compilation
+		self.is_tee_related = False
 
 	def children_internal(self):
 		return [self.idf] + self.state_variable_declarations + self.constructor_definitions + self.function_definitions
@@ -809,7 +820,6 @@ class CodeVisitor(AstVisitor):
 
 	def __init__(self, display_final=True):
 		super().__init__('node-or-children')
-		# super().__init__('post')
 		self.display_final = display_final
 
 	def visit_list(self, l: List[Union[AST, str]], sep='\n'):
@@ -1020,7 +1030,7 @@ class CodeVisitor(AstVisitor):
 		functions = '\n'.join(functions)
 		body = '\n'.join([state_vars, constructors, functions])
 		body = indent(body)
-		return f"contract {i}{{\n{body}\n}}"
+		return f"contract {i} {{\n\n{body}\n}}"
 
 	def visitContractDefinition(self, ast: ContractDefinition):
 		state_vars = [self.visit(e) for e in ast.state_variable_declarations]

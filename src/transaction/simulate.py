@@ -139,8 +139,8 @@ class Simulator(AstVisitor):
 
 	def visitRequireStatement(self, ast: RequireStatement):
 		cond = self.visit(ast.condition)
-		if not cond:
-			raise SimulationException(f'"require" condition does not hold in state {self.state}', ast)
+		# if not cond:
+		# 	raise SimulationException(f'"require" condition does not hold in state {self.state}', ast)
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
 		m, i = self.location_getter.visit(ast.lhs)

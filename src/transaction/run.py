@@ -3,7 +3,7 @@ from random import randint
 
 import my_logging
 from zkay_ast.ast import ConstructorOrFunctionDefinition, TypeName, Expression, Parameter, SourceUnit, ConstructorDefinition
-from compiler.privacy.compiler import compile_code, SolidityVisitor
+from compiler.privacy.compiler import compile_code, CloakCompilerVisitor
 from compiler.privacy.proof_helper import FromZok, ParameterCheck, FromSolidity
 from compiler.zokrates.compiler import generate_proof
 from my_logging.log_context import log_context
@@ -24,7 +24,7 @@ class Runner:
 		self,
 		ast: SourceUnit,
 		contract_name: str,
-		compiler_information: SolidityVisitor,
+		compiler_information: CloakCompilerVisitor,
 		keys: Dict[str, int],
 		simulator: Simulator):
 
@@ -58,6 +58,9 @@ class Runner:
 		for p in f.parameters:
 			args += [self.get_value(p)]
 
+		if f.get_related_contract().is_tee_related and isinstance(f, ConstructorDefinition):
+			args += ['tee']
+
 		# prepare proof
 		my_logging.data('isPrivate', h.proof_parameter is not None)
 		if h.proof_parameter:
@@ -88,7 +91,7 @@ class Runner:
 		# get compiler information
 		h = self.compiler_information.function_helpers[f]
 
-		for proof_argument in h.zok.proof_helper.proof_arguments:
+		for proof_argument in h.function_visitor.proof_helper.proof_arguments:
 			ast = proof_argument.ast
 			# we always need the value of the proof argument
 			value = self.get_value(ast, want_int=True)
@@ -120,13 +123,13 @@ class Runner:
 					proof_arguments += [key]
 
 		# hash arguments and add them to zokrates arguments
-		hash_ = hash_ints_to_split_int(public_arguments)
-		proof_arguments += hash_
+		_hash = hash_ints_to_split_int(public_arguments)
+		proof_arguments += _hash
 
 		# generate proof
 		with time_measure('proofZokrates'):
-			p = generate_proof(h.compiled_to_directory, proof_arguments)
-		return p
+			proof = generate_proof(h.compiled_to_directory, proof_arguments)
+		return proof
 
 	def get_randomness(self, ast: Union[Expression, Parameter]):
 		if ast not in self.randomness:
@@ -178,10 +181,10 @@ def list_to_str(l: List, sep=', '):
 	return sep.join(l)
 
 
-def run_function(r: Runner, function_name: str, me: str, args: List):
+def run_function(runner: Runner, function_name: str, me: str, args: List):
 	with time_measure('translateTransaction'):
-		f = r.get_function(function_name)
-		real_args = r.run(f, me, args)
+		f = runner.get_function(function_name)
+		real_args = runner.run(f, me, args)
 		return real_args
 
 

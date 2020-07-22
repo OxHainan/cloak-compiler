@@ -44,7 +44,7 @@ class ScenarioGenerator:
         my_logging.prepare_logger(log_file)
 
         # prepare runner
-        self.r = get_runner(self.output_directory, self.code(), self.name(), keys)
+        self.runner = get_runner(self.output_directory, self.code(), self.name(), keys)
 
         # others
         self.transactions = []
@@ -93,7 +93,7 @@ class ScenarioGenerator:
         verifiers_fetch = []
         verifiers_deploy = []
         verifiers_wait = []
-        for c in self.r.compiler_information.used_contracts:
+        for c in self.runner.compiler_information.used_contracts:
             if 'PublicKeyInfrastructure' not in c.contract_name:
                 verifiers_fetch += [f'var {c.state_variable_name} = artifacts.require("{c.contract_name}");']
                 verifiers_deploy += [f'await deployer.link(pairing, {c.state_variable_name});\nawait deployer.link(bn256g2, {c.state_variable_name});\nawait helpers.deploy(web3, deployer, {c.state_variable_name}, [], accounts[0]);']
@@ -111,7 +111,7 @@ class ScenarioGenerator:
         with log_context('nCalls', self.n_calls):
             self.n_calls += 1
             with log_context('runFunction', function_name):
-                real_args = run_function(self.r, function_name, me, args)
+                real_args = run_function(self.runner, function_name, me, args)
 
                 args_str = list_to_str(args)
                 real_args_str = list_to_str(real_args)

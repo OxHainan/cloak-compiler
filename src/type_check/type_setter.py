@@ -12,7 +12,10 @@ from type_check.final_checker import check_final
 from type_check.type_exceptions import TypeMismatchException, TypeException
 
 
-def set_privacy_type(ast):
+def privacy_type_set(ast):
+	'''
+	Derive and set the privacy type of the function
+	'''
 	check_final(ast)
 	v = PrivacyTypeVisitor(log=True)
 	v.visit(ast)
