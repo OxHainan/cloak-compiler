@@ -3,7 +3,7 @@ import shutil
 from parameterized import parameterized_class
 
 from compiler.privacy.compiler import compile_code
-from compiler.solidity.compiler import compile_solidity
+from compiler.solidity.compiler import compile_solidity_to_bin
 from examples.examples import all_examples
 from examples.test_examples import TestExamples
 
@@ -50,4 +50,4 @@ class TestCompiler(TestExamples):
         #     code = f.read()
         #     print(code)
 
-        compile_solidity(d, code_file)
+        compile_solidity_to_bin(d, code_file)

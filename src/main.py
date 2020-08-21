@@ -5,7 +5,7 @@ import my_logging
 from zkay_ast.process_ast import get_processed_ast
 from zkay_ast.visitor.statement_counter import count_statements
 from compiler.privacy.compiler import compile_ast
-from compiler.solidity.compiler import compile_solidity
+from compiler.solidity.compiler import compile_solidity_to_bin
 from my_logging.log_context import log_context
 from utils.helpers import read_file, lines_of_code
 from utils.timer import time_measure
@@ -56,7 +56,7 @@ def compile(file_location, d, count, get_binaries=False):
 
 		if get_binaries:
 			# compilation of the solidity code is not required
-			compile_solidity(d, code_file)
+			compile_solidity_to_bin(d, code_file)
 
 	if count:
 		my_logging.data('nStatements', count_statements(ast))

@@ -58,6 +58,8 @@ conda deactivate
 conda activate zkay
 
 # install npm packages
+SASS_BINARY_SITE=https://npm.taobao.org/mirrors/node-sass/
+
 npm install -q -g \
 	solc@0.5.10 \
 	truffle@5.0.30 \

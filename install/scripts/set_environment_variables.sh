@@ -14,7 +14,6 @@
 
 BASEDIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 
-echo $BASEDIR
 # zkay
 export ZKAYDIR="$BASEDIR/../.."
 export ZKAYSRC="$ZKAYDIR/src"

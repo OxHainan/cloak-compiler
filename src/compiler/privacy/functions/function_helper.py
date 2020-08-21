@@ -26,7 +26,8 @@ class FunctionHelper:
 		self.ast = ast
 
 		assert isinstance(self.ast, ConstructorOrFunctionDefinition)
-		if self.ast.privacy_type == FunctionPrivacyType.ZKP or isinstance(self.ast, ConstructorDefinition):
+		if self.ast.privacy_type == FunctionPrivacyType.ZKP \
+            or self.ast.privacy_type == FunctionPrivacyType.PUB:
 			self.function_visitor = ZokratesVisitor(v, self)
 		elif self.ast.privacy_type == FunctionPrivacyType.TEE:
 			self.function_visitor = TeeVisitor(v, self)

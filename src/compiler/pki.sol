@@ -1,4 +1,4 @@
-pragma solidity ^0.5;
+pragma solidity ^0.4.0;
 
 contract PublicKeyInfrastructure{
     mapping(address => uint) pks;

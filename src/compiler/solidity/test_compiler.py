@@ -1,7 +1,7 @@
 import os
 from unittest import TestCase
 
-from compiler.solidity.compiler import compile_solidity_code, compile_solidity
+from compiler.solidity.compiler import compile_solidity_code, compile_solidity_to_bin
 from examples.examples import others_dir
 
 simple_storage = """
@@ -30,5 +30,5 @@ class TestCompileSolidity(TestCase):
         self.assertIsNotNone(compile_output)
 
     def test_compile_with_import(self):
-        compile_output = compile_solidity(others_dir, 'AddUser.sol', output_directory=output_dir)
+        compile_output = compile_solidity_to_bin(others_dir, 'AddUser.sol', output_directory=output_dir)
         self.assertIsNotNone(compile_output)

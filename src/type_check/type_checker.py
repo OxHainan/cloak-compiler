@@ -14,7 +14,7 @@ from type_check.type_exceptions import TypeMismatchException, TypeException
 
 def type_check(ast):
 	check_final(ast)
-	v = TypeCheckVisitor(log=True)
+	v = TypeCheckVisitor()
 	v.visit(ast)
 
 
@@ -88,6 +88,8 @@ class TypeCheckVisitor(AstVisitor):
 			raise TypeException('Function calls currently not supported', ast)
 
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
+		# if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+		# 	raise TypeException('"reveal" cannot be used in TEE-based private function', ast)
 		if isinstance(ast.privacy, Identifier):
 			pass
 		else:

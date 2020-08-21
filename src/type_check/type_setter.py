@@ -17,7 +17,7 @@ def privacy_type_set(ast):
 	Derive and set the privacy type of the function
 	'''
 	check_final(ast)
-	v = PrivacyTypeVisitor(log=True)
+	v = PrivacyTypeVisitor()
 	v.visit(ast)
 
 
@@ -28,7 +28,7 @@ class PrivacyTypeVisitor(AstVisitor):
 
 	def set_function_privacy_type(self, expect_type: AnnotatedTypeName, rhs: Expression, ast: AST, instance=None):
 		'''
-		update the privacy type of the function by new information
+		Set the privacy type of the function by new information. this is the main goal of the PrivacyTypeVisiter.
 		'''
 		actual_type = rhs.annotated_type
 		_new_ast = deep_copy(ast)
@@ -38,55 +38,72 @@ class PrivacyTypeVisitor(AstVisitor):
 			else:
 				ast = ast.parent
 
+		def is_prior_to(p_type_1: FunctionPrivacyType, p_type_2: FunctionPrivacyType):
+			# if the privacy type of p_type_2 is prior to p_type_2
+			if p_type_2 != p_type_1:
+				# TEE > MPC > ZKP > PUB
+				if p_type_2 == FunctionPrivacyType.TEE:
+					return False
+				elif p_type_2 == FunctionPrivacyType.PUB:
+					return True
+				elif p_type_2 == FunctionPrivacyType.MPC and p_type_1 == FunctionPrivacyType.TEE:
+					return True
+				elif p_type_2 == FunctionPrivacyType.ZKP and (p_type_1 == FunctionPrivacyType.MPC or p_type_1 == FunctionPrivacyType.TEE):
+					return True
+			else:
+				return False
+
 		def update_function_privacy_type(ast: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType):
-			if ast.privacy_type != privacy_type:
+			if is_prior_to(privacy_type, ast.privacy_type):
 				ast.privacy_type = privacy_type
 				if privacy_type == FunctionPrivacyType.PUB:
-					print(f'function {ast.idf.name} is marked as \'PUB\'')
+					print(f'function {ast.name} is setted to \'PUB\'')
 				elif privacy_type == FunctionPrivacyType.ZKP:
-					print(f'function {ast.idf.name} is marked as \'ZKP\' cause {str(actual_type)} is a instance of {str(expect_type)} in statement: {_new_ast}')
+					print(f'function {ast.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {_new_ast}')
 				elif privacy_type == FunctionPrivacyType.TEE:
-					print(f'function {ast.idf.name} is marked as \'TEE\' cause {str(actual_type)} is a instance of Tee in statement: {_new_ast}')
+					print(f'function {ast.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {_new_ast}')
 				elif privacy_type == FunctionPrivacyType.MPC:
-					print(f'function {ast.idf.name} is marked as \'MPC\' cause {str(actual_type)} is incompatibale with {str(expect_type)} in statement: {_new_ast}')
+					print(f'function {ast.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {_new_ast}')
 				else:
 					TypeException(f"Unknown function privacy type: {privacy_type}")
 
 		if isinstance(ast, ConstructorOrFunctionDefinition):
-			if not ast.privacy_type:
-				ast.privacy_type = FunctionPrivacyType.PUB
+			act_pri = actual_type.privacy_annotation
+			exp_pri = expect_type.privacy_annotation			
 
-			if not instance:
-				update_function_privacy_type(ast, FunctionPrivacyType.MPC)
-			elif instance == 'make-private':
-				if ast.privacy_type != FunctionPrivacyType.MPC:
-					if isinstance(actual_type.privacy_annotation, TeeExpr) and not isinstance(rhs, ReclassifyExpr):
-						update_function_privacy_type(ast, FunctionPrivacyType.TEE)
-					else:
-						update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
-			elif instance:
-				if ast.privacy_type != FunctionPrivacyType.MPC:
-					if (isinstance(actual_type.privacy_annotation, TeeExpr) or isinstance(expect_type.privacy_annotation, TeeExpr)) \
-						 and not isinstance(rhs, ReclassifyExpr):
-						update_function_privacy_type(ast, FunctionPrivacyType.TEE)
-					elif not isinstance(expect_type.privacy_annotation, AllExpr) and not isinstance(actual_type.privacy_annotation, AllExpr):
-						update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
-
+			if not instance: 
+				# act_pri != AllExpr and exp_pri != AllExpr
+				if isinstance(act_pri, TeeExpr) or isinstance(exp_pri, TeeExpr):
+					update_function_privacy_type(ast, FunctionPrivacyType.TEE)
+				else:
+					update_function_privacy_type(ast, FunctionPrivacyType.MPC)
+			elif instance == 'make-private':  
+				# act_pri == AllExpr and exp_pri != AllExpr
+				update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
+			elif instance: 
+				# act_pri == exp_pri
+				if isinstance(act_pri, TeeExpr): 
+					# both private to tee.
+					update_function_privacy_type(ast, FunctionPrivacyType.TEE)
+				elif not isinstance(act_pri, AllExpr): 
+					# both private to id, me
+					update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
+				else: 
+					# both AllExpr
+					pass
+			else:
+				TypeException(f"Invalid instance. instance should be True, False or 'make-private, while it is actually {instance}'")
 
 	def get_right_hand_statement(self, rhs: Expression, expected_type: AnnotatedTypeName):
 		'''
 		get right hand statement
 		'''
 		instance = rhs.instanceof(expected_type)
-		if not instance:
-			# check it refers to the privacy type of function in type_checker
-			pass
+		self.set_function_privacy_type(expected_type, rhs, rhs.parent, instance)
+		if instance == 'make-private':
+			return self.make_private(rhs, expected_type.privacy_annotation)
 		else:
-			self.set_function_privacy_type(expected_type, rhs, rhs.parent, instance)
-			if instance == 'make-private':
-				return self.make_private(rhs, expected_type.privacy_annotation)
-			else:
-				return rhs
+			return rhs
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
 		expected_type = ast.lhs.annotated_type

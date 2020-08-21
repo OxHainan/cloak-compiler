@@ -4,7 +4,7 @@ from examples.scenarios import ScenarioGenerator
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 
-g = ScenarioGenerator(script_dir, 'mix-type.sol', {'examinator': 10, 'student': 20, 'tee': 10})
+g = ScenarioGenerator(script_dir, 'scores.sol', {'examinator': 10, 'student': 20, 'tee': 10})
 
 # run functions
 g.run_function('constructor', 'examinator', [100])

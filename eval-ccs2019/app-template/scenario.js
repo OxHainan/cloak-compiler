@@ -1,4 +1,5 @@
 var helpers = require('./helpers.js');
+var tee_helpers = require('./tee_helpers.js')
 
 module.exports = async function(callback) {
     // gives 10 example accounts
@@ -8,6 +9,7 @@ module.exports = async function(callback) {
     // EXAMPLE:
     // helpers.contract_name = "Reviews"
 $CONTRACT_NAME
+$TEE_CONTRACT_NAME
 
     // remember accounts
     // EXAMPLE: r1 = accounts[0];
@@ -17,6 +19,14 @@ $ACCOUNTS
     var pki = artifacts.require("PublicKeyInfrastructure");
     let genPublicKeyInfrastructure = await pki.deployed();
 
+    let genPublicKeyInfrastructure_tee = await tee_helpers.deploy("pki", [], accounts[0]);
+    // TODO: modified following to fit verify_lib.sol
+    // let bn256g2_tee = await tee_helpers.deploy("BN256G2", [], accounts[0]);
+    // let pairing_tee = await tee_helpers.deploy("Pairing", [], accounts[0]);
+    
+    $TEE_VERIFIERS_DEPLOY
+    // EXAMPLE: let Verify_exec_zkp_var_tee = await tee_helpers.deploy("Verify_exec_zkp"+"_verifier", [], accounts[0]);
+
     // fetch contract
     // EXAMPLE:
     // var contract = artifacts.require("Reviews");
@@ -25,6 +35,8 @@ $ACCOUNTS
     // announce public keys
     // EXAMPLE: await helpers.tx(genPublicKeyInfrastructure, "announcePk", [10], pc);
 $PK_ANNOUNCE
+
+$TEE_PK_ANNOUNCE
 
     // load the deployed verifiers
     // EXAMPLE: var verify_registerPaper = artifacts.require("Verify_registerPaper");
@@ -36,6 +48,10 @@ $VERIFIERS_WAIT
     // EXAMPLE:
     // let contract_instance = await helpers.deploy_x(web3, contract, [r1, r2, r3, pki_instance.address, verify_registerPaper_instance.address, verify_recordReview_instance.address, verify_decideAcceptance_instance.address], pc);
 $CONTRACT_DEPLOY
+
+    // EXAMPLE: for TEE
+    // let contract_instance_tee = await tee_helpers.deploy_x("mix-type", [r1, r2, r3, pki_instance.address, verify_registerPaper_instance.address, verify_recordReview_instance.address, verify_decideAcceptance_instance.address], pc);
+$TEE_CONTRACT_DEPLOY
 
     // run transactions
     // EXAMPLE:

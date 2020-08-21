@@ -662,6 +662,7 @@ class ConstructorOrFunctionDefinition(AST):
 		self.parameters = parameters
 		self.modifiers = modifiers
 		self.body = body
+		self.privacy_type = FunctionPrivacyType.PUB
 
 		# specify parent type
 		self.parent: ContractDefinition = None
@@ -699,7 +700,6 @@ class FunctionDefinition(ConstructorOrFunctionDefinition):
 		if return_parameters is None:
 			self.return_parameters = []
 		# assigned by type_checker
-		self.privacy_type = None
 		self.privacy_related_params = None
 
 	def children_internal(self):
@@ -728,7 +728,6 @@ class ConstructorDefinition(ConstructorOrFunctionDefinition):
 
 	def __init__(self, parameters: List[Parameter], modifiers: List[str], body: Block):
 		super().__init__(parameters, modifiers, body)
-		self.privacy_type = None
 
 
 class StateVariableDeclaration(AST):
@@ -833,6 +832,7 @@ class CodeVisitor(AstVisitor):
 				return self.visit(e)
 
 		s = [handle(e) for e in l]
+		s = filter(None, s)
 		s = sep.join(s)
 		return s
 
@@ -901,7 +901,7 @@ class CodeVisitor(AstVisitor):
 
 	def visitRequireStatement(self, ast: RequireStatement):
 		c = self.visit(ast.condition)
-		return f'\nrequire({c});'
+		return f'require({c});'
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
 		lhs = self.visit(ast.lhs)

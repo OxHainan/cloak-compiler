@@ -8,6 +8,7 @@ from shutil import copyfile
 from my_logging.log_context import log_context, add_log_context, remove_log_context
 from utils.helpers import read_file, save_to_file, prepend_to_lines
 from transaction.run import get_runner, run_function, list_to_str
+from zkay_ast.ast import FunctionPrivacyType
 
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -68,6 +69,10 @@ class ScenarioGenerator:
         contract_name = f'helpers.contract_name = "{self.name()}";'
         self.scenario_js = self.scenario_js.replace('$CONTRACT_NAME', contract_name)
         self.deploy_js = self.deploy_js.replace('$CONTRACT_NAME', contract_name)
+        # for TEE
+        tee_contract_name = "tee_" + contract_name
+        self.scenario_js = self.scenario_js.replace('$TEE_CONTRACT_NAME', tee_contract_name)
+
 
     def set_contract_fetch(self):
         contract_fetch = f'var contract = artifacts.require("{self.name()}");'
@@ -80,6 +85,14 @@ class ScenarioGenerator:
         lines = '\n'.join(lines)
         lines = prepend_to_lines(lines, '\t')
         self.scenario_js = self.scenario_js.replace('$PK_ANNOUNCE', lines)
+
+        # for TEE
+        lines = []
+        for k, v in keys.items():
+            lines += [f'await tee_helpers.tx(genPublicKeyInfrastructure_tee, "announcePk", [{v}], {k});']
+        lines = '\n'.join(lines)
+        lines = prepend_to_lines(lines, '\t')
+        self.scenario_js = self.scenario_js.replace('$TEE_PK_ANNOUNCE', lines)
 
     def set_accounts(self, keys: Dict[str, int]):
         lines = []
@@ -107,23 +120,46 @@ class ScenarioGenerator:
         self.scenario_js = self.scenario_js.replace('$VERIFIERS_FETCH', verifiers_fetch)
         self.scenario_js = self.scenario_js.replace('$VERIFIERS_WAIT', verifiers_wait)
 
+        # for TEE
+        verifiers_deploy = []
+        for c in self.runner.compiler_information.used_contracts:
+            if 'PublicKeyInfrastructure' not in c.contract_name:
+                verifiers_deploy += [f'{c.state_variable_name}_tee = await tee_helpers.deploy({c.state_variable_name}_verifier, [], accounts[0]);']
+        verifiers_deploy = prepend_to_lines('\n'.join(verifiers_deploy), '\t')
+        self.scenario_js = self.deploy_js.replace('$TEE_VERIFIERS_DEPLOY', verifiers_deploy)
+
     def run_function(self, function_name: str, me: str, args: List):
         with log_context('nCalls', self.n_calls):
             self.n_calls += 1
             with log_context('runFunction', function_name):
                 real_args = run_function(self.runner, function_name, me, args)
+                real_args_str = list_to_str(real_args)
+
+                f = self.runner.get_function(function_name)
 
                 args_str = list_to_str(args)
-                real_args_str = list_to_str(real_args)
 
                 if function_name == 'constructor':
                     t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nlet contract_instance = await helpers.deploy_x(web3, contract, args, {me});'
                     t = prepend_to_lines(t, '\t')
                     self.scenario_js = self.scenario_js.replace('$CONTRACT_DEPLOY', t)
-                else:
-                    t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nawait helpers.tx(contract_instance, "{function_name}", args, {me});'
+                    # for TEE
+                    t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nlet contract_instance_tee = await tee_helpers.deploy_x({self.filename.replace('.sol', '')}, args, {me});'
                     t = prepend_to_lines(t, '\t')
-                    self.transactions += [t]
+                    self.scenario_js = self.scenario_js.replace('$TEE_CONTRACT_DEPLOY', t)
+                else:
+                    if f.privacy_type == FunctionPrivacyType.TEE:
+                        real_args = [ str(x) for x in real_args ]
+                        real_args_str = list_to_str(real_args)
+                        t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nawait tee_helpers.tx(contract_instance_tee, "{function_name}", args, {me});'
+                        t = prepend_to_lines(t, '\t')
+                        self.transactions += [t]
+
+                    else:
+                        t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nawait helpers.tx(contract_instance, "{function_name}", args, {me});'
+                        t = prepend_to_lines(t, '\t')
+                        self.transactions += [t]
+                    
 
     def finalize(self):
         transactions = '\n\n'.join(self.transactions)

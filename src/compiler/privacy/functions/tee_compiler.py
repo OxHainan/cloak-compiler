@@ -77,7 +77,3 @@ class TeeVisitor(FunctionVisitor):
 
 		v = None
 		return self.ensure_bool_or_int(v, False)
-
-
-
-

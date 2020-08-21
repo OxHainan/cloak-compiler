@@ -20,7 +20,6 @@ from utils.helpers import save_to_file, prepend_to_lines, lines_of_code
 def compile_ast(ast: AST, output_directory: str, output_file: Optional[str], simulate=False):
 	print(f"Begin compiling contract: {ast.contracts[0].idf.name} ......")
 	"""
-
 	Parameters:
 	simulate (bool): Only simulate compilation to determine
 	                 how to translate transactions
@@ -103,9 +102,14 @@ class CloakCompilerVisitor(CodeVisitor):
 	def pub_function_definition(self, ast: ConstructorOrFunctionDefinition):
 		with log_context('compileFunction', ast.name):
 
+			self.function_helper = FunctionHelper(self, ast)
+			self.function_helpers[ast] = self.function_helper
+			
 			# body
 			body = ''
 			body += self.visit_list(ast.body.statements)
+			
+			body = self.function_helper.add_return_variable(body)
 
 			# wrap up
 			body = indent(body)
@@ -219,61 +223,62 @@ class CloakCompilerVisitor(CodeVisitor):
 			_contract = ast.get_related_contract()
 			assert(isinstance(_contract, ContractDefinition))
 			if not isinstance(ast, ConstructorDefinition) and not _contract.is_tee_related:
-				# just add tee once
+				# just add state variable "address _tee;" to the contract
 				_contract.is_tee_related = True
 				t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
-				decl = StateVariableDeclaration(t, [], Identifier('tee'), None)
+				decl = StateVariableDeclaration(t, [], Identifier('_tee'), None)
 				self.new_state_variables += [decl]
 
-			# previsit tee related parameters and delete them
-			body = self.visit_list(ast.body.statements)
 
-			# check private parameters
+			# visit statements and delete tee related parameters and computation, just leave assignment
 			self.pre_simple_statement = []
-			for p in ast.parameters:
-				self.function_helper.function_visitor.check_proper_encryption(p)   # out(e, alpha) & in(e, alpha)
-			body = '\n'.join(self.pre_simple_statement) + body # add 'genHelper[0] = sol;'
+			body = self.visit_list(ast.body.statements)		
+			# for p in ast.parameters:
+			# 	self.function_helper.function_visitor.check_proper_encryption(p)   # out(e, alpha) & in(e, alpha)
 
-			# body
-			zok_code = self.function_helper.function_visitor.code()   # generate .zok code (constraints writed in Zokrates DSL)
+			body = "require(msg.sender == _tee);\n" + '\n'.join(self.pre_simple_statement) + body
 
-			# handle proofs
-			my_logging.data('isPrivate', zok_code is not None)
-			if zok_code is not None:
-				if isinstance(ast, ConstructorDefinition):
-					verifier_contract_name = 'Verify_constructor'
-				elif isinstance(ast, FunctionDefinition):
-					verifier_contract_name = f'Verify_{ast.idf.name}'  # like 'Verify_set_solution'
-				else:
-					raise ValueError(ast)
 
-				if self.simulate:
-					output_filename = None
-					self.function_helper.compiled_to_directory = get_work_dir(self.output_directory, verifier_contract_name)
-				else:
-					my_logging.data('zokratesLoc', lines_of_code(zok_code))
-					output_filename, d = compile_zokrates(zok_code, self.output_directory, name=verifier_contract_name)
-					self.function_helper.compiled_to_directory = d  # like './eval-ccs2019/examples/exam/compiled/Verify_set_solution_zok'
+			# zok_code = self.function_helper.function_visitor.code()   # generate .zok code (constraints writed in Zokrates DSL)
 
-				verifier_contract_variable = verifier_contract_name + '_var'   # like 'Verify_set_solution_var'
-				c = UsedContract(output_filename, verifier_contract_name, verifier_contract_variable)
-				self.used_contracts += [c]
+			# # handle proofs
+			# my_logging.data('isPrivate', zok_code is not None)
+			# if zok_code is not None:
+			# 	if isinstance(ast, ConstructorDefinition):
+			# 		verifier_contract_name = 'Verify_constructor'
+			# 	elif isinstance(ast, FunctionDefinition):
+			# 		verifier_contract_name = f'Verify_{ast.idf.name}'  # like 'Verify_set_solution'
+			# 	else:
+			# 		raise ValueError(ast)
 
-				# proof
-				proof_type = AnnotatedTypeName.array_all(TypeName.uint_type(), n_proof_arguments)
-				proof_name = verifier_contract_name + 'proof'  # like 'Verify_set_solutionproof'
-				proof_param = Parameter([], proof_type, Identifier(proof_name), 'memory')
+			# 	if self.simulate:
+			# 		output_filename = None
+			# 		self.function_helper.compiled_to_directory = get_work_dir(self.output_directory, verifier_contract_name)
+			# 	else:
+			# 		my_logging.data('zokratesLoc', lines_of_code(zok_code))
+			# 		output_filename, d = compile_zokrates(zok_code, self.output_directory, name=verifier_contract_name)
+			# 		self.function_helper.compiled_to_directory = d  # like './eval-ccs2019/examples/exam/compiled/Verify_set_solution_zok'
 
-				self.function_helper.proof_parameter = proof_param
+			# 	verifier_contract_variable = verifier_contract_name + '_var'   # like 'Verify_set_solution_var'
+			# 	c = UsedContract(output_filename, verifier_contract_name, verifier_contract_variable)
+			# 	self.used_contracts += [c]
 
-				zok_arguments = self.function_helper.get_zok_arguments()  # like ['genHelper[0]', 'genPublicKeyInfrastr...sg.sender)']
-				body += f'\nuint256[] memory {tag}inputs = new uint256[]({len(zok_arguments)});\n'
-				inputs = [f'{tag}inputs[{i}]={name};' for i, name in enumerate(zok_arguments)]  # like ['geninputs[0]=genHelper[0];', 'geninputs[1]=genPubl...g.sender);']
-				body += '\n'.join(inputs)
-				body += f'\nuint128[2] memory {tag}Hash = get_hash({tag}inputs);'
-				body += f'\n{verifier_contract_variable}.check_verify({proof_name}, [{tag}Hash[0], {tag}Hash[1], uint(1)]);'
+			# 	# proof
+			# 	proof_type = AnnotatedTypeName.array_all(TypeName.uint_type(), n_proof_arguments)
+			# 	proof_name = verifier_contract_name + 'proof'  # like 'Verify_set_solutionproof'
+			# 	proof_param = Parameter([], proof_type, Identifier(proof_name), 'memory')
 
-			body = self.function_helper.declare_temporary_variables(body)  # like 'uint[1] memory genHelper; {body}'
+			# 	self.function_helper.proof_parameter = proof_param
+
+			# 	zok_arguments = self.function_helper.get_zok_arguments()  # like ['genHelper[0]', 'genPublicKeyInfrastr...sg.sender)']
+			# 	body += f'\nuint256[] memory {tag}inputs = new uint256[]({len(zok_arguments)});\n'
+			# 	inputs = [f'{tag}inputs[{i}]={name};' for i, name in enumerate(zok_arguments)]  # like ['geninputs[0]=genHelper[0];', 'geninputs[1]=genPubl...g.sender);']
+			# 	body += '\n'.join(inputs)
+			# 	body += f'\nuint128[2] memory {tag}Hash = get_hash({tag}inputs);'
+			# 	body += f'\n{verifier_contract_variable}.check_verify({proof_name}, [{tag}Hash[0], {tag}Hash[1], uint(1)]);'
+
+			# body = self.function_helper.declare_temporary_variables(body)  # like 'uint[1] memory genHelper; {body}'
+
 			body = self.function_helper.add_return_variable(body)
 
 			# handle constructors: add addresses of required contracts
@@ -282,8 +287,8 @@ class CloakCompilerVisitor(CodeVisitor):
 					# tee_addr_param = Parameter([], AnnotatedTypeName(TypeName.address_type(), Expression.all_expr()), Identifier(f'tee_addr'))
 					# ast.parameters.append(tee_addr_param)
 					t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
-					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} tee_addr']
-					body = f'tee = tee_addr;\n' + body
+					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} teeAddr']
+					body = f'_tee = teeAddr;\n' + body
 
 				for c in self.used_contracts:
 					verifier_contract_parameter = c.state_variable_name + '_'
@@ -329,12 +334,13 @@ class CloakCompilerVisitor(CodeVisitor):
 		return f"mapping({k} => {v})"
 
 	def visitMeExpr(self, ast: MeExpr):
-		# if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
-		# 	return 'tee'
 		return 'msg.sender'
 
+	def visitTeeExpr(self, _: TeeExpr):
+		return '_tee'
+
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
-		# take result from zokrates
+		# take result from zokrates			
 		r = self.function_helper.function_visitor.from_zok(ast)
 		if ast.annotated_type.type_name == TypeName.bool_type() and ast.annotated_type.privacy_annotation.is_all_expr():
 			return f'{r} == 1'
@@ -351,24 +357,37 @@ class CloakCompilerVisitor(CodeVisitor):
 		return self.handleSimpleStatement(ast, super().visitExpressionStatement)
 
 	def visitRequireStatement(self, ast: RequireStatement):
+		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+			# Delete require statement in on-chain contract. The true require statement will 
+			# be held in TEE contract
+			return None
 		return self.handleSimpleStatement(ast, super().visitRequireStatement)
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
 		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+			target = None
 			if isinstance(ast.lhs, IdentifierExpr):
 				target = ast.lhs.target
-				if isinstance(target, StateVariableDeclaration):
-					lhs = self.visit(ast.lhs)
-					# TODO: take result from zokrates to replace the rhs with a precomputed param signed by TEE
-					r = self.function_helper.function_visitor.from_tee(ast.rhs)
-					ast.rhs = r
-					if ast.annotated_type.type_name == TypeName.bool_type() and ast.annotated_type.privacy_annotation.is_all_expr():
-						return f'{lhs} = {r} == 1;'
-					else:
-						return f'{lhs} = {r};'
+			elif isinstance(ast.lhs, FunctionCallExpr):
+				target = ast.lhs.args[0].target
+			
+			if isinstance(target, StateVariableDeclaration):
+				lhs = self.visit(ast.lhs)
+				# TODO: take result from zokrates to replace the rhs with a precomputed param signed by TEE
+				r = self.function_helper.function_visitor.from_tee(ast.rhs)
+				ast.rhs = r
+				if ast.annotated_type.type_name == TypeName.bool_type() and ast.annotated_type.privacy_annotation.is_all_expr():
+					return f'{lhs} = {r} == 1;'
+				else:
+					return f'{lhs} = {r};'
+			else:
+				return None
+
 		return self.handleSimpleStatement(ast, super().visitAssignmentStatement)
 
 	def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
+		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+			return None
 		return self.handleSimpleStatement(ast, super().visitVariableDeclarationStatement)
 
 	def visitReturnStatement(self, ast: ReturnStatement):
@@ -414,7 +433,4 @@ class CloakCompilerVisitor(CodeVisitor):
 				constructors,
 				functions)
 			return f'\n{imports}\n\n{contract}'
-
-
-
 

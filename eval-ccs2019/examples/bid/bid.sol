@@ -2,7 +2,7 @@ pragma solidity ^0.4.0;
 
 // Description: Place bets and claim winnings
 // Domain: Gambling
-contract Lottery {
+contract Bid {
     final address master;
     uint@master secret;
     mapping(address!x => uint@x) bets;

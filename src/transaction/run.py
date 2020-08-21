@@ -4,7 +4,7 @@ from random import randint
 import my_logging
 from zkay_ast.ast import ConstructorOrFunctionDefinition, TypeName, Expression, Parameter, SourceUnit, ConstructorDefinition
 from compiler.privacy.compiler import compile_code, CloakCompilerVisitor
-from compiler.privacy.proof_helper import FromZok, ParameterCheck, FromSolidity
+from compiler.zokrates.proof_helper import FromZok, ParameterCheck, FromSolidity
 from compiler.zokrates.compiler import generate_proof
 from my_logging.log_context import log_context
 from transaction.encoding_helper import hash_ints_to_split_int

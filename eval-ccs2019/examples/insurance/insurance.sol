@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.4.0;
 
 // Description: Insure secret items at secret amounts
 // Domain: Insurance

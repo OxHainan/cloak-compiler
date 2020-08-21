@@ -3,7 +3,7 @@ import re
 import json
 from unittest import TestCase
 
-from compiler.solidity.compiler import compile_solidity
+from compiler.solidity.compiler import compile_solidity_to_bin
 from compiler.zokrates.compiler import compile_zokrates, generate_proof
 from utils.helpers import read_file
 
@@ -44,7 +44,7 @@ class TestCompileZokrates(TestCase):
 
 	def test_compile_2(self):
 		output_filename, _ = compile_zokrates(example, output_dir, 'KLM')
-		compile_solidity(output_dir, output_filename, output_dir)
+		compile_solidity_to_bin(output_dir, output_filename, output_dir)
 
 	def test_generate_proof(self):
 		output_filename, zok_dir = compile_zokrates(example, output_dir, 'NOP')
