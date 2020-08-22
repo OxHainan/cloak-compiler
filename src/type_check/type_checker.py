@@ -88,9 +88,9 @@ class TypeCheckVisitor(AstVisitor):
 			raise TypeException('Function calls currently not supported', ast)
 
 	def visitReclassifyExpr(self, ast: ReclassifyExpr):
-		# if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
-		# 	raise TypeException('"reveal" cannot be used in TEE-based private function', ast)
-		if isinstance(ast.privacy, Identifier):
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+			raise TypeException(f'reveal is not need in TEE-based private function', ast)
+		elif isinstance(ast.privacy, Identifier):
 			pass
 		else:
 			if not ast.privacy.privacy_annotation_label():
@@ -99,10 +99,13 @@ class TypeCheckVisitor(AstVisitor):
 				raise TypeException('Redundant "reveal": Expression is already "@all"', ast)
 
 	def visitIfStatement(self, ast: IfStatement):
-		b = ast.condition
-		expected = AnnotatedTypeName(TypeName.bool_type(), Expression.all_expr())
-		if not b.instanceof(expected):
-			raise TypeMismatchException(expected, b.annotated_type, b)
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+			pass
+		else:
+			b = ast.condition
+			expected = AnnotatedTypeName(TypeName.bool_type(), Expression.all_expr())
+			if not b.instanceof(expected):
+				raise TypeMismatchException(expected, b.annotated_type, b)
 
 	def visitReturnStatement(self, ast: ReturnStatement):
 		f = ast.parent
@@ -153,7 +156,9 @@ class TypeCheckVisitor(AstVisitor):
 				raise TypeException(f'Only addresses can be annotated', ast)
 
 	def visitRequireStatement(self, ast: RequireStatement):
-		if not ast.condition.annotated_type.privacy_annotation.is_all_expr():
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+			pass
+		elif not ast.condition.annotated_type.privacy_annotation.is_all_expr():
 			raise TypeException(f'require needs public argument', ast)
 
 	def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):

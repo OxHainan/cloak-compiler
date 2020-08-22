@@ -15,14 +15,20 @@ contract SupplyChain {
         business = me;
         income = 0;
     }
+
     // ZKP
-    function recordReceivable(address owner, 
-        uint@me value) {
+    function recordReceivable(
+		address owner, 
+        uint@me value
+	) {
         receivables[owner][me] = reveal(value, owner);
     }
+
     // TEE
-    function finishReceivable(address owner, 
-        uint@tee value) public returns (bool) {
+    function finishReceivable(
+		address owner, 
+        uint@tee value
+	) public returns (bool) {
 		bool ret = false;
         if (balances[me] >= value 
 			&& receivables[owner][me] >= value) 
@@ -34,18 +40,29 @@ contract SupplyChain {
         }
         return ret;
     }
+
 	// ZKP
-	function give_receipt(uint id, uint@me amount) public {
+	function give_receipt(
+		uint id, 
+		uint@me amount
+	) public {
         require(business == me);
         out_receipts[id] = amount;
         income = income + amount;
     }
+
 	// ZKP
-    function receive_receipt(uint id, uint@me amount) public {
+    function receive_receipt(
+		uint id, 
+		uint@me amount
+	) public {
         in_receipts[id] = reveal(amount, business);
     }
+
 	// ZKP
-    function check(uint id) public {
+    function check(
+		uint id
+	) public {
         require(business == me);
         require(reveal(in_receipts[id] == out_receipts[id], all));
     }

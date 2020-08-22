@@ -36,7 +36,7 @@ class AST:
 
 	def get_related_function(self):
 		_ast_iter = self
-		while not isinstance(_ast_iter, SourceUnit):
+		while not isinstance(_ast_iter, ContractDefinition):
 			if isinstance(_ast_iter, ConstructorOrFunctionDefinition):
 				return _ast_iter
 			else:

@@ -77,17 +77,9 @@ class CloakCompilerVisitor(CodeVisitor):
 	def visitFunctionCallExpr(self, ast: FunctionCallExpr):
 		if isinstance(ast.func, BuiltinFunction):
 			if ast.func.is_private:
-				if self.get_function_privacy_type(ast) == FunctionPrivacyType.ZKP:
+				if ast.get_related_function().privacy_type == FunctionPrivacyType.ZKP or ast.get_related_function().privacy_type == FunctionPrivacyType.PUB:
 					return self.function_helper.function_visitor.from_zok(ast)
 		return super().visitFunctionCallExpr(ast)
-
-	def get_function_privacy_type(self, ast: AST):
-		while not isinstance(ast, ContractDefinition):
-			if isinstance(ast, FunctionDefinition):
-				return ast.privacy_type
-			else:
-				ast = ast.parent
-		return None
 
 	def handle_function_definition(self, ast: ConstructorOrFunctionDefinition):
 		if ast.privacy_type == FunctionPrivacyType.ZKP:
@@ -100,6 +92,7 @@ class CloakCompilerVisitor(CodeVisitor):
 		return self.pub_function_definition(ast)
 
 	def pub_function_definition(self, ast: ConstructorOrFunctionDefinition):
+		# return self.zkp_function_definition(ast)
 		with log_context('compileFunction', ast.name):
 
 			self.function_helper = FunctionHelper(self, ast)
@@ -357,19 +350,22 @@ class CloakCompilerVisitor(CodeVisitor):
 		return self.handleSimpleStatement(ast, super().visitExpressionStatement)
 
 	def visitRequireStatement(self, ast: RequireStatement):
-		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
 			# Delete require statement in on-chain contract. The true require statement will 
 			# be held in TEE contract
 			return None
 		return self.handleSimpleStatement(ast, super().visitRequireStatement)
 
 	def visitAssignmentStatement(self, ast: AssignmentStatement):
-		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
 			target = None
 			if isinstance(ast.lhs, IdentifierExpr):
 				target = ast.lhs.target
 			elif isinstance(ast.lhs, FunctionCallExpr):
-				target = ast.lhs.args[0].target
+				map_id = ast.lhs
+				while isinstance(map_id, FunctionCallExpr):
+					map_id = map_id.args[0]
+				target = map_id.target
 			
 			if isinstance(target, StateVariableDeclaration):
 				lhs = self.visit(ast.lhs)
@@ -386,7 +382,7 @@ class CloakCompilerVisitor(CodeVisitor):
 		return self.handleSimpleStatement(ast, super().visitAssignmentStatement)
 
 	def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
-		if self.get_function_privacy_type(ast) == FunctionPrivacyType.TEE:
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
 			return None
 		return self.handleSimpleStatement(ast, super().visitVariableDeclarationStatement)
 
@@ -394,13 +390,17 @@ class CloakCompilerVisitor(CodeVisitor):
 		if ast.expr is None:
 			return 'return;'
 		else:
-			self.function_helper.return_variable = f'{tag}Return'
+			if ast.get_related_function().privacy_type == FunctionPrivacyType.ZKP:
+				self.function_helper.return_variable = f'{tag}Return'
 
-			d = VariableDeclaration([], ast.expr.annotated_type, Identifier(self.function_helper.return_variable))
-			d = VariableDeclarationStatement(d, ast.expr)
+				d = VariableDeclaration([], ast.expr.annotated_type, Identifier(self.function_helper.return_variable))
+				d = VariableDeclarationStatement(d, ast.expr)
 
-			# "return" will be emitted when handling function declaration
-			return self.visit(d)
+				# "return" will be emitted when handling function declaration
+				return self.visit(d)
+			else:
+				_val = self.visit(ast.expr)
+				return f'return {_val};'
 
 	def visitContractDefinition(self, ast: ContractDefinition):
 		with log_context('contract', ast.idf.name):

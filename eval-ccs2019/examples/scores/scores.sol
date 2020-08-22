@@ -17,7 +17,7 @@ contract Scores {
     mapping (address!x => bool@x) passed;
 	
     constructor(
-		uint pass, 
+		uint pass,
 		uint point
 	) public {
         _examinator = me;

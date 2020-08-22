@@ -43,4 +43,3 @@ class AstVisitor:
 	def visitChildren(self, ast):
 		for c in ast.children():
 			self.visit(c)
-	
