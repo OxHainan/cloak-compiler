@@ -12,16 +12,16 @@
 # USAGE #
 #########
 # To run docker interactively (mounts the current directory):
-# $ path/to/zkay-docker.sh
+# $ path/to/cloak-docker.sh
 #
 # To run a specific command withing docker (e.g.):
-# $ path/to/zkay-docker.sh make test
+# $ path/to/cloak-docker.sh make test
 
 ############
 # SETTINGS #
 ############
 
-IMAGE=zkay
+IMAGE=cloak
 
 ###############
 # PREPARATION #
@@ -55,14 +55,14 @@ if [ $# -eq 0 ]; then
 	FLAGS="-v $DIR:$WORKDIR --workdir $WORKDIR"
 else
 	echo "Running in docker: $@"
-	FLAGS="--workdir /zkay"
+	FLAGS="--workdir /cloak"
 fi
 
 
 sudo docker run \
 	-it \
 	--rm \
-	-v "$BASEDIR":/zkay \
+	-v "$BASEDIR":/cloak \
 	$FLAGS \
 	$IMAGE \
 	"$@"

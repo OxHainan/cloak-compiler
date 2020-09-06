@@ -12,7 +12,7 @@
 ############
 
 # name of docker image
-_IMAGE := zkay-eval
+_IMAGE := cloak-eval
 
 ############################
 # SPECIFIC DOCKER COMMANDS #

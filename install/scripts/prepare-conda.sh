@@ -34,7 +34,7 @@ conda env create --force -f environment.yml
 #########################
 
 # activate (needed to load $CONDA_PREFIX)
-conda activate zkay
+conda activate cloak
 
 # set up conda to automatically set/unset environment variables
 ENVDIR=$CONDA_PREFIX/etc/conda
@@ -55,7 +55,7 @@ conda deactivate
 ################
 
 # needed to run npm
-conda activate zkay
+conda activate cloak
 
 # install npm packages
 SASS_BINARY_SITE=https://npm.taobao.org/mirrors/node-sass/

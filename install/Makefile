@@ -12,7 +12,7 @@
 ############
 
 # name of docker image
-_IMAGE := zkay
+_IMAGE := cloak
 
 ############################
 # SPECIFIC DOCKER COMMANDS #

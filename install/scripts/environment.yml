@@ -1,4 +1,4 @@
-name: zkay
+name: cloak
 channels:
   - conda-forge
   - defaults

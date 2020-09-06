@@ -3,11 +3,11 @@
 ###########
 # PURPOSE #
 ###########
-# Unset environment variables necessary to run zkay
+# Unset environment variables necessary to run cloak
 
-# zkay
-unset ZKAYDIR
-unset ZKAYSRC
+# cloak
+unset CLOAKDIR
+unset CLOAKSRC
 unset PYTHONPATH
 
 

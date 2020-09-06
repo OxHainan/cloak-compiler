@@ -11,13 +11,13 @@
 #########
 # USAGE #
 #########
-# $ ./zkay-eval-docker.sh
+# $ ./cloak-eval-docker.sh
 
 ############
 # SETTINGS #
 ############
 
-IMAGE=zkay-eval
+IMAGE=cloak-eval
 
 ###############
 # PREPARATION #
@@ -38,8 +38,8 @@ make -C "$BASEDIR/docker" image
 sudo docker run \
 	-it \
 	--rm \
-	-v "$BASEDIR/..":/zkay \
-	--workdir /zkay/eval-ccs2019 \
+	-v "$BASEDIR/..":/cloak \
+	--workdir /cloak/eval-ccs2019 \
 	$IMAGE \
 	make eval
 

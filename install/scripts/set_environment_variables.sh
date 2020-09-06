@@ -3,7 +3,7 @@
 ###########
 # PURPOSE #
 ###########
-# Set environment variables necessary to run zkay
+# Set environment variables necessary to run cloak
 
 
 # Directory containing this script.
@@ -14,10 +14,10 @@
 
 BASEDIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 
-# zkay
-export ZKAYDIR="$BASEDIR/../.."
-export ZKAYSRC="$ZKAYDIR/src"
-export PYTHONPATH="$ZKAYSRC"
+# cloak
+export CLOAKDIR="$BASEDIR/../.."
+export CLOAKSRC="$CLOAKDIR/src"
+export PYTHONPATH="$CLOAKSRC"
 
 
 # zokrates
