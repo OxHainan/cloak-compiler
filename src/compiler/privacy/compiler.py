@@ -100,6 +100,20 @@ class CloakCompilerVisitor(CodeVisitor):
 			
 			# body
 			body = ''
+
+			# handle constructors: add addresses of required contracts
+			_contract = ast.get_related_contract()
+			assert(isinstance(_contract, ContractDefinition))
+			if isinstance(ast, ConstructorDefinition):
+				if _contract.is_tee_related:
+					# tee_addr_param = Parameter([], AnnotatedTypeName(TypeName.address_type(), Expression.all_expr()), Identifier(f'tee_addr'))
+					# ast.parameters.append(tee_addr_param)
+					t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
+					decl = StateVariableDeclaration(t, [], Identifier('_tee'), None)
+					self.new_state_variables += [decl]
+					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} teeAddr']
+					body = f'_tee = teeAddr;\n' + body
+
 			body += self.visit_list(ast.body.statements)
 			
 			body = self.function_helper.add_return_variable(body)
@@ -126,12 +140,26 @@ class CloakCompilerVisitor(CodeVisitor):
 			self.function_helper = FunctionHelper(self, ast)
 			self.function_helpers[ast] = self.function_helper
 
+			body = ""
+			# handle constructors: add addresses of required contracts
+			_contract = ast.get_related_contract()
+			assert(isinstance(_contract, ContractDefinition))
+			if isinstance(ast, ConstructorDefinition):
+				if _contract.is_tee_related:
+					# tee_addr_param = Parameter([], AnnotatedTypeName(TypeName.address_type(), Expression.all_expr()), Identifier(f'tee_addr'))
+					# ast.parameters.append(tee_addr_param)
+					t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
+					decl = StateVariableDeclaration(t, [], Identifier('_tee'), None)
+					self.new_state_variables += [decl]
+					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} teeAddr']
+					body = f'_tee = teeAddr;\n' + body
+
 			# check private parameters
 			self.pre_simple_statement = []
 			for p in ast.parameters:
 				self.function_helper.function_visitor.check_proper_encryption(p)   # out(e, alpha) & in(e, alpha)
-			body = '\n'.join(self.pre_simple_statement)  # add 'genHelper[0] = sol;'
-
+			body += '\n'.join(self.pre_simple_statement)  # add 'genHelper[0] = sol;'
+				
 			# body
 			body += self.visit_list(ast.body.statements)
 			zok_code = self.function_helper.function_visitor.code()   # generate .zok code (constraints writed in Zokrates DSL)
@@ -209,23 +237,28 @@ class CloakCompilerVisitor(CodeVisitor):
 
 	def tee_function_definition(self, ast: ConstructorOrFunctionDefinition):
 		with log_context('compile "TEE" typed function', ast.name):
-
 			self.function_helper = FunctionHelper(self, ast)
 			self.function_helpers[ast] = self.function_helper
 
+			body = ""
+			
+			# handle constructors: add addresses of required contracts
 			_contract = ast.get_related_contract()
 			assert(isinstance(_contract, ContractDefinition))
-			if not isinstance(ast, ConstructorDefinition) and not _contract.is_tee_related:
-				# just add state variable "address _tee;" to the contract
-				_contract.is_tee_related = True
-				t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
-				decl = StateVariableDeclaration(t, [], Identifier('_tee'), None)
-				self.new_state_variables += [decl]
-
+			if isinstance(ast, ConstructorDefinition):
+				if _contract.is_tee_related:
+					# tee_addr_param = Parameter([], AnnotatedTypeName(TypeName.address_type(), Expression.all_expr()), Identifier(f'tee_addr'))
+					# ast.parameters.append(tee_addr_param)
+					t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
+					decl = StateVariableDeclaration(t, [], Identifier('_tee'), None)
+					self.new_state_variables += [decl]
+					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} teeAddr']
+					body = f'_tee = teeAddr;\n' + body
 
 			# visit statements and delete tee related parameters and computation, just leave assignment
 			self.pre_simple_statement = []
-			body = self.visit_list(ast.body.statements)		
+			body += self.visit_list(ast.body.statements)		
+
 			# for p in ast.parameters:
 			# 	self.function_helper.function_visitor.check_proper_encryption(p)   # out(e, alpha) & in(e, alpha)
 
@@ -276,13 +309,6 @@ class CloakCompilerVisitor(CodeVisitor):
 
 			# handle constructors: add addresses of required contracts
 			if isinstance(ast, ConstructorDefinition):
-				if _contract.is_tee_related:
-					# tee_addr_param = Parameter([], AnnotatedTypeName(TypeName.address_type(), Expression.all_expr()), Identifier(f'tee_addr'))
-					# ast.parameters.append(tee_addr_param)
-					t = AnnotatedTypeName(TypeName.address_type(), Expression.all_expr())
-					self.function_helper.verifier_contract_parameters += [f'{self.visit(t)} teeAddr']
-					body = f'_tee = teeAddr;\n' + body
-
 				for c in self.used_contracts:
 					verifier_contract_parameter = c.state_variable_name + '_'
 					t = AnnotatedTypeName(UserDefinedTypeName([Identifier(c.contract_name)]), Expression.all_expr())

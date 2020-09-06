@@ -30,7 +30,7 @@ venv/
 ENV/
 
 # VSCode settings
-.vscode
+# .vscode
 
 # IDEA files
 .idea

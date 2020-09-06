@@ -8,8 +8,8 @@ module.exports = async function(callback) {
     // set contract name
     // EXAMPLE:
     // helpers.contract_name = "Reviews"
-helpers.contract_name = "Scores";
-tee_helpers.contract_name = "Scores";    // Added
+	helpers.contract_name = "Scores";
+	tee_helpers.contract_name = "Scores";    // Added
 
     // remember accounts
     // EXAMPLE: r1 = accounts[0];

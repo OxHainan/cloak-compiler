@@ -16,6 +16,7 @@ contract Scores {
     mapping (address => uint@_examinator) points;
     mapping (address!x => bool@x) passed;
 	
+	// should be ZKP
     constructor(
 		uint pass,
 		uint point
@@ -70,7 +71,7 @@ contract Scores {
         uint@me p;
         p = answers[examinee][task] == solutions[task] ? 1 : 0;
         points[examinee] = points[examinee] + p;
-        passed[examinee] = reveal(points[examinee] > _passPoints, examinee);
+        passed[examinee] = points[examinee] > _passPoints;
         _totalPoints = _totalPoints + p;
         _totalExaminees = _totalExaminees + 1;
     }

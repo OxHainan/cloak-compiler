@@ -8,34 +8,44 @@ module.exports = async function(callback) {
     // set contract name
     // EXAMPLE:
     // helpers.contract_name = "Reviews"
+	console.log("Set contract name...");
 $CONTRACT_NAME
 $TEE_CONTRACT_NAME
 
     // remember accounts
     // EXAMPLE: r1 = accounts[0];
+	console.log("Remember accounts...");
 $ACCOUNTS
     
     // get hold of the contract and the deployed instance
     var pki = artifacts.require("PublicKeyInfrastructure");
     let genPublicKeyInfrastructure = await pki.deployed();
 
+	console.log("Deploy PublicKeyInfrastructure to TEE...");
     let genPublicKeyInfrastructure_tee = await tee_helpers.deploy("pki", [], accounts[0]);
+
     // TODO: modified following to fit verify_lib.sol
     // let bn256g2_tee = await tee_helpers.deploy("BN256G2", [], accounts[0]);
     // let pairing_tee = await tee_helpers.deploy("Pairing", [], accounts[0]);
-    
-    $TEE_VERIFIERS_DEPLOY
-    // EXAMPLE: let Verify_exec_zkp_var_tee = await tee_helpers.deploy("Verify_exec_zkp"+"_verifier", [], accounts[0]);
+	
+	// deploy verifiers to TEE
+	// EXAMPLE: let Verify_exec_zkp_var_tee = await tee_helpers.deploy("Verify_exec_zkp_verifier", [], accounts[0]);
+	// TODO: adapt deployment statement to eEVM
+	console.log("Deploy verifiers to TEE...");
+    let verify_libs_tee = await tee_helpers.deploy("verify_libs", [], accounts[0]);
+$TEE_VERIFIERS_DEPLOY
 
     // fetch contract
     // EXAMPLE:
     // var contract = artifacts.require("Reviews");
-    $CONTRACT_FETCH
+$CONTRACT_FETCH
 
     // announce public keys
-    // EXAMPLE: await helpers.tx(genPublicKeyInfrastructure, "announcePk", [10], pc);
+	// EXAMPLE: await helpers.tx(genPublicKeyInfrastructure, "announcePk", [10], pc);
+	console.log("Announce public keys of accounts...");	
 $PK_ANNOUNCE
 
+	console.log("Announce public keys of accounts in TEE...");
 $TEE_PK_ANNOUNCE
 
     // load the deployed verifiers
@@ -47,10 +57,12 @@ $VERIFIERS_WAIT
     // deploy contract
     // EXAMPLE:
     // let contract_instance = await helpers.deploy_x(web3, contract, [r1, r2, r3, pki_instance.address, verify_registerPaper_instance.address, verify_recordReview_instance.address, verify_decideAcceptance_instance.address], pc);
+	console.log("Deploy contract...");
 $CONTRACT_DEPLOY
 
     // EXAMPLE: for TEE
     // let contract_instance_tee = await tee_helpers.deploy_x("mix-type", [r1, r2, r3, pki_instance.address, verify_registerPaper_instance.address, verify_recordReview_instance.address, verify_decideAcceptance_instance.address], pc);
+	console.log("Deploy contract to TEE...");
 $TEE_CONTRACT_DEPLOY
 
     // run transactions

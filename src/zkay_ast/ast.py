@@ -756,7 +756,7 @@ class ContractDefinition(AST):
 		self.state_variable_declarations = state_variable_declarations
 		self.constructor_definitions = constructor_definitions
 		self.function_definitions = function_definitions
-		# will be setted in compilation
+		# will be setted in type_setter
 		self.is_tee_related = False
 
 	def children_internal(self):

@@ -58,9 +58,6 @@ class Runner:
 		for p in f.parameters:
 			args += [self.get_value(p)]
 
-		if f.get_related_contract().is_tee_related and isinstance(f, ConstructorDefinition):
-			args += ['tee']
-
 		# prepare proof
 		my_logging.data('isPrivate', h.proof_parameter is not None)
 		if h.proof_parameter:
@@ -78,6 +75,9 @@ class Runner:
 		if len(precomputed) > 0:
 			args += [precomputed]
 
+		if f.get_related_contract().is_tee_related and isinstance(f, ConstructorDefinition):
+			args += ['tee']
+			
 		if isinstance(f, ConstructorDefinition):
 			for c in self.compiler_information.used_contracts:
 				args += [f'{c.state_variable_name}.address']

@@ -1,0 +1,145 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: scores-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/scores/compiled",
+                "./eval-ccs2019/examples/scores/scores.sol"
+            ],
+            "console": "integratedTerminal"
+		},
+		{
+            "name": "Python: exam-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/exam/compiled",
+                "./eval-ccs2019/examples/exam/exam.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: scores-transaction",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval-ccs2019/examples/scores/scenario.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH":"${workspaceFolder}/eval-ccs2019:${workspaceRoot}/src"}
+		},
+		{
+            "name": "Python: exam-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/exam/compiled",
+                "./eval-ccs2019/examples/exam/exam.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: scores-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/scores/compiled",
+                "./eval-ccs2019/examples/scores/scores.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: erc20-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/erc20/compiled",
+                "./eval-ccs2019/examples/erc20/erc20.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: loan-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/loan/compiled",
+                "./eval-ccs2019/examples/loan/loan.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: supply-chain-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/supply-chain/compiled",
+                "./eval-ccs2019/examples/supply-chain/supply-chain.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: insurance-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/insurance/compiled",
+                "./eval-ccs2019/examples/insurance/insurance.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: bid-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/bid/compiled",
+                "./eval-ccs2019/examples/bid/bid.sol"
+            ],
+            "console": "integratedTerminal"
+		},
+		{
+            "name": "Python: token-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/token/compiled",
+                "./eval-ccs2019/examples/token/token.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}

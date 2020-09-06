@@ -66,16 +66,16 @@ class ScenarioGenerator:
         return m.group(1)
 
     def set_contract_name(self):
-        contract_name = f'helpers.contract_name = "{self.name()}";'
+        contract_name = f'\thelpers.contract_name = "{self.name()}";'
         self.scenario_js = self.scenario_js.replace('$CONTRACT_NAME', contract_name)
         self.deploy_js = self.deploy_js.replace('$CONTRACT_NAME', contract_name)
         # for TEE
-        tee_contract_name = "tee_" + contract_name
+        tee_contract_name = f'\ttee_helpers.contract_name = "{self.name()}";'
         self.scenario_js = self.scenario_js.replace('$TEE_CONTRACT_NAME', tee_contract_name)
 
 
     def set_contract_fetch(self):
-        contract_fetch = f'var contract = artifacts.require("{self.name()}");'
+        contract_fetch = f'\tvar contract = artifacts.require("{self.name()}");'
         self.scenario_js = self.scenario_js.replace('$CONTRACT_FETCH', contract_fetch)
 
     def set_pk_announce(self, keys: Dict[str, int]):
@@ -124,9 +124,9 @@ class ScenarioGenerator:
         verifiers_deploy = []
         for c in self.runner.compiler_information.used_contracts:
             if 'PublicKeyInfrastructure' not in c.contract_name:
-                verifiers_deploy += [f'{c.state_variable_name}_tee = await tee_helpers.deploy({c.state_variable_name}_verifier, [], accounts[0]);']
+                verifiers_deploy += [f'{c.state_variable_name}_tee = await tee_helpers.deploy("{c.contract_name}_verifier", [], accounts[0]);']
         verifiers_deploy = prepend_to_lines('\n'.join(verifiers_deploy), '\t')
-        self.scenario_js = self.deploy_js.replace('$TEE_VERIFIERS_DEPLOY', verifiers_deploy)
+        self.scenario_js = self.scenario_js.replace('$TEE_VERIFIERS_DEPLOY', verifiers_deploy)
 
     def run_function(self, function_name: str, me: str, args: List):
         with log_context('nCalls', self.n_calls):
@@ -144,7 +144,9 @@ class ScenarioGenerator:
                     t = prepend_to_lines(t, '\t')
                     self.scenario_js = self.scenario_js.replace('$CONTRACT_DEPLOY', t)
                     # for TEE
-                    t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nlet contract_instance_tee = await tee_helpers.deploy_x({self.filename.replace('.sol', '')}, args, {me});'
+                    sol_name = self.filename.replace('.sol', '')
+                    real_args_str = real_args_str.replace(".address", "_tee.address")
+                    t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nlet contract_instance_tee = await tee_helpers.deploy("{sol_name}", args, {me});'
                     t = prepend_to_lines(t, '\t')
                     self.scenario_js = self.scenario_js.replace('$TEE_CONTRACT_DEPLOY', t)
                 else:
