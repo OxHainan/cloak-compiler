@@ -62,20 +62,24 @@ class FunctionHelper:
 
 	def get_all_parameters(self, params: List):
 		# make shallow copy of list
-		params = list(params)
+		new_params = []
+		# delete non public params
+		for p in params:
+			if p.annotated_type.privacy_annotation.is_all_expr():
+				new_params.append(p)
 
 		# add proof parameter
 		if self.proof_parameter:
-			params += [self.proof_parameter]
+			new_params += [self.proof_parameter]
 
 		n = len(self.precomputed_parameters)
 		if n > 0:
-			params += [f'uint[{n}] memory {param_tag}']
+			new_params += [f'uint[{n}] memory {param_tag}']
 
 		# add verifier contract parameters (only non-empty for constructor)
-		params += self.verifier_contract_parameters
+		new_params += self.verifier_contract_parameters
 
-		return params
+		return new_params
 
 	def get_zok_arguments(self):
 		if self.ast.privacy_type == FunctionPrivacyType.ZKP:

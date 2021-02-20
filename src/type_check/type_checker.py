@@ -1,4 +1,5 @@
 from typing import Union
+from compiler import privacy
 
 from zkay_ast.ast import AST, ContractDefinition, Identifier, IdentifierExpr, ReturnStatement, IfStatement, \
 	AssignmentExpr, BooleanLiteralExpr, NumberLiteralExpr, AnnotatedTypeName, Expression, TypeName, \
@@ -11,12 +12,10 @@ from type_check.contains_private import contains_private
 from type_check.final_checker import check_final
 from type_check.type_exceptions import TypeMismatchException, TypeException
 
-
 def type_check(ast):
 	check_final(ast)
 	v = TypeCheckVisitor()
 	v.visit(ast)
-
 
 class TypeCheckVisitor(AstVisitor):
 
@@ -51,8 +50,9 @@ class TypeCheckVisitor(AstVisitor):
 						raise TypeException('Modifying "final" variable', ast)
 
 	def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
-		if ast.expr:
-			self.check_right_hand_statement(ast.expr, ast.variable_declaration.annotated_type)
+		if ast.get_related_function().privacy_type != FunctionPrivacyType.TEE:
+			if ast.expr:
+				self.check_right_hand_statement(ast.expr, ast.variable_declaration.annotated_type)
 
 	def check_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction, private=False):
 		if func.is_index():
@@ -124,12 +124,13 @@ class TypeCheckVisitor(AstVisitor):
 			raise TypeException("Negative number currently not supported:", ast)
 
 	def visitFunctionDefinition(self, ast: FunctionDefinition):
-		for t in ast.get_parameter_types():
-			ann = t.privacy_annotation
-			if ann.is_all_expr() or ann.is_me_expr() or ann.is_tee_expr():
-				continue
-			else:
-				raise TypeException(f'Only me/all accepted as privacy type of function parameters', ast)
+		if ast.get_related_function().privacy_type != FunctionPrivacyType.TEE:
+			for t in ast.get_parameter_types():
+				ann = t.privacy_annotation
+				if ann.is_all_expr() or ann.is_me_expr() or ann.is_tee_expr():
+					continue
+				else:
+					raise TypeException(f'Only me/all accepted as privacy type of function parameters', ast)
 
 		print(f'Function {ast.name} checked...')
 		

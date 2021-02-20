@@ -13,7 +13,7 @@ from compiler.solidity.sol_template import hash_function
 from compiler.zokrates.tags import tag, helper_tag, param_tag, tee_tag
 from compiler.zokrates.compiler import compile_zokrates, n_proof_arguments, get_work_dir
 from compiler.zokrates.proof_helper import ProofHelper, FromZok, ParameterCheck, FromSolidity
-from compiler.pki import pki_contract_filename, pki_contract_template
+from compiler.infra_contracts import pki_contract_filename, cloak_service_contract_filename
 
 
 class FunctionVisitor(CodeVisitor):

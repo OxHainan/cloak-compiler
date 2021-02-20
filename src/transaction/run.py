@@ -2,7 +2,7 @@ from typing import Dict, Union, List
 from random import randint
 
 import my_logging
-from zkay_ast.ast import ConstructorOrFunctionDefinition, TypeName, Expression, Parameter, SourceUnit, ConstructorDefinition
+from zkay_ast.ast import ConstructorOrFunctionDefinition, FunctionPrivacyType, TypeName, Expression, Parameter, SourceUnit, ConstructorDefinition
 from compiler.privacy.compiler import compile_code, CloakCompilerVisitor
 from compiler.zokrates.proof_helper import FromZok, ParameterCheck, FromSolidity
 from compiler.zokrates.compiler import generate_proof
@@ -43,44 +43,50 @@ class Runner:
 		f: ConstructorOrFunctionDefinition,
 		me: str,
 		parameters: List):
+
 		# get compiler information
 		h = self.compiler_information.function_helpers[f]
-
-		# simulate original contract
-		self.simulator.call(f, me, parameters)
-
-		# prepare randomness
-		self.randomness = {}
 
 		# prepare relevant arguments
 		args = []
 
-		for p in f.parameters:
-			args += [self.get_value(p)]
+		if h.ast.privacy_type != FunctionPrivacyType.TEE:
 
-		# prepare proof
-		my_logging.data('isPrivate', h.proof_parameter is not None)
-		if h.proof_parameter:
-			p = self.prepare_proof(f)
+			# simulate original contract
+			self.simulator.call(f, me, parameters)
 
-			p = p['proof']
-			p = [p["A"][0], p["A"][1], p["B"][0][0], p["B"][0][1], p["B"][1][0], p["B"][1][1], p["C"][0], p["C"][1]]
+			# prepare randomness
+			self.randomness = {}
 
-			args += [p]
 
-		precomputed = []
-		for expr in h.precomputed_parameters:
-			precomputed += [self.get_value(expr)]
+			for p in f.parameters:
+				args += [self.get_value(p)]
 
-		if len(precomputed) > 0:
-			args += [precomputed]
+			# prepare proof
+			my_logging.data('isPrivate', h.proof_parameter is not None)
+			if h.proof_parameter:
+				p = self.prepare_proof(f)
 
-		if f.get_related_contract().is_tee_related and isinstance(f, ConstructorDefinition):
-			args += ['tee']
-			
-		if isinstance(f, ConstructorDefinition):
-			for c in self.compiler_information.used_contracts:
-				args += [f'{c.state_variable_name}.address']
+				p = p['proof']
+				p = [p["A"][0], p["A"][1], p["B"][0][0], p["B"][0][1], p["B"][1][0], p["B"][1][1], p["C"][0], p["C"][1]]
+
+				args += [p]
+
+			precomputed = []
+			for expr in h.precomputed_parameters:
+				precomputed += [self.get_value(expr)]
+
+			if len(precomputed) > 0:
+				args += [precomputed]
+
+			if f.get_related_contract().is_tee_related and isinstance(f, ConstructorDefinition):
+				args += ['tee']
+				
+			if isinstance(f, ConstructorDefinition):
+				for c in self.compiler_information.used_contracts:
+					args += [f'{c.state_variable_name}.address']
+		else:
+			args = parameters
 
 		return args
 

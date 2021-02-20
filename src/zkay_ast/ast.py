@@ -52,6 +52,24 @@ class AST:
 				_ast_iter = _ast_iter.parent
 		return None
 
+	def get_related_sourceuint(self):
+		_ast_iter = self
+		while not isinstance(_ast_iter, SourceUnit):
+			_ast_iter = _ast_iter.parent
+		return _ast_iter
+
+	def is_in_assignment_righthand(self):
+		_ast_iter = self
+		_child = self
+		while not isinstance(_ast_iter, SourceUnit):
+			if isinstance(_ast_iter, AssignmentStatement):
+				if _child == _ast_iter.rhs:
+					return True
+				else:
+					return False
+			_child = _ast_iter
+			_ast_iter = _ast_iter.parent
+		return False
 
 	def __str__(self):
 		return self.code()
@@ -701,6 +719,7 @@ class FunctionDefinition(ConstructorOrFunctionDefinition):
 			self.return_parameters = []
 		# assigned by type_checker
 		self.privacy_related_params = None
+		self.mutate_states = []
 
 	def children_internal(self):
 		return [self.idf] + self.parameters + self.return_parameters + [self.body]
@@ -784,6 +803,8 @@ class SourceUnit(AST):
 		super().__init__()
 		self.pragma_directive = pragma_directive
 		self.contracts = contracts
+		self.teeAddedLOCFull = 0
+		self.zkpAddedLOCFull = 0
 
 	def children_internal(self):
 		return self.contracts
@@ -883,10 +904,17 @@ class CodeVisitor(AstVisitor):
 	def visitIfStatement(self, ast: IfStatement):
 		c = self.visit(ast.condition)
 		t = self.visit(ast.then_branch)
-		ret = f'if ({c}) {t}'
-		if ast.else_branch:
-			e = self.visit(ast.else_branch)
-			ret += f' else {e}'
+		if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+			# TODO: delete redundant table before statements
+			ret = f'{t[1:-1]}' if t else ''
+			if ast.else_branch:
+				e = self.visit(ast.else_branch)
+				ret += f'{e[1:-1]}' if e else ''
+		else:
+			ret = f'if ({c}) {t}'
+			if ast.else_branch:
+				e = self.visit(ast.else_branch)
+				ret += f' else {e}'
 		return ret
 
 	def visitReturnStatement(self, ast: ReturnStatement):
@@ -911,7 +939,7 @@ class CodeVisitor(AstVisitor):
 	def visitBlock(self, ast: Block):
 		s = self.visit_list(ast.statements)
 		s = indent(s)
-		return f'{{\n{s}\n}}'
+		return f'{{\n{s}\n}}' if s else ''
 
 	def visitElementaryTypeName(self, ast: ElementaryTypeName):
 		return ast.name

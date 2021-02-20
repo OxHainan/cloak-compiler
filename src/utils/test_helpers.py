@@ -5,7 +5,7 @@ from utils.helpers import lines_of_code
 from utils.run_command import run_command
 
 
-example_code = """pragma solidity ^0.4.0;
+example_code = """pragma solidity ^0.5.0;
 
 // Description: Record medical statistics on patients
 // Domain: Healthcare

@@ -4,7 +4,7 @@ cloak is a programming language which enables
 automatic compilation of intuitive data privacy specifications to NIZK, TEE enabled
 private smart contracts.
 
-cloak is based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
 
 ## Warning
 
@@ -20,10 +20,10 @@ as follows:
 
 ```bash
 /path/to/cloak$ ./cloak-docker.sh
-(base) root@ae09e165bd19:/cloak_host$
+(base) root@ae09e165bd19:/cloak-compiler$
 ```
 
-This command mounts the directory `cloak` from your host as `/cloak_host`
+This command mounts the directory `cloak` from your host as `/cloak-compiler`
 within the docker container. You can run `cloak-docker.sh` also from any other directory `d` on your host.
 In this case, `d` is mounted as `/d_host` inside the container.
 This allows you to operate on files from your host machine.
@@ -46,8 +46,8 @@ To run all unit tests of cloak, run:
 # run docker container
 /path/to/cloak$ ./cloak-docker.sh
 # run tests within docker
-(base) root@ae09e165bd19:/cloak_host$ cd src
-(base) root@ae09e165bd19:/cloak_host$ make test
+(base) root@ae09e165bd19:/cloak-compiler$ cd src
+(base) root@ae09e165bd19:/cloak-compiler$ make test
 ```
 
 If all tests pass, your cloak installation is likely set up correctly.

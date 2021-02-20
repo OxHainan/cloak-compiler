@@ -11,6 +11,8 @@ from compiler.zokrates.tags import tag, helper_tag, param_tag, tee_tag
 class TeeVisitor(FunctionVisitor):
 
 	def from_tee(self, ast: Expression):
+		self.ensure_pki()
+		
 		# link and delete tee related function parameters
 		with WantBool(self, False):
 			expr = self.visit(ast) 

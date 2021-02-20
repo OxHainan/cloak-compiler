@@ -12,7 +12,7 @@
 ############
 
 # name of docker image
-_IMAGE := cloak
+_IMAGE := liam/cloak-compiler
 
 ############################
 # SPECIFIC DOCKER COMMANDS #

@@ -51,7 +51,7 @@ def compile(file_location, d, count, get_binaries=False):
 	
 	# compile
 	with time_measure('compileFull'):
-		ast = get_processed_ast(code)    # get type checked zkay ast
+		ast = get_processed_ast(code, d)    # get type checked zkay ast
 		code_file = compile_ast(ast, d, filename)  # compile zkay ast to soidity/zokrates DSL
 
 		if get_binaries:
@@ -76,7 +76,7 @@ if __name__ == '__main__':
 	# only type-check
 	if a.type_check:
 		code = read_file(a.input)
-		ast = get_processed_ast(code)
+		ast = get_processed_ast(code, a.output)
 	else:
 		# compile
 		with log_context('inputfile', os.path.basename(a.input)):

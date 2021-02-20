@@ -12,9 +12,9 @@ FROM debian:latest AS helper
 # -qq: quiet installation
 RUN apt-get update \
 	&& apt-get install -y \
-		curl \
-		build-essential \
-		git \
+	curl \
+	build-essential \
+	git \
 	&& rm -rf /var/lib/apt/lists/*
 
 ####################
@@ -29,15 +29,15 @@ RUN apt-get update \
 # https://github.com/Zokrates/ZoKrates/blob/master/scripts/install_libsnark_prerequisites.sh
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		build-essential \
-		cmake \
-		libboost-dev \
-		libboost-program-options-dev \
-		libgmp3-dev \
-		libprocps-dev \
-		libssl-dev \
-		pkg-config \
-		python-markdown \
+	build-essential \
+	cmake \
+	libboost-dev \
+	libboost-program-options-dev \
+	libgmp3-dev \
+	libprocps-dev \
+	libssl-dev \
+	pkg-config \
+	python-markdown \
 	&& rm -rf /var/lib/apt/lists/*
 
 # prepare scripts
@@ -90,9 +90,12 @@ ENV ZOKRATES_ROOT /zokrates
 ENV ZOKRATES_HOME $ZOKRATES_ROOT/zokrates_home
 
 # CLOAK
-ENV CLOAKDIR /cloak
+ENV CLOAKDIR /cloak-compiler
 ENV CLOAKSRC $CLOAKDIR/src
 ENV PYTHONPATH $CLOAKSRC
+
+# Nodejs
+ENV NODE_PATH /opt/conda/lib/node_modules
 
 ##########################
 # INSTALL SOLC & TRUFFLE #
@@ -108,9 +111,9 @@ ENV PYTHONPATH $CLOAKSRC
 # -q: install globally
 # emits warnings because we are root
 RUN npm install -q -g \
-		solc@0.5.10 \
-		truffle@5.0.30 \
-		ganache-cli@6.5.1
+	solc@0.5.10 \
+	truffle@5.0.30 \
+	ganache-cli@6.5.1
 
 ############
 # ZOKRATES #
@@ -125,15 +128,15 @@ RUN npm install -q -g \
 # https://github.com/Zokrates/ZoKrates/blob/master/scripts/install_libsnark_prerequisites.sh
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		build-essential \
-		cmake \
-		libboost-dev \
-		libboost-program-options-dev \
-		libgmp3-dev \
-		libprocps-dev \
-		libssl-dev \
-		pkg-config \
-		python-markdown \
+	build-essential \
+	cmake \
+	libboost-dev \
+	libboost-program-options-dev \
+	libgmp3-dev \
+	libprocps-dev \
+	libssl-dev \
+	pkg-config \
+	python-markdown \
 	&& rm -rf /var/lib/apt/lists/*
 
 # copy relevant binaries

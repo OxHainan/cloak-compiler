@@ -5,6 +5,27 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "NodeJs: Launch",
+            "program": "${file}",
+            "request": "launch",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "NODE_PATH": "/opt/conda/lib/node_modules"
+            },
+            "type": "pwa-node",
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python: scores-type-check",
             "type": "python",
             "request": "launch",
@@ -16,17 +37,16 @@
                 "./eval-ccs2019/examples/scores/scores.sol"
             ],
             "console": "integratedTerminal"
-		},
-		{
-            "name": "Python: exam-type-check",
+        },
+        {
+            "name": "Python: scores-compile",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "args": [
-                "--type-check",
                 "--output",
-                "./eval-ccs2019/examples/exam/compiled",
-                "./eval-ccs2019/examples/exam/exam.sol"
+                "./eval-ccs2019/examples/scores/compiled",
+                "./eval-ccs2019/examples/scores/scores.sol"
             ],
             "console": "integratedTerminal"
         },
@@ -37,28 +57,17 @@
             "program": "${workspaceFolder}/eval-ccs2019/examples/scores/scenario.py",
             "console": "integratedTerminal",
             "env": {"PYTHONPATH":"${workspaceFolder}/eval-ccs2019:${workspaceRoot}/src"}
-		},
-		{
-            "name": "Python: exam-compile",
+        },
+        {
+            "name": "Python: exam-type-check",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/src/main.py",
             "args": [
+                "--type-check",
                 "--output",
                 "./eval-ccs2019/examples/exam/compiled",
                 "./eval-ccs2019/examples/exam/exam.sol"
-            ],
-            "console": "integratedTerminal"
-        },
-		{
-            "name": "Python: scores-compile",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/main.py",
-            "args": [
-                "--output",
-                "./eval-ccs2019/examples/scores/compiled",
-                "./eval-ccs2019/examples/scores/scores.sol"
             ],
             "console": "integratedTerminal"
         },
@@ -83,6 +92,19 @@
                 "--output",
                 "./eval-ccs2019/examples/loan/compiled",
                 "./eval-ccs2019/examples/loan/loan.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: supply-chain-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/supply-chain/compiled",
+                "./eval-ccs2019/examples/supply-chain/supply-chain.sol"
             ],
             "console": "integratedTerminal"
         },
@@ -121,6 +143,18 @@
                 "./eval-ccs2019/examples/bid/bid.sol"
             ],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: power-grid-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/power-grid/compiled",
+                "./eval-ccs2019/examples/power-grid/power-grid.sol"
+            ],
+            "console": "integratedTerminal"
 		},
 		{
             "name": "Python: token-compile",
@@ -134,12 +168,116 @@
             ],
             "console": "integratedTerminal"
         },
-        {
-            "name": "Python: Current File",
+		{
+            "name": "Python: exam-compile",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/exam/compiled",
+                "./eval-ccs2019/examples/exam/exam.sol"
+            ],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ox-htlc-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/ox-htlc/compiled",
+                "./eval-ccs2019/examples/ox-htlc/ox-htlc.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: ox-htlc-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/ox-htlc/compiled",
+                "./eval-ccs2019/examples/ox-htlc/ox-htlc.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ox-htlc-transaction",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval-ccs2019/examples/ox-htlc/scenario.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH":"${workspaceFolder}/eval-ccs2019:${workspaceRoot}/src"}
+        },
+        {
+            "name": "Python: ox-oracle-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/ox-oracle/compiled",
+                "./eval-ccs2019/examples/ox-oracle/ox-oracle.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: ox-oracle-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/ox-oracle/compiled",
+                "./eval-ccs2019/examples/ox-oracle/ox-oracle.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ox-oracle-transaction",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval-ccs2019/examples/ox-oracle/scenario.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH":"${workspaceFolder}/eval-ccs2019:${workspaceRoot}/src"}
+        },
+        {
+            "name": "Python: ox-token-type-check",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--type-check",
+                "--output",
+                "./eval-ccs2019/examples/ox-token/compiled",
+                "./eval-ccs2019/examples/ox-token/ox-token.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+		{
+            "name": "Python: ox-token-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "args": [
+                "--output",
+                "./eval-ccs2019/examples/ox-token/compiled",
+                "./eval-ccs2019/examples/ox-token/ox-token.sol"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: ox-token-transaction",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval-ccs2019/examples/ox-token/scenario.py",
+            "console": "integratedTerminal",
+            "env": {"PYTHONPATH":"${workspaceFolder}/eval-ccs2019:${workspaceRoot}/src"}
         }
     ]
 }

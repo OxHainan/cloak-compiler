@@ -18,3 +18,21 @@ function get_hash(uint[] memory preimage) public pure returns (uint128[2] memory
     return [part0, part1];
 }
 """
+
+tee_function = """    
+modifier onlyMaster() {
+    require(msg.sender == master);
+    _;
+}
+
+function setCodeHash(uint256 _codeHash) external onlyMaster {
+    codeHash = _codeHash;
+}
+
+function setPolicyHash(uint256 _policyHash) external onlyMaster {
+    policyHash = _policyHash;
+}
+
+function setTeeAppHash(uint256 _teeAppHash) external onlyMaster {
+    teeAppHash = _teeAppHash;
+}"""
