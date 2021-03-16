@@ -1,114 +1,232 @@
-# cloak: A Blockchain Privacy Language
+# zkay: A Blockchain Privacy Language
 
-cloak is a programming language which enables
-automatic compilation of intuitive data privacy specifications to NIZK, TEE enabled
-private smart contracts.
+Zkay (pronounced as `[zi: keɪ]`) is a programming language which enables automatic compilation of intuitive data privacy specifications to Ethereum smart contracts leveraging encryption and non-interactive zero-knowledge (NIZK) proofs. This repository provides a toolchain for compiling, deploying and using zkay contracts.
 
-cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+In addition to the instructions below, we refer to the following resources:
 
-## Warning
+- The original [research paper][zkay-ccs], which introduces the core concepts of zkay.
+- The [online documentation][zkay-docs], which provides a tutorial, language reference and API documentation.
+- The [technical report][zkay-techreport], which describes the features and implementation of zkay v0.2.
 
-This is a prototype implementation not intended for use in production. In
-particular, it uses "dummy" encryption `Enc(v,R,k)=v+k`, which is **insecure**.
+## Warning / Security Disclaimer
 
-## Install
+Zkay is a research project and its implementation should **not** be considered secure (e.g., it may contain bugs and has not undergone any security review)! Do not use zkay in a productive system or to process sensitive confidential data.
+
+## Prerequisites
+
+Zkay requires python version 3.7 or later to be installed. Additionally, install the following dependencies using your system's package manager:
+
+#### Debian/Ubuntu
+```bash
+sudo apt-get install default-jdk-headless git build-essential cmake libgmp-dev pkg-config libssl-dev libboost-dev libboost-program-options-dev
+```
+
+#### Arch Linux
+```bash
+sudo pacman -S --needed jdk-openjdk cmake pkgconf openssl gmp boost
+```
+
+## Installation for Users
+If you only want to use zkay as a tool, you can install it as follows.
+
+```bash
+git clone https://github.com/eth-sri/zkay.git
+cd zkay
+python3 setup.py sdist
+pip3 install --no-binary zkay ./dist/zkay-*.tar.gz
+```
+
+## Installation for Developers
+For development of zkay, install zkay in editable mode as follows.
+
+```bash
+git clone https://github.com/eth-sri/zkay.git
+cd zkay
+pip3 install -e .
+```
 
 ### Using Docker
 
-The simplest way to run cloak is using docker. After installing docker, the docker image can be run
-as follows:
+Alternatively, you can also set up zkay in a docker container using the provided Dockerfile in the `install` subdirectory.
+
+To build and run the image, you can simply use:
 
 ```bash
-/path/to/cloak$ ./cloak-docker.sh
-(base) root@ae09e165bd19:/cloak-compiler$
+make -C ./install run
 ```
 
-This command mounts the directory `cloak` from your host as `/cloak-compiler`
-within the docker container. You can run `cloak-docker.sh` also from any other directory `d` on your host.
-In this case, `d` is mounted as `/d_host` inside the container.
-This allows you to operate on files from your host machine.
+### Unit Tests
 
-### Directly On Host
+To run all unit tests, use:
+```bash
+python3 -m unittest discover --verbose zkay
+```
 
-As an alternative to docker, you may install cloak on your host directly. To this end, follow
-the instructions in the [Dockerfile](./install/Dockerfile) marked by `To install on host`.
+### Building the Docs
 
-Below we show how to test your cloak installation, and how to type-check and
-compile cloak contracts from _within the docker container_. However, the
-respective commands can similarly be _run directly on the host_ after having
-installed cloak properly.
-
-## Unit Tests
-
-To run all unit tests of cloak, run:
+The documentation is hosted [here][zkay-docs]. To build it locally, use the following commands (requires sphinx, sphinx-rtd-theme, and sphinx-autoapi):
 
 ```bash
-# run docker container
-/path/to/cloak$ ./cloak-docker.sh
-# run tests within docker
-(base) root@ae09e165bd19:/cloak-compiler$ cd src
-(base) root@ae09e165bd19:/cloak-compiler$ make test
+cd docs
+make html
 ```
 
-If all tests pass, your cloak installation is likely set up correctly.
-Note that running all unit tests _may take several hours_.
+The above commands create a tree of HTML files in `_build/html`. Developers with sufficient access rights can publish the documentation on GitHub Pages using the script `publish_gh_pages.sh`.
 
-## Type-Check Contracts
 
-To type-check a cloak file `test.cloak` in `/path/to/contract` without compiling it, run:
+## Usage
+
+See the [online documentation][zkay-docs] for a tutorial on how to use zkay. Below, we only show a summary of available commands.
+
+**Note**: zkay supports tab completion in Bash shells via the argcomplete package.
+To enable this feature, argcomplete must be installed and activated on your system (see [instructions](https://kislyuk.github.io/argcomplete/#installation)).
+
+### Type-check Contracts
+
+To type-check a zkay file `test.zkay` without compiling it, run:
 
 ```bash
-# run docker container
-/path/to/contract$ /path/to/cloak-docker.sh
-# run compilation
-(base) root@ff2ddb8da49c:/contract_host$ python3 /cloak/src/main.py test.cloak --type-check
+zkay check test.zkay
 ```
 
-## Compile Contracts
+### Strip zkay Features from Contract
 
-To compile and type-check a cloak file `test.cloak` in `/path/to/contract`, run:
+To strip zkay-specific features from `test.zkay` and output the resulting (location preserving) Solidity code, run:
 
 ```bash
-# run docker container
-/path/to/contract$ /path/to/cloak-docker.sh
-# run compilation
-(base) root@ff2ddb8da49c:/contract_host$ python3 /cloak/src/main.py test.cloak
+zkay solify test.zkay
 ```
 
-The output comprises the transformed cloak contract, the contracts for proof verification,
-and the proof circuits in ZoKrates' domain-specific language. By default, it is placed
-in the current working directory. A different output directory can be specified using
-the `--output` command line argument.
+The transformed code is printed to stdout.
 
-Note that the compilation _may take a couple of minutes_.
+### Deploy Library Contracts
 
-## Transform and Run Transactions
-
-To run a specific sequence of transactions (i.e., a _scenario_) for the `exam`
-example contract, run:
+Zkay requires a backend-dependent external public key infrastructure (PKI) contract and, depending on the proving scheme, additional library contracts to be deployed. These contracts can be compiled and deployed using the commands:
 
 ```bash
-# run docker container
-/path/to/eval-ccs-2019$ ../cloak-docker.sh
-# compile contract (omit if already compiled)
-(base) root@ff2ddb8da49c:/eval-ccs-2019_host$ python3 "$CLOAKSRC/main.py" --output ./examples/exam/compiled ./examples/exam/exam.sol
-# transform scenario
-(base) root@ff2ddb8da49c:/eval-ccs-2019_host$ ./generate-scenario.sh ./examples/exam
-# run scenario
-(base) root@ff2ddb8da49c:/eval-ccs-2019_host$ ./examples/exam/scenario/runner.sh
+zkay deploy-pki <account>
+zkay deploy-crypto-libs <account>
 ```
+The `account` parameter specifies the wallet address from which the deployment transaction should be issued.
 
-To transform and run your own transactions, you may follow analogous steps. In
-particular, see [scenario.py](./eval-ccs2019/examples/exam/scenario.py) for the
-specification of the scenario ran by the above code.
+**Note**: The `groth16` proving scheme (enabled by default) does not require additional libraries, in which case `zkay deploy-crypto-libs` is not required.
 
-## Run Evaluation from CCS 2019
+**Note**: The default `eth-tester` blockchain backend does not require manually deploying the PKI or library contracts.
 
-To reproduce the evaluation results from the paper, run:
+### Compile Contracts
+
+To compile a zkay file `test.zkay`, run:
 
 ```bash
-/path/to/cloak/eval-ccs2019$ ./cloak-eval-docker.sh
+zkay compile [-o "<output_dir>"] test.zkay
 ```
 
-Note that running this command _may take several hours_ and requires docker
-to be installed.
+This performs the following steps:
+- Type checking (equivalent to `zkay check`)
+- Compilation to Solidity
+- NIZK proof circuit compilation and key generation
+- Generation of the contract interface `contract.py`, which can be used to transparently interact with a deployed zkay contract
+
+### Exporting a Contract Package
+
+To package a zkay contract that was previously compiled with output directory `<compilation_output>`, run:
+
+```bash
+zkay export [-o "<output_filename>"] "<compilation_output>"
+```
+
+This creates an archive containing the zkay code, the NIZK prover and verifier keys, and manifest file. The recommended file extension for the archive is `*.zkp`. This archive can be distributed to users of the contract.
+
+### Importing a Contract Package
+
+To unpack and compile a contract package `contract.zkp`:
+
+```bash
+zkay import [-o "<unpack_directory>"] contract.zkp
+```
+
+### Interacting with a Contract
+
+Assume you have compiled a file `test.zkay` using `zkay compile -o "output_dir"` (or imported an archive `contract.zkp` using `zkay import -o "output_dir" contract.zkp`), you can open an interactive shell for deploying and interacting with the contract as follows:
+
+```bash
+zkay run output_dir
+>>> ...
+```
+
+The python shell provides the following commands:
+- `help()`: Get a list of all contract functions and their arguments
+- `user1, user2, ..., userN = create_dummy_accounts(N)`: Get addresses of pre-funded test accounts for experimentation (only supported in `eth-tester` and `ganache` backends)
+- `handle = deploy(*constructor_args, user: str)`: Issue a deployment transaction for the contract from the account `user` (address literal).
+- `handle = connect(contract_addr: str, user: str)`: Create a handle to interact with the deployed contract at address `contract_addr` from account `user`.
+Fails if remote contract does not match local files.
+- `handle.address`: Get the address of the deployed contract corresponding to this handle
+- `handle.some_func(*args[, value: int])`: The account which created handle issues a zkay transaction which calls the zkay contract function `some_func` with the given arguments.
+Encryption, transaction transformation and proof generation happen automatically. If the function is payable, the additional argument `wei_amount` can be used to set the wei amount to be transferred.
+- `handle.state.get_raw('varname', *indices)`: Retrieve the current raw value of state variable `name[indices[0]][indices[1]][...]`.
+- `handle.state.get_plain('varname', *indices)`: Retrieve the current plaintext value (decrypted with @me key if necessary) of state variable `name[indices[0]][indices[1]][...]`.
+
+
+### Update Solc to Latest Compatible Version
+
+To download and install the latest compatible version of solc (requires internet connection):
+
+```bash
+zkay update-solc
+```
+
+## Third-party Libraries
+
+Zkay is based on various third-party source code and libraries:
+
+- [zkay-libsnark](https://github.com/eth-sri/zkay-libsnark) (fork of [libsnark](https://github.com/scipr-lab/libsnark)): Downloaded and built during setup of zkay.
+- [zkay-jsnark](https://github.com/eth-sri/zkay-jsnark) (fork of [jsnark](https://github.com/akosba/jsnark)): Bundled in `zkay/jsnark_interface/JsnarkCircuitBuilder.jar`.
+- [pygments-lexer-solidity](https://pypi.org/project/pygments-lexer-solidity/): See `docs/custom_highlighting/zkay_lexer.py`.
+- [solidity-BN256G2](https://github.com/musalbas/solidity-BN256G2): See `zkay/compiler/privacy/bn256g2.sol`.
+- [solidity alt_bn128 pairing library](https://github.com/Zokrates/ZoKrates/blob/bb98ab1c0426ceeaa2d181fbfbfdc616b8365c6b/zokrates_core/src/proof_system/bn128/utils/solidity.rs#L397): See `zkay/compiler/privacy/library_contracts.py`.
+- [solidity-antlr4](https://github.com/solidityj/solidity-antlr4): See `zkay/solidity_parser/Solidity.g4`.
+- [Bouncy Castle Crypto APIs for Java](https://www.bouncycastle.org/java.html): Bundled in `zkay/jsnark_interface/bcprov-jdk15on-1.64.jar`.
+
+See [LICENSE-3RD-PARTIES](LICENSE-3RD-PARTIES) for license information on third-party source code and libraries.
+
+## CCS 2019 Evaluation
+
+The contracts evaluated in the [CCS 2019 paper][zkay-ccs] can be found in the folder `eval-ccs2019`. The scenarios have been adapted to use zkay's new frontend. The original artifact (zkay version 0.1) evaluated in the CCS 2019 paper can be found under the tag [ccs2019](https://github.com/eth-sri/zkay/tree/ccs2019).
+
+
+## Citing this Work
+
+You are encouraged to cite the following [research paper][zkay-ccs] if you use zkay for academic research.
+```
+@inproceedings{steffen2019zkay,
+    author = {Steffen, Samuel and Bichsel, Benjamin and Gersbach, Mario and Melchior, Noa and Tsankov, Petar and Vechev, Martin},
+    title = {Zkay: Specifying and Enforcing Data Privacy in Smart Contracts},
+    year = {2019},
+    isbn = {9781450367479},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/3319535.3363222},
+    doi = {10.1145/3319535.3363222},
+    booktitle = {Proceedings of the 2019 ACM SIGSAC Conference on Computer and Communications Security},
+    pages = {1759–1776},
+    numpages = {18},
+    location = {London, United Kingdom},
+    series = {CCS ’19}
+}
+```
+
+The following [technical report][zkay-techreport] describes version 0.2 of zkay, which introduces many vital features such as real encryption.
+```
+@techreport{baumann2020zkay,
+    title={zkay v0.2: Practical Data Privacy for Smart Contracts},
+    author={Nick Baumann and Samuel Steffen and Benjamin Bichsel and Petar Tsankov and Martin Vechev},
+    year={2020},
+    eprint={2009.01020},
+    url={https://arxiv.org/abs/2009.01020}
+}
+```
+
+
+[zkay-ccs]: https://www.sri.inf.ethz.ch/publications/steffen2019zkay
+[zkay-docs]: https://eth-sri.github.io/zkay/
+[zkay-techreport]: https://arxiv.org/abs/2009.01020

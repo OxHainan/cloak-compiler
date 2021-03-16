@@ -1,7 +1,7 @@
-/examples/*/compiled
+/examples/*/compiled*
+/examples/*/old*
 /examples/*/truffle-app
 /examples/*/scenario
-/examples/ox-*
 *.csv
 *.pdf
 

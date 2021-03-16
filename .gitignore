@@ -1,43 +1,15 @@
-# Misc
-*-bku
-gen-*
-
-# Dependency directories
-node_modules/
-jspm_packages/
-
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Distribution / packaging
-.Python
-env/
+# Ignoring all build/ folders in truffle projects
 build/
-dist/
-*.log
+libsnark/
 
-# pyenv
-.python-version
+# Ignoring Python virtual environments
+*venv*
 
-# dotenv
-.env
-
-# virtualenv
-.venv/
-venv/
-ENV/
-
-# VSCode settings
-# .vscode
-
-# IDEA files
+# Misc
 .idea
+__pycache__
 
-# OSX dir files
-.DS_Store
+*.egg-info
+dist
 
-# Sublime Text settings
-*.sublime-workspace
-*.sublime-project
+test

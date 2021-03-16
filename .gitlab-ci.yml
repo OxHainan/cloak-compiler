@@ -1,0 +1,72 @@
+variables:
+  ZKAY_SKIP_REAL_ENC_TESTS: "1"
+
+default:
+  # To run locally:
+  # $ sudo docker run -it -v=$(pwd):/zkay --workdir=/zkay --rm ethsrilab/zkay-prerequisites:version-1.2
+  image: ethsrilab/zkay-prerequisites:version-1.2
+
+
+# BUILD
+
+create_zkay_venv:
+  stage: build
+  script:
+    - virtualenv venv
+    - source venv/bin/activate
+    - pip3 install -r install/requirements.txt # Use fixed version dependencies
+    - pip3 install -e .
+  artifacts:
+    paths:
+      - zkay/solidity_parser/generated/*.py
+      - zkay/jsnark_interface/run_snark
+      - venv/
+    expire_in: 1 hour
+
+# TEST
+
+test_compilation:
+  stage: test
+  dependencies:
+    - create_zkay_venv
+  script:
+    - virtualenv venv
+    - source venv/bin/activate
+    - python3 zkay/__main__.py update-solc
+    - python3 -m unittest discover --failfast --verbose zkay.tests.compiler
+
+test_transactions:
+  stage: test
+  dependencies:
+    - create_zkay_venv
+  script:
+    - virtualenv venv
+    - source venv/bin/activate
+    - python3 zkay/__main__.py update-solc
+    - python3 -m unittest discover --failfast --verbose zkay.tests.transaction
+
+test_other:
+  stage: test
+  dependencies:
+    - create_zkay_venv
+  script:
+    - virtualenv venv
+    - source venv/bin/activate
+    - python3 zkay/__main__.py update-solc
+    - python3 -m unittest discover --failfast --verbose zkay.tests.analysis
+    - python3 -m unittest discover --failfast --verbose zkay.tests.parser
+    - python3 -m unittest discover --failfast --verbose zkay.tests.type_checking
+    - python3 -m unittest discover --failfast --verbose zkay.tests.utils
+    - python3 -m unittest discover --failfast --verbose zkay.tests.zkay_ast
+
+# DEPLOY
+
+deploy_tag:
+  stage: deploy
+  only:
+    - tags
+  script:
+    - python3 setup.py sdist
+  artifacts:
+    paths:
+      - dist/zkay-*.tar.gz
