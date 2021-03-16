@@ -1,4 +1,4 @@
-FROM cloak
+FROM cloak-compiler
 
 #######################
 # BASIC PREREQUISITES #
@@ -10,7 +10,7 @@ FROM cloak
 # -qq: quiet installation
 RUN apt-get update \
 	&& apt-get install -y \
-		curl \
+	curl \
 	&& rm -rf /var/lib/apt/lists/*
 
 
@@ -38,6 +38,6 @@ RUN cd /scripts \
 # git
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		git \
-		texlive-full \
+	git \
+	texlive-full \
 	&& rm -rf /var/lib/apt/lists/*

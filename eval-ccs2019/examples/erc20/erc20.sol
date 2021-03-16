@@ -1,16 +1,4 @@
-pragma solidity ^0.4.0;
-
-/*contract ERC20_Interface {
-  function totalSupply() public constant returns (uint supply);
-  function balanceOf(address _owner) public constant returns (uint balances);
-  function transfer(address _to, uint _value) public returns (bool success);
-  function transferFrom(address _from, address _to, uint _value) public returns (bool success);
-  function approve(address _spender, uint _value) public returns (bool success);
-  function allowance(address _owner, address _spender) public constant returns (uint remaining);
-
-  event Transfer(address indexed _from, address indexed _to, uint _value);
-  event Approval(address indexed _owner, address indexed _spender, uint _value);
-}*/
+pragma solidity ^0.5.0;
 
 // Description: Buy and transfer secret amount of ERC20 tokens
 // Domain: Finance
@@ -31,10 +19,32 @@ contract ERC20Token {
         has_pending[me] = false;
     }
 
+    // PUB: Returns the amount which _spender is still allowed to withdraw from _owner
+    function allowance(
+		address _owner, 
+		address _spender
+	) public returns (uint)
+    {
+        return allowances[_owner][_spender];
+    }
+
 	// PUB
 	function register() public {
         registered[me] = true;
         has_pending[me] = false;
+    }
+
+    // PUB: Get the account balances of another account with address _owner
+    function balanceOf(
+		address _owner
+	) public returns (uint) {
+		require(me == _owner);
+        balances[_owner];
+    }
+
+	// PUB: Get the total token supply
+    function totalSupply() public returns (uint) {
+        return supply;
     }
 
 	// ZKP
@@ -61,19 +71,6 @@ contract ERC20Token {
         balances[me] = balances[me] + pending[sender][me];
         pending[sender][me] = 0;
         has_pending[me] = false;
-    }
-
-	// // PUB: Get the account balances of another account with address _owner
-    // function balanceOf(
-	// 	address _owner
-	// ) public returns (uint) {
-	// 	require(me == _owner);
-    //     return balances[_owner];
-    // }
-
-	// PUB: Get the total token supply
-    function totalSupply() public returns (uint) {
-        return supply;
     }
 
     // TEE: Send _value amount of tokens to address _to
@@ -113,13 +110,5 @@ contract ERC20Token {
         return true;
     }
 
-    // PUB: Returns the amount which _spender is still allowed to withdraw from _owner
-    function allowance(
-		address _owner, 
-		address _spender
-	) public returns (uint)
-    {
-        return allowances[_owner][_spender];
-    }
 
 }

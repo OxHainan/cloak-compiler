@@ -86,13 +86,13 @@ class ScenarioGenerator:
         lines = prepend_to_lines(lines, '\t')
         self.scenario_js = self.scenario_js.replace('$PK_ANNOUNCE', lines)
 
-        # for TEE
-        lines = []
-        for k, v in keys.items():
-            lines += [f'await tee_helpers.tx(genPublicKeyInfrastructure_tee, "announcePk", [{v}], {k});']
-        lines = '\n'.join(lines)
-        lines = prepend_to_lines(lines, '\t')
-        self.scenario_js = self.scenario_js.replace('$TEE_PK_ANNOUNCE', lines)
+        # # for TEE
+        # lines = []
+        # for k, v in keys.items():
+        #     lines += [f'await tee_helpers.tx(genPublicKeyInfrastructure_tee, "announcePk", [{v}], {k});']
+        # lines = '\n'.join(lines)
+        # lines = prepend_to_lines(lines, '\t')
+        # self.scenario_js = self.scenario_js.replace('$TEE_PK_ANNOUNCE', lines)
 
     def set_accounts(self, keys: Dict[str, int]):
         lines = []
@@ -120,15 +120,16 @@ class ScenarioGenerator:
         self.scenario_js = self.scenario_js.replace('$VERIFIERS_FETCH', verifiers_fetch)
         self.scenario_js = self.scenario_js.replace('$VERIFIERS_WAIT', verifiers_wait)
 
-        # for TEE
-        verifiers_deploy = []
-        for c in self.runner.compiler_information.used_contracts:
-            if 'PublicKeyInfrastructure' not in c.contract_name:
-                verifiers_deploy += [f'{c.state_variable_name}_tee = await tee_helpers.deploy("{c.contract_name}_verifier", [], accounts[0]);']
-        verifiers_deploy = prepend_to_lines('\n'.join(verifiers_deploy), '\t')
-        self.scenario_js = self.scenario_js.replace('$TEE_VERIFIERS_DEPLOY', verifiers_deploy)
+        # No need for TEE now
+        # # for TEE
+        # verifiers_deploy = []
+        # for c in self.runner.compiler_information.used_contracts:
+        #     if 'PublicKeyInfrastructure' not in c.contract_name:
+        #         verifiers_deploy += [f'{c.state_variable_name}_tee = await tee_helpers.deploy("{c.contract_name}_verifier", [], accounts[0]);']
+        # verifiers_deploy = prepend_to_lines('\n'.join(verifiers_deploy), '\t')
+        # self.scenario_js = self.scenario_js.replace('$TEE_VERIFIERS_DEPLOY', verifiers_deploy)
 
-    def run_function(self, function_name: str, me: str, args: List):
+    def run_function(self, function_name: str, me: str, args: List=[]):
         with log_context('nCalls', self.n_calls):
             self.n_calls += 1
             with log_context('runFunction', function_name):
@@ -145,13 +146,14 @@ class ScenarioGenerator:
                     self.scenario_js = self.scenario_js.replace('$CONTRACT_DEPLOY', t)
                     # for TEE
                     sol_name = self.filename.replace('.sol', '')
-                    real_args_str = real_args_str.replace(".address", "_tee.address")
+                    # delete tee for privacy contract in TEE
+                    real_args_str = real_args_str.replace(", tee", "")
                     t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nlet contract_instance_tee = await tee_helpers.deploy("{sol_name}", args, {me});'
                     t = prepend_to_lines(t, '\t')
                     self.scenario_js = self.scenario_js.replace('$TEE_CONTRACT_DEPLOY', t)
                 else:
                     if f.privacy_type == FunctionPrivacyType.TEE:
-                        real_args = [ str(x) for x in real_args ]
+                        real_args = [ x for x in real_args ]
                         real_args_str = list_to_str(real_args)
                         t = f'// {function_name}({args_str})\nargs = [{real_args_str}];\nawait tee_helpers.tx(contract_instance_tee, "{function_name}", args, {me});'
                         t = prepend_to_lines(t, '\t')

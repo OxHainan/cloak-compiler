@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.5.0;
 
 // Description: Record and grade exam answers
 // Domain: Teaching
@@ -16,7 +16,7 @@ contract Scores {
     mapping (address => uint@_examinator) points;
     mapping (address!x => bool@x) passed;
 	
-	// should be ZKP
+	// ZKP
     constructor(
 		uint pass,
 		uint point
@@ -26,21 +26,7 @@ contract Scores {
 		_avgScore = point;
     }
 
-    // should be TEE
-    function getAverage() public returns (uint) {
-        _avgScore = _totalPoints / _totalExaminees;
-    }
-
-    // should be ZKP
-    function setSolution(
-		uint task, 
-		uint@me sol
-	) public {
-        require(_examinator == me);
-        solutions[task] = sol;
-    }
-
-    // should be ZKP
+    // ZKP
     function recordAnswer(
 		uint task, 
 		uint@me ans
@@ -50,7 +36,7 @@ contract Scores {
         points[me] = 0;
     }
 
-    // should be ZKP
+    // ZKP
     function gradeTask(
 		uint task, 
 		address examinee
@@ -62,7 +48,21 @@ contract Scores {
         passed[examinee] = reveal(points[examinee] > _passPoints, examinee);
     }
 
-	// should be TEE
+    // TEE
+    function setSolution(
+		uint task, 
+		uint@tee sol
+	) public {
+        require(_examinator == me);
+        solutions[task] = sol;
+    }
+
+    // TEE
+    function getAverage() public returns (uint) {
+        _avgScore = _totalPoints / _totalExaminees;
+    }
+
+	// TEE
     function rateAnswer(
 		uint task, 
 		address examinee

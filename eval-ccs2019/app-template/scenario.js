@@ -21,19 +21,19 @@ $ACCOUNTS
     var pki = artifacts.require("PublicKeyInfrastructure");
     let genPublicKeyInfrastructure = await pki.deployed();
 
-	console.log("Deploy PublicKeyInfrastructure to TEE...");
-    let genPublicKeyInfrastructure_tee = await tee_helpers.deploy("pki", [], accounts[0]);
+	// console.log("Deploy PublicKeyInfrastructure to TEE...");
+    // let genPublicKeyInfrastructure_tee = await tee_helpers.deploy("pki", [], accounts[0]);
 
     // TODO: modified following to fit verify_lib.sol
     // let bn256g2_tee = await tee_helpers.deploy("BN256G2", [], accounts[0]);
     // let pairing_tee = await tee_helpers.deploy("Pairing", [], accounts[0]);
 	
-	// deploy verifiers to TEE
-	// EXAMPLE: let Verify_exec_zkp_var_tee = await tee_helpers.deploy("Verify_exec_zkp_verifier", [], accounts[0]);
-	// TODO: adapt deployment statement to eEVM
-	console.log("Deploy verifiers to TEE...");
-    let verify_libs_tee = await tee_helpers.deploy("verify_libs", [], accounts[0]);
-$TEE_VERIFIERS_DEPLOY
+// 	// deploy verifiers to TEE
+// 	// EXAMPLE: let Verify_exec_zkp_var_tee = await tee_helpers.deploy("Verify_exec_zkp_verifier", [], accounts[0]);
+// 	// TODO: adapt deployment statement to eEVM
+// 	console.log("Deploy verifiers to TEE...");
+//     let verify_libs_tee = await tee_helpers.deploy("verify_libs", [], accounts[0]);
+// $TEE_VERIFIERS_DEPLOY
 
     // fetch contract
     // EXAMPLE:
@@ -45,8 +45,8 @@ $CONTRACT_FETCH
 	console.log("Announce public keys of accounts...");	
 $PK_ANNOUNCE
 
-	console.log("Announce public keys of accounts in TEE...");
-$TEE_PK_ANNOUNCE
+// 	console.log("Announce public keys of accounts in TEE...");
+// $TEE_PK_ANNOUNCE
 
     // load the deployed verifiers
     // EXAMPLE: var verify_registerPaper = artifacts.require("Verify_registerPaper");

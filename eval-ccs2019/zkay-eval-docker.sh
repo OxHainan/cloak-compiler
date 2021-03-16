@@ -38,8 +38,8 @@ make -C "$BASEDIR/docker" image
 sudo docker run \
 	-it \
 	--rm \
-	-v "$BASEDIR/..":/cloak \
-	--workdir /cloak/eval-ccs2019 \
+	-v "$BASEDIR/..":/cloak-compiler \
+	--workdir /cloak-compiler/eval-ccs2019 \
 	$IMAGE \
 	make eval
 

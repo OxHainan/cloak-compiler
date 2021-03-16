@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.5.0;
 
 // Description: Track and audit cash receipts
 // Domain: Retail
@@ -11,18 +11,45 @@ contract SupplyChain {
 	mapping(address!x => 
 	    mapping(address => uint@x)) receivables;
 
+    // ZKP
 	constructor() public {
         business = me;
         income = 0;
     }
 
-    // ZKP
-    function recordReceivable(
-		address owner, 
-        uint@me value
-	) {
-        receivables[owner][me] = reveal(value, owner);
-    }
+    // // ZKP
+    // function recordReceivable(
+	// 	address owner, 
+    //     uint@me value
+	// ) {
+    //     receivables[owner][me] = reveal(value, owner);
+    // }
+
+	// // ZKP
+	// function give_receipt(
+	// 	uint id, 
+	// 	uint@me amount
+	// ) public {
+    //     require(business == me);
+    //     out_receipts[id] = amount;
+    //     income = income + amount;
+    // }
+
+	// // ZKP
+    // function receive_receipt(
+	// 	uint id, 
+	// 	uint@me amount
+	// ) public {
+    //     in_receipts[id] = reveal(amount, business);
+    // }
+
+	// // ZKP
+    // function check(
+	// 	uint id
+	// ) public {
+    //     require(business == me);
+    //     require(reveal(in_receipts[id] == out_receipts[id], all));
+    // }
 
     // TEE
     function finishReceivable(
@@ -39,31 +66,5 @@ contract SupplyChain {
 		    ret = true;
         }
         return ret;
-    }
-
-	// ZKP
-	function give_receipt(
-		uint id, 
-		uint@me amount
-	) public {
-        require(business == me);
-        out_receipts[id] = amount;
-        income = income + amount;
-    }
-
-	// ZKP
-    function receive_receipt(
-		uint id, 
-		uint@me amount
-	) public {
-        in_receipts[id] = reveal(amount, business);
-    }
-
-	// ZKP
-    function check(
-		uint id
-	) public {
-        require(business == me);
-        require(reveal(in_receipts[id] == out_receipts[id], all));
     }
 }

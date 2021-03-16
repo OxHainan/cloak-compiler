@@ -1,6 +1,7 @@
 /examples/*/compiled
 /examples/*/truffle-app
 /examples/*/scenario
+/examples/ox-*
 *.csv
 *.pdf
 

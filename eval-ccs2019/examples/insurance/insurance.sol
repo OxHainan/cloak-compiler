@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.5.0;
 
 // Description: Insure secret items at secret amounts
 // Domain: Insurance
@@ -25,27 +25,10 @@ contract Insurance {
         police = police_;
     }
 
-	// ZKP
-    function register() public {
-        n_items[me] = 0;
-        paid[me] = 0;
-    }
-
-	// ZKP
-    function insure_item(uint@me amount, uint rate) public {
-        // book-keeping
-        uint next = n_items[me];
-        n_items[me] = next + 1;
-
-        // omitted: transfer rate
-        rates[me][next] = rate;
-
-        // record information
-        require(reveal(amount < MAX_AMOUNT, all));
-        amounts[me][next] = amount;
-        accepted[me][next] =  false;
-        stolen[me][next] = false;
-        broken[me][next] = false;
+  	// PUB
+    function accept_item(address client, uint id) public {
+        require(insurance == me);
+        accepted[client][id] = true;
     }
 
 	// ZKP
@@ -57,18 +40,6 @@ contract Insurance {
         amounts[me][id] = 0;
     }
     
-	// ZKP
-    function accept_item(address client, uint id) public {
-        require(insurance == me);
-        accepted[client][id] = true;
-    }
-
-	// ZKP
-    function set_stolen(address client, uint id, bool@me is_stolen) public {
-        require(police == me);
-        stolen[client][id] = reveal(is_stolen, client);
-    }
-
 	// ZKP
     function set_broken(address client, uint id, bool@me is_broken) public {
         require(police == me); // could also be some other authority
@@ -86,4 +57,35 @@ contract Insurance {
         // omitted: transfer amount (may require declassification)
         paid[me] = paid[me] + amount; // update total paid amount
     }
+
+    // TEE
+    function register() public {
+        uint@tee i_num = 0;
+        n_items[me] = i_num;
+        paid[me] = i_num;
+    }
+
+	// TEE
+    function set_stolen(address client, uint id, bool@tee is_stolen) public {
+        require(police == me);
+        stolen[client][id] = is_stolen;
+    }
+
+	// TEE
+    function insure_item(uint@me amount, uint@tee rate) public {
+        // book-keeping
+        uint next = n_items[me];
+        n_items[me] = next + 1;
+
+        // omitted: transfer rate
+        rates[me][next] = rate;
+
+        // record information
+        require(amount < MAX_AMOUNT);
+        amounts[me][next] = amount;
+        accepted[me][next] =  false;
+        stolen[me][next] = false;
+        broken[me][next] = false;
+    }
+
 }

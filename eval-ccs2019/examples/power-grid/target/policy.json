@@ -1,0 +1,68 @@
+{
+    "method": "sendPrivacyPolicy",
+    "from": "0xde0B295669a9FD93d5F28D9Ec85E40f4cb697BAe",
+    "codeHash": "code hash of deployed F (binded private contract)",
+    "verifierAddr": "address of V(on-chain verifier)",
+    "policy": {
+        "contract": "SupplyChain",
+        "states": [
+            {
+                "name": "balances",
+                "type": "mapping(address=>uint256)",
+                "owner": "mapping(address!x=>uint256@x)"
+            },
+            {
+                "name": "receivables",
+                "type": "mapping(address=>mapping(address=>uint256))",
+                "owner": "mapping(address!x=>mapping(address=>uint256@x))"
+            }
+        ],
+        "functions": [
+            {
+                "type": "function",
+                "name": "settleReceivable",
+                "inputs": [
+                    {
+                        "name": "owner",
+                        "type": "uint256",
+                        "owner": "all"
+                    },
+                    {
+                        "name": "amount",
+                        "type": "uint256",
+                        "owner": "tee"
+                    }
+                ],
+                "read": [
+                    {
+                        "name": "balances",
+                        "keys": [
+                            "owner"
+                        ]
+                    }
+                ],
+                "mutate": [
+                    {
+                        "name": "balances",
+                        "keys": [
+                            "msg.sender"
+                        ]
+                    },
+                    {
+                        "name": "receivables",
+                        "keys": [
+                            "owner:msg.sender"
+                        ]
+                    }
+                ],
+                "outputs": [
+                    {
+                        "name": "",
+                        "type": "uint256",
+                        "owner": "all"
+                    }
+                ]
+            }
+        ]
+    }
+}

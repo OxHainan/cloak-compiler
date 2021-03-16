@@ -7,19 +7,23 @@ contract PowerGrid {
     mapping (address!x => uint@x) consumed;
     mapping (address => uint@master) total;
 
+    // PUB
     constructor() public {
         master = me;
     }
 
+    // ZKP
     function init() public {
         consumed[me] = 0;
     }
 
-    function register_consumed(uint@me amount) public {
+    // TEE
+    function register_consumed(uint@tee amount) public {
         consumed[me] = consumed[me] + amount;
     }
 
+    // TEE
     function declare_total() public {
-        total[me] = reveal(consumed[me], master);
+        total[me] = total[me] + consumed[me];
     }
 }

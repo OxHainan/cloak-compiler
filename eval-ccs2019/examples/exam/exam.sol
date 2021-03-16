@@ -18,17 +18,20 @@ contract Exam {
         pass_points = pass;
     }
 
+    // ZKP
     function set_solution(uint task, uint@me sol) public {
         require(examinator == me);
         solutions[task] = sol;
     }
 
+    // ZKP
     function record_answer(uint task, uint@me ans) public {
         answers[me][task] = reveal(ans, examinator);
         passed[me] = false;
         points[me] = 0;
     }
 
+    // ZKP
     function grade_task(uint task, address examinee) public {
         require(examinator == me);
         uint@me p;

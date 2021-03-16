@@ -1,4 +1,4 @@
-pragma solidity ^0.4.0;
+pragma solidity ^0.5.0;
 
 // Description: Place bets and claim winnings
 // Domain: Gambling
@@ -11,18 +11,14 @@ contract Bid {
     uint published_secret;
     address winner;
 
+    // ZKP
     constructor(uint@me s) public {
         master = me;
         secret = s;
         revealed = false;
     }
 
-    function bet(uint@me val) public {
-        require(me != master);
-        require(!revealed);
-        bets[me] = val;
-    }
-
+    // ZKP
     function publish_secret() public {
         require(master == me);
         require(!revealed);
@@ -30,10 +26,21 @@ contract Bid {
         published_secret = reveal(secret, all);
     }
 
+    // TEE
+    function bet(uint@tee val) public {
+        require(me != master);
+        require(!revealed);
+        // bets[me] = val;
+        bets[me] = bets[me] + val;
+    }
+
+    // TEE
     function claim_winner() public {
         require(revealed && (me != master));
-        require(reveal(bets[me] == published_secret, all));
+        require(bets[me] == published_secret);
         winner = me;
         // send money here
+        uint@tee balance = 0;
+        balance = secret + balance;
     }
 }

@@ -8,9 +8,9 @@ g = ScenarioGenerator(script_dir, 'scores.sol', {'examinator': 10, 'student': 20
 
 # run functions
 g.run_function('constructor', 'examinator', [11, 22])
-g.run_function('getAverage', 'tee', [666])
+g.run_function('getAverage', 'tee')
 g.run_function('setSolution', 'examinator', [1, 12])
-g.run_function('setSolution', 'examinator', [2, 13])
+# g.run_function('setSolution', 'examinator', [2, 13])
 # g.run_function('record_answer', 'student', [1, 12])
 # g.run_function('record_answer', 'student', [2, 14])
 # g.run_function('grade_task', 'examinator', [1, 'student'])
