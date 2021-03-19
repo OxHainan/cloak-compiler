@@ -1915,6 +1915,7 @@ class SourceUnit(AST):
         self.used_contracts = [] if used_contracts is None else used_contracts
 
         self.original_code: List[str] = []
+        self.privacy_policy: str
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)

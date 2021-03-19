@@ -14,6 +14,7 @@ from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
 
 from zkay import my_logging
+import zkay
 from zkay.compiler.privacy import library_contracts
 from zkay.compiler.privacy.circuit_generation.backends.jsnark_generator import JsnarkGenerator
 from zkay.compiler.privacy.circuit_generation.circuit_generator import CircuitGenerator
@@ -98,8 +99,11 @@ def compile_zkay(code: str, output_dir: str, import_keys: bool = False, **kwargs
     # Type checking
     zkay_ast = get_processed_ast(code)
 
+    with print_step("Generate privacy policy"):
+        _dump_to_output(zkay_ast.privacy_policy, output_dir, f'policy.json')
+
     # Contract transformation
-    with print_step("Transforming zkay -> public contract"):
+    with print_step("Transforming cloak contract"):
         ast, circuits = transform_ast(deepcopy(zkay_ast))
 
     # Dump libraries
