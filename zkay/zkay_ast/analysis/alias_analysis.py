@@ -10,7 +10,7 @@ from zkay.zkay_ast.ast import VariableDeclarationStatement, IfStatement, \
 from zkay.zkay_ast.visitor.visitor import AstVisitor
 
 
-def alias_analysis(ast):
+def analyze_alias(ast):
     v = AliasAnalysisVisitor()
     v.visit(ast)
 

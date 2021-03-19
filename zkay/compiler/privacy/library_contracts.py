@@ -16,7 +16,7 @@ def get_verify_libs_code() -> str:
                 f"{alt_bn128_pairing_lib}"
     else:
         code += f'{alt_bn128_pairing_lib_simple}'
-    return f'pragma solidity {cfg.zkay_solc_version_compatibility.expression};\n\n{code}'
+    return f'pragma solidity {cfg.cloak_solc_version_compatibility.expression};\n\n{code}'
 
 
 bn128_scalar_field = 21888242871839275222246405745257275088548364400416034343698204186575808495617
@@ -30,7 +30,7 @@ def get_pki_contract() -> str:
     """Contract of the public key infrastructure used for asymmetric cryptography"""
     # TODO prove private key knowledge during announcePk
     return dedent(f'''\
-    pragma solidity {cfg.zkay_solc_version_compatibility.expression};
+    pragma solidity {cfg.cloak_solc_version_compatibility.expression};
 
     contract {cfg.pki_contract_name} {{
         mapping(address => uint[{cfg.key_len}]) pks;

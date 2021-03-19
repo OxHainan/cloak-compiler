@@ -5,7 +5,39 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: compile-FuncCalls",
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: scores-check",
+            "type": "python",
+            "request": "launch",
+            "program": "zkay/__main__.py",
+            "args": ["check", "./eval-ccs2019/examples/scores/scores.sol"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: scores-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "zkay/__main__.py",
+            "args": ["compile", "-o", "test", "./eval-ccs2019/examples/scores/scores.sol"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: FuncCalls-check",
+            "type": "python",
+            "request": "launch",
+            "subProcess": true,
+            "program": "zkay/__main__.py",
+            "args": ["check", "zkay/examples/code/FuncCalls.zkay"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: FuncCalls-compile",
             "type": "python",
             "request": "launch",
             "program": "zkay/__main__.py",

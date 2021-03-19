@@ -3,7 +3,7 @@ from zkay.zkay_ast.ast import ConstructorOrFunctionDefinition, FunctionCallExpr,
 from zkay.zkay_ast.visitor.function_visitor import FunctionVisitor
 
 
-def call_graph_analysis(ast):
+def analyze_call_graph(ast):
     """
     determines (indirectly) called functions for every function
     and concludes from that whether a function has a static body

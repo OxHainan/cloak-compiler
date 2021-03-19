@@ -14,7 +14,7 @@ def _read_file(path: str) -> str:
 # Versions
 antlr_version = '4.8'
 file_dir = os.path.dirname(os.path.realpath(__file__))
-zkay_version = _read_file(os.path.join(file_dir, 'zkay', 'VERSION'))
+cloak_version = _read_file(os.path.join(file_dir, 'zkay', 'VERSION'))
 zkay_libsnark_commit_hash = '4e3c7a53ec333f52fe27ff45ff836102bcdb8e28'
 packages = find_packages()
 
@@ -50,7 +50,7 @@ def build_libsnark_backend(target_dir: str):
 def install_latest_compatible_solc():
     import solcx
     from zkay.config_version import Versions
-    solcx.install_solc_pragma(Versions.ZKAY_SOLC_VERSION_COMPATIBILITY.expression)
+    solcx.install_solc_pragma(Versions.CLOAK_SOLC_VERSION_COMPATIBILITY.expression)
 
 
 class CustomSdist(sdist):
@@ -78,8 +78,8 @@ class CustomDevelop(develop):
 
 setup(
     # Metadata
-    name='zkay',
-    version=zkay_version,
+    name='cloak',
+    version=cloak_version,
     author='Nick Baumann, SRI Lab ETH Zurich',
     url='https://github.com/eth-sri/zkay',
     license='MIT',

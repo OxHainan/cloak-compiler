@@ -96,14 +96,14 @@ class Config(UserConfig):
         return Versions.ZKAY_LIBRARY_SOLC_VERSION
 
     @property
-    def zkay_version(self) -> str:
-        """zkay version number"""
-        return Versions.ZKAY_VERSION
+    def cloak_version(self) -> str:
+        """cloak version number"""
+        return Versions.CLOAK_VERSION
 
     @property
-    def zkay_solc_version_compatibility(self) -> NpmSpec:
+    def cloak_solc_version_compatibility(self) -> NpmSpec:
         """Target solidity language level for the current zkay version"""
-        return Versions.ZKAY_SOLC_VERSION_COMPATIBILITY
+        return Versions.CLOAK_SOLC_VERSION_COMPATIBILITY
 
     @property
     def solc_version(self) -> str:

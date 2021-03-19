@@ -9,7 +9,7 @@ from zkay.utils.progress_printer import warn_print
 
 class Manifest:
     """Static class, which holds the string keys of all supported zkay manifest keys """
-    zkay_version = 'zkay-version'
+    cloak_version = 'zkay-version'
     solc_version = 'solc-version'
     zkay_options = 'zkay-options'
 
@@ -23,10 +23,10 @@ class Manifest:
     @staticmethod
     def import_manifest_config(manifest):
         # Check if zkay version matches
-        if manifest[Manifest.zkay_version] != cfg.zkay_version:
+        if manifest[Manifest.cloak_version] != cfg.cloak_version:
             with warn_print():
                 print(
-                    f'Zkay version in manifest ({manifest[Manifest.zkay_version]}) does not match current zkay version ({cfg.zkay_version})\n'
+                    f'Zkay version in manifest ({manifest[Manifest.cloak_version]}) does not match current zkay version ({cfg.cloak_version})\n'
                     f'Compilation or integrity check with deployed bytecode might fail due to version differences')
 
         cfg.override_solc(manifest[Manifest.solc_version])

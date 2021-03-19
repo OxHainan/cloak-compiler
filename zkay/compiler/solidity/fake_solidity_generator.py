@@ -1,4 +1,4 @@
-# Use regular expression replacements (stack program for reveal) to strip all zkay specific language features
+# Use regular expression replacements (stack program for reveal) to strip all cloak specific language features
 # so that code can be passed to solc for type checking.
 
 import re
@@ -42,7 +42,7 @@ FINAL_PATTERN = re.compile(MATCH_WORD_FSTR.format('final'))
 ALL_PATTERN = re.compile(MATCH_WORD_FSTR.format('all'))
 
 # Pragma regex
-PRAGMA_PATTERN = re.compile(f'(?P<keep>{NONID_START}pragma\\s*)(?P<repl>zkay.*?);')
+PRAGMA_PATTERN = re.compile(f'(?P<keep>{NONID_START}pragma\\s*)(?P<repl>cloak.*?);')
 
 # Regex to match tagged mapping declarations
 MAP_PATTERN = re.compile(
@@ -156,15 +156,15 @@ def replace_with_surrogate(code: str, search_pattern: Pattern, replacement_fstr:
 
 def fake_solidity_code(code: str):
     """
-    Returns the solidity code to which the given zkay_code corresponds when dropping all privacy features,
+    Returns the solidity code to which the given cloak_code corresponds when dropping all privacy features,
     while preserving original formatting
     """
 
     # Strip string literals and comments
     code = replace_with_surrogate(code, STRING_OR_COMMENT_PATTERN)
 
-    # Replace zkay pragma with solidity pragma
-    code = replace_with_surrogate(code, PRAGMA_PATTERN, f'solidity {cfg.zkay_solc_version_compatibility};')
+    # Replace cloak pragma with solidity pragma
+    code = replace_with_surrogate(code, PRAGMA_PATTERN, f'solidity {cfg.cloak_solc_version_compatibility};')
 
     # Strip final
     code = replace_with_surrogate(code, FINAL_PATTERN)

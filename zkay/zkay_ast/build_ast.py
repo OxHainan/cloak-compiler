@@ -114,15 +114,15 @@ class BuildASTVisitor(SolidityVisitor):
         version = ctx.ver.getText().strip()
         spec = NpmSpec(version)
         name = self.handle_field(ctx.name)
-        if name == 'zkay' and Version(cfg.zkay_version) not in spec:
-            raise SyntaxException(f'Contract requires a different zkay version.\n'
-                                  f'Current version is {cfg.zkay_version} but pragma zkay mandates {version}.',
+        if name == 'cloak' and Version(cfg.cloak_version) not in spec:
+            raise SyntaxException(f'Contract requires a different cloak version.\n'
+                                  f'Current version is {cfg.cloak_version} but pragma zkay mandates {version}.',
                                   ctx.ver, self.code)
-        elif name != 'zkay' and spec != cfg.zkay_solc_version_compatibility:
+        elif name != 'cloak' and spec != cfg.cloak_solc_version_compatibility:
             # For backwards compatibility with older zkay versions
             assert name == 'solidity'
             raise SyntaxException(f'Contract requires solidity version {spec}, which is not compatible '
-                                  f'with the current zkay version (requires {cfg.zkay_solc_version_compatibility}).',
+                                  f'with the current zkay version (requires {cfg.cloak_solc_version_compatibility}).',
                                   ctx.ver, self.code)
 
         return f'{name} {version}'
@@ -206,8 +206,8 @@ class BuildASTVisitor(SolidityVisitor):
         if ctx.privacy_annotation is not None:
             pa = self.visit(ctx.privacy_annotation)
 
-            if not (isinstance(pa, ast.AllExpr) or isinstance(pa, ast.MeExpr) or isinstance(pa, IdentifierExpr)):
-                raise SyntaxException('Privacy annotation can only be me | all | Identifier', ctx.privacy_annotation, self.code)
+            if not (isinstance(pa, ast.AllExpr) or isinstance(pa, ast.MeExpr) or isinstance(pa, ast.TeeExpr) or isinstance(pa, IdentifierExpr)):
+                raise SyntaxException('Privacy annotation can only be me | all | tee| Identifier', ctx.privacy_annotation, self.code)
 
         return ast.AnnotatedTypeName(self.visit(ctx.type_name), pa)
 

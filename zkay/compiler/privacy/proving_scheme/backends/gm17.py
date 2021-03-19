@@ -49,7 +49,7 @@ class ProvingSchemeGm17(ProvingScheme):
         # Verification contract uses the pairing library from ZoKrates (MIT license)
         # https://github.com/Zokrates/ZoKrates/blob/d8cde9e1c060cc654413f01c8414ea4eaa955d87/zokrates_core/src/proof_system/bn128/utils/solidity.rs#L398
         x = MultiLineFormatter() * f'''\
-        pragma solidity {cfg.zkay_solc_version_compatibility};
+        pragma solidity {cfg.cloak_solc_version_compatibility};
 
         import {{ Pairing, G1Point as G1, G2Point as G2 }} from "{ProvingScheme.verify_libs_contract_filename}";
 

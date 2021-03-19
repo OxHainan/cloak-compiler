@@ -3,34 +3,34 @@ This module contains the definitions of all exceptions which may be publicly rai
 """
 
 
-class ZkayCompilerError(Exception):
+class CloakCompilerError(Exception):
     """
     Error during compilation
     """
     pass
 
 
-class ZkaySyntaxError(ZkayCompilerError):
+class ZkaySyntaxError(CloakCompilerError):
     """
     Error during parsing / AST construction"
     """
 
 
-class PreprocessAstException(ZkayCompilerError):
+class PreprocessAstException(CloakCompilerError):
     """
     Error during ast pre-processing"
     """
     pass
 
 
-class AnalysisException(ZkayCompilerError):
+class AnalysisException(CloakCompilerError):
     """
     Error during ast analysis"
     """
     pass
 
 
-class TypeCheckException(ZkayCompilerError):
+class TypeCheckException(CloakCompilerError):
     """
     Error during type checking"
     """

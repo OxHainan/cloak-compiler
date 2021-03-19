@@ -1,7 +1,7 @@
 from zkay.type_check.contains_private import contains_private
 from zkay.type_check.final_checker import check_final
 from zkay.type_check.type_exceptions import TypeMismatchException, TypeException
-from zkay.zkay_ast.ast import IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TypeName, \
+from zkay.zkay_ast.ast import IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TeeExpr, TypeName, \
     StateVariableDeclaration, Mapping, AssignmentStatement, MeExpr, ReclassifyExpr, FunctionCallExpr, \
     BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
@@ -11,7 +11,7 @@ from zkay.zkay_ast.visitor.deep_copy import replace_expr
 from zkay.zkay_ast.visitor.visitor import AstVisitor
 
 
-def type_check(ast):
+def check_type(ast):
     check_final(ast)
     v = TypeCheckVisitor()
     v.visit(ast)
@@ -27,7 +27,7 @@ class TypeCheckVisitor(AstVisitor):
             return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
 
         instance = rhs.instanceof(expected_type)
-        if not instance:
+        if not instance and not rhs.get_related_function().is_tee():
             raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
         else:
             if rhs.annotated_type.type_name != expected_type.type_name:
@@ -85,7 +85,7 @@ class TypeCheckVisitor(AstVisitor):
     def make_private_if_not_already(self, ast: Expression):
         if ast.annotated_type.is_private():
             expected = AnnotatedTypeName(ast.annotated_type.type_name, Expression.me_expr())
-            if not ast.instanceof(expected):
+            if not ast.instanceof(expected) and not ast.get_related_function().is_tee():
                 raise TypeMismatchException(expected, ast.annotated_type, ast)
             return ast
         else:
@@ -105,7 +105,7 @@ class TypeCheckVisitor(AstVisitor):
             cond_t = ast.args[0].annotated_type
 
             # Ensure that condition is boolean
-            if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()):
+            if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()) and not ast.get_related_function().is_tee():
                 raise TypeMismatchException(TypeName.bool_type(), cond_t.type_name, ast.args[0])
 
             res_t = ast.args[1].annotated_type.type_name.combined_type(ast.args[2].annotated_type.type_name, True)
@@ -130,7 +130,7 @@ class TypeCheckVisitor(AstVisitor):
         parameter_types = func.input_types()
         if not func.is_eq():
             for arg, t in zip(ast.args, parameter_types):
-                if not arg.instanceof_data_type(t):
+                if not arg.instanceof_data_type(t) and not ast.get_related_function().is_tee():
                     raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
 
         t1 = ast.args[0].annotated_type.type_name
@@ -283,7 +283,7 @@ class TypeCheckVisitor(AstVisitor):
         # because of the fake solidity check we already know that the cast is possible -> don't have to check if cast possible
         if expr.annotated_type.is_private():
             expected = AnnotatedTypeName(expr.annotated_type.type_name, Expression.me_expr())
-            if not expr.instanceof(expected):
+            if not expr.instanceof(expected) and not expr.get_related_function().is_tee():
                 raise TypeMismatchException(expected, expr.annotated_type, expr)
             return AnnotatedTypeName(t.clone(), Expression.me_expr())
         else:
@@ -311,20 +311,20 @@ class TypeCheckVisitor(AstVisitor):
 
     def visitIfStatement(self, ast: IfStatement):
         b = ast.condition
-        if not b.instanceof_data_type(TypeName.bool_type()):
+        if not b.instanceof_data_type(TypeName.bool_type()) and not ast.get_related_function().is_tee():
             raise TypeMismatchException(TypeName.bool_type(), b.annotated_type.type_name, b)
         if ast.condition.annotated_type.is_private():
             expected = AnnotatedTypeName(TypeName.bool_type(), Expression.me_expr())
-            if not b.instanceof(expected):
+            if not b.instanceof(expected) and not ast.get_related_function().is_tee():
                 raise TypeMismatchException(expected, b.annotated_type, b)
 
     def visitWhileStatement(self, ast: WhileStatement):
-        if not ast.condition.instanceof(AnnotatedTypeName.bool_all()):
+        if not ast.condition.instanceof(AnnotatedTypeName.bool_all()) and not ast.get_related_function().is_tee():
             raise TypeMismatchException(AnnotatedTypeName.bool_all(), ast.condition.annotated_type, ast.condition)
         # must also later check that body and condition do not contain private expressions
 
     def visitForStatement(self, ast: ForStatement):
-        if not ast.condition.instanceof(AnnotatedTypeName.bool_all()):
+        if not ast.condition.instanceof(AnnotatedTypeName.bool_all()) and not ast.get_related_function().is_tee():
             raise TypeMismatchException(AnnotatedTypeName.bool_all(), ast.condition.annotated_type, ast.condition)
         # must also later check that body, update and condition do not contain private expressions
 
@@ -370,7 +370,7 @@ class TypeCheckVisitor(AstVisitor):
             key_type = map_t.type_name.key_type
             expected = AnnotatedTypeName(key_type, Expression.all_expr())
             instance = index.instanceof(expected)
-            if not instance:
+            if not instance and not ast.get_related_function().is_tee():
                 raise TypeMismatchException(expected, index.annotated_type, ast)
 
             # record indexing information
@@ -396,7 +396,7 @@ class TypeCheckVisitor(AstVisitor):
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         for t in ast.parameter_types:
-            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr)):
+            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
                 raise TypeException('Only me/all accepted as privacy type of function parameters', ast)
 
         if ast.can_be_external:

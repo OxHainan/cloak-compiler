@@ -23,4 +23,4 @@ class SolidityVisitor(CodeVisitor):
         return 'msg.sender'
 
     def handle_pragma(self, pragma: str) -> str:
-        return f'pragma solidity {cfg.zkay_solc_version_compatibility};'
+        return f'pragma solidity {cfg.cloak_solc_version_compatibility};'

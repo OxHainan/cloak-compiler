@@ -51,7 +51,7 @@ def compile_zkay_file(input_file_path: str, output_dir: str, import_keys: bool =
     :param import_keys: | if false, zk-snark of all modified circuits will be generated during compilation
                         | if true, zk-snark keys for all circuits are expected to be already present in the output directory, and the compilation will use the provided keys to generate the verification contracts
                         | This option is mostly used internally when connecting to a zkay contract provided by a 3rd-party
-    :raise ZkayCompilerError: if any compilation stage fails
+    :raise CloakCompilerError: if any compilation stage fails
     :raise RuntimeError: if import_keys is True and zkay file, manifest file or any of the key files is missing
     """
     code = read_file(input_file_path)
@@ -76,7 +76,7 @@ def compile_zkay(code: str, output_dir: str, import_keys: bool = False, **kwargs
     Parse, type-check and compile the given zkay code.
 
     Note: If a SolcException is raised, this indicates a bug in zkay
-          (i.e. zkay produced solidity code which doesn't compile, without raising a ZkayCompilerError)
+          (i.e. zkay produced solidity code which doesn't compile, without raising a CloakCompilerError)
 
     :param code: zkay code to compile
     :param output_dir: path to a directory where the compilation output should be generated
@@ -84,7 +84,7 @@ def compile_zkay(code: str, output_dir: str, import_keys: bool = False, **kwargs
                         | if true, zk-snark keys for all circuits are expected to be already present in the output directory, \
                           and the compilation will use the provided keys to generate the verification contracts
                         | This option is mostly used internally when connecting to a zkay contract provided by a 3rd-party
-    :raise ZkayCompilerError: if any compilation stage fails
+    :raise CloakCompilerError: if any compilation stage fails
     :raise RuntimeError: if import_keys is True and zkay file, manifest file or any of the key files is missing
     """
 
@@ -137,7 +137,7 @@ def compile_zkay(code: str, output_dir: str, import_keys: bool = False, **kwargs
     if not import_keys:
         with print_step("Writing manifest file"):
             manifest = {
-                Manifest.zkay_version: cfg.zkay_version,
+                Manifest.cloak_version: cfg.cloak_version,
                 Manifest.solc_version: cfg.solc_version,
                 Manifest.zkay_options: cfg.export_compiler_settings(),
             }

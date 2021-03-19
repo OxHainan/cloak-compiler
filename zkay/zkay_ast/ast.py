@@ -1704,10 +1704,10 @@ class NamespaceDefinition(AST):
 
 
 class FunctionPrivacyType(IntEnum):
-	PUB = 0
-	ZKP = 1
-	MPC = 2
-	TEE = 3
+    PUB = 0
+    ZKP = 1
+    MPC = 2
+    TEE = 3
 
 
 class ConstructorOrFunctionDefinition(NamespaceDefinition):
@@ -1812,6 +1812,15 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
             if isinstance(idf, Identifier) and id == idf.name:
                 return idf
         return None
+
+    def is_pub(self):
+        return FunctionPrivacyType.PUB == self.privacy_type
+
+    def is_zkp(self):
+        return FunctionPrivacyType.ZKP == self.privacy_type
+
+    def is_tee(self):
+        return FunctionPrivacyType.TEE == self.privacy_type
 
 class StateVariableDeclaration(IdentifierDeclaration):
 
@@ -2173,7 +2182,7 @@ class CodeVisitor(AstVisitor):
     def visitIfStatement(self, ast: IfStatement):
         c = self.visit(ast.condition)
         t = self.visit_single_or_list(ast.then_branch)
-    	if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+        if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
             # TODO: delete redundant table before statements
             ret = f'{t[1:-1]}' if t else ''
             if ast.else_branch:

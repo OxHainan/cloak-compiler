@@ -172,13 +172,13 @@ def main():
     from zkay.config_version import Versions
 
     if a.cmd == 'version':
-        print(Versions.ZKAY_VERSION)
+        print(Versions.CLOAK_VERSION)
         return
 
     if a.cmd == 'update-solc':
         try:
             import solcx
-            solcx.install_solc_pragma(Versions.ZKAY_SOLC_VERSION_COMPATIBILITY.expression)
+            solcx.install_solc_pragma(Versions.CLOAK_SOLC_VERSION_COMPATIBILITY.expression)
         except Exception as e:
             print(f'ERROR: Error while updating solc\n{e}')
         return
@@ -189,7 +189,7 @@ def main():
     from zkay import my_logging
     from zkay.config import cfg
     from zkay.utils.helpers import read_file, save_to_file
-    from zkay.errors.exceptions import ZkayCompilerError
+    from zkay.errors.exceptions import CloakCompilerError
     from zkay.my_logging.log_context import log_context
     from zkay.utils.progress_printer import fail_print, success_print
     from zkay.zkay_ast.process_ast import get_processed_ast, get_parsed_ast_and_fake_code
@@ -260,7 +260,7 @@ def main():
             code = read_file(str(input_path))
             try:
                 get_processed_ast(code)
-            except ZkayCompilerError as e:
+            except CloakCompilerError as e:
                 with fail_print():
                     print(f'{e}')
                 exit(3)
@@ -270,7 +270,7 @@ def main():
             try:
                 _, fake_code = get_parsed_ast_and_fake_code(read_file(str(input_path)))
                 print(fake_code)
-            except ZkayCompilerError as e:
+            except CloakCompilerError as e:
                 with fail_print():
                     print(f'{e}')
                 exit(3)
@@ -299,7 +299,7 @@ def main():
             with log_context('inputfile', os.path.basename(a.input)):
                 try:
                     frontend.compile_zkay_file(str(input_path), str(output_dir))
-                except ZkayCompilerError as e:
+                except CloakCompilerError as e:
                     with fail_print():
                         print(f'{e}')
                     exit(3)
@@ -313,7 +313,7 @@ def main():
 
             try:
                 frontend.extract_zkay_package(str(input_path), str(output_dir))
-            except ZkayCompilerError as e:
+            except CloakCompilerError as e:
                 with fail_print():
                     print(f"ERROR while compiling unpacked zkay contract.\n{e}")
                 exit(3)

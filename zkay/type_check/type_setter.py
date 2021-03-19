@@ -1,116 +1,111 @@
-import json
-from typing import Union
-from zkay.utils.helpers import save_to_file
-
-from zkay.zkay_ast.ast import AST, Array, CodeVisitor, ContractDefinition, Identifier, IdentifierExpr, Parameter, ReturnStatement, IfStatement, \
-    AssignmentExpr, BooleanLiteralExpr, NumberLiteralExpr, AnnotatedTypeName, Expression, TypeName, \
-    FunctionDefinition, FunctionPrivacyType, StateVariableDeclaration, Mapping, ConstructorOrFunctionDefinition, \
-    AssignmentStatement, MeExpr, AllExpr, TeeExpr, ConstructorDefinition, ReclassifyExpr, FunctionCallExpr, \
-    BuiltinFunction, VariableDeclarationStatement, RequireStatement
-from zkay.zkay_ast.visitor.deep_copy import deep_copy
-from zkay.zkay_ast.visitor.visitor import AstVisitor
 from zkay.type_check.contains_private import contains_private
 from zkay.type_check.final_checker import check_final
-from zkay.type_check.type_exceptions import TypeMismatchException, TypeException
 from zkay.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
+from zkay.type_check.type_exceptions import TypeMismatchException, TypeException
+from zkay.zkay_ast.ast import AST, CodeVisitor, IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TypeName, \
+    StateVariableDeclaration, Mapping, AssignmentStatement, MeExpr, TeeExpr, ReclassifyExpr, FunctionCallExpr, \
+    BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
+    LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
+    BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, \
+    UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition, FunctionPrivacyType
+from zkay.zkay_ast.visitor.deep_copy import deep_copy, replace_expr
+from zkay.zkay_ast.visitor.visitor import AstVisitor
 
 
-def privacy_type_set(ast, output_directory: str):
-    '''
-    Derive and set the privacy type of the function
-    '''
+def set_privacy_type(ast):
     check_final(ast)
-    fv = FunctionTypeVisitor()   # set functin type
+
+    # set function type
+    fv = FunctionTypeVisitor() 
     fv.visit(ast)
-    ptv = PrivacyTypeVisitor()  # set other type based on function type
+
+    # generate privacy policy
+    ptv = PrivacyTypeVisitor()  
     ptv.visit(ast)
-    save_to_file(output_directory, "policy.json", json.dumps(
-        ptv.privacy_policy, cls=PrivacyPolicyEncoder))
-
-
-def is_prior_to(p_type_1: FunctionPrivacyType, p_type_2: FunctionPrivacyType):
-    # if the privacy type of p_type_2 is prior to p_type_2
-    if p_type_2 != p_type_1:
-        # TEE == MPC > ZKP > PUB
-        if p_type_2 == FunctionPrivacyType.TEE:
-            return False
-        elif p_type_2 == FunctionPrivacyType.PUB:
-            return True
-        elif p_type_2 == FunctionPrivacyType.MPC and p_type_1 == FunctionPrivacyType.TEE:
-            return True
-        elif p_type_2 == FunctionPrivacyType.ZKP and (p_type_1 == FunctionPrivacyType.MPC or p_type_1 == FunctionPrivacyType.TEE):
-            return True
-    else:
-        return False
-
-
-ppv = CodeVisitor()  # for privacy policy
 
 
 class FunctionTypeVisitor(AstVisitor):
 
-    def __init__(self, traversal='post', log=False):
-        super().__init__(traversal=traversal, log=log)
+    @staticmethod
+    def is_prior_to(privacy_type_1: FunctionPrivacyType, privacy_type_2: FunctionPrivacyType):
+        """
+        Is the function privacy type privacy_type_1 is prior to privacy_type_2
 
-    def set_function_privacy_type(self, expect_type: AnnotatedTypeName, rhs: Expression, ast: AST, instance=None, isReclasify=False):
-        '''
-        Set the privacy type of the function by new information. this is the main goal of the PrivacyTypeVisiter.
-        '''
+        'T1 is prior to T2' means a function recoginized as T2 has chance to upgrade to T1 
+        while the composite is not allowed.
+        """
+        if privacy_type_2 != privacy_type_1:
+            # TEE == MPC > ZKP > PUB
+            if privacy_type_2 == FunctionPrivacyType.TEE:
+                return False
+            elif privacy_type_2 == FunctionPrivacyType.PUB:
+                return True
+            elif privacy_type_2 == FunctionPrivacyType.MPC and privacy_type_1 == FunctionPrivacyType.TEE:
+                return True
+            elif privacy_type_2 == FunctionPrivacyType.ZKP and (privacy_type_1 == FunctionPrivacyType.MPC or privacy_type_1 == FunctionPrivacyType.TEE):
+                return True
+        else:
+            return False
+
+    @staticmethod
+    def set_function_privacy_type(expect_type: AnnotatedTypeName, rhs: Expression, ast: AST, instance=None, isReclasify=False):
+        """
+        Set the privacy type of the function by new information.
+        """
         actual_type = rhs.annotated_type
-        _new_ast = deep_copy(ast)
 
-        ast = ast.get_related_function()
+        _func = ast.get_related_function()
 
-        def update_function_privacy_type(ast: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType):
-            if is_prior_to(privacy_type, ast.privacy_type):
-                ast.privacy_type = privacy_type
+        def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType):
+            if FunctionTypeVisitor.is_prior_to(privacy_type, _func.privacy_type):
+                _func.privacy_type = privacy_type
                 if privacy_type == FunctionPrivacyType.PUB:
-                    print(f'function {ast.name} is setted to \'PUB\'')
+                    print(f'function {_func.name} is setted to \'PUB\'')
                 elif privacy_type == FunctionPrivacyType.ZKP:
                     print(
-                        f'function {ast.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {_new_ast}')
+                        f'function {_func.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {ast}')
                 elif privacy_type == FunctionPrivacyType.TEE:
-                    ast.get_related_contract().is_tee_related = True
+                    _func.get_related_contract().is_tee_related = True
                     print(
-                        f'function {ast.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {_new_ast}')
+                        f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {ast}')
                 elif privacy_type == FunctionPrivacyType.MPC:
                     # TODO: temperoly replace MPC with TEE, restore it in the future.
-                    # print(f'function {ast.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {_new_ast}')
-                    ast.privacy_type = FunctionPrivacyType.TEE
-                    ast.get_related_contract().is_tee_related = True
-                    print(f'function {ast.name} is setted to \'TEE\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {_new_ast}, thus being marked as MPT')
+                    # print(f'function {_func.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}')
+                    _func.privacy_type = FunctionPrivacyType.TEE
+                    _func.get_related_contract().is_tee_related = True
+                    print(f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}, thus being marked as MPT')
                 else:
                     TypeException(
                         f"Unknown function privacy type: {privacy_type}")
 
-        if isinstance(ast, ConstructorOrFunctionDefinition):
+        if isinstance(_func, ConstructorOrFunctionDefinition):
             act_pri = actual_type.privacy_annotation
             exp_pri = expect_type.privacy_annotation
 
             if isReclasify:
-                update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
+                update_function_privacy_type(_func, FunctionPrivacyType.ZKP)
             else:
                 if not instance:
                     # act_pri != AllExpr and exp_pri != AllExpr
                     if isinstance(act_pri, TeeExpr):
                         update_function_privacy_type(
-                            ast, FunctionPrivacyType.TEE)
+                            _func, FunctionPrivacyType.TEE)
                     else:
                         update_function_privacy_type(
-                            ast, FunctionPrivacyType.MPC)
+                            _func, FunctionPrivacyType.MPC)
                 elif instance == 'make-private':
                     # act_pri == AllExpr and exp_pri != AllExpr
-                    update_function_privacy_type(ast, FunctionPrivacyType.ZKP)
+                    update_function_privacy_type(_func, FunctionPrivacyType.ZKP)
                 elif instance:
                     # act_pri == exp_pri
                     if isinstance(act_pri, TeeExpr):
                         # both private to tee.
                         update_function_privacy_type(
-                            ast, FunctionPrivacyType.TEE)
+                            _func, FunctionPrivacyType.TEE)
                     elif not isinstance(act_pri, AllExpr):
                         # both private to id, me
                         update_function_privacy_type(
-                            ast, FunctionPrivacyType.ZKP)
+                            _func, FunctionPrivacyType.ZKP)
                     else:
                         # both AllExpr
                         pass
@@ -118,121 +113,228 @@ class FunctionTypeVisitor(AstVisitor):
                     TypeException(
                         f"Invalid instance. instance should be True, False or 'make-private, while it is actually {instance}'")
 
-    def get_right_hand_statement(self, rhs: Expression, expected_type: AnnotatedTypeName):
-        '''
-        get right hand statement
-        '''
+    def get_rhs(self, rhs: Expression, expected_type: AnnotatedTypeName):
+        if isinstance(rhs, TupleExpr):
+            # if not isinstance(rhs, TupleExpr) or not isinstance(expected_type.type_name, TupleType) or len(rhs.elements) != len(expected_type.type_name.types):
+                # raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
+            exprs = [self.get_rhs(a, e) for e, a, in zip(expected_type.type_name.types, rhs.elements)]
+            return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
+
         instance = rhs.instanceof(expected_type)
-        self.set_function_privacy_type(
+        FunctionTypeVisitor.set_function_privacy_type(
             expected_type, rhs, rhs.parent, instance)
+
         return rhs
 
+    def check_final(self, fct: ConstructorOrFunctionDefinition, ast: Expression):
+        if isinstance(ast, IdentifierExpr):
+            target = ast.target
+            if hasattr(target, 'keywords'):
+                if 'final' in target.keywords:
+                    if isinstance(target, StateVariableDeclaration) and fct.is_constructor:
+                        # assignment allowed
+                        pass
+                    else:
+                        raise TypeException('Modifying "final" variable', ast)
+        else:
+            assert isinstance(ast, TupleExpr)
+            for elem in ast.elements:
+                self.check_final(fct, elem)
+
     def visitAssignmentStatement(self, ast: AssignmentStatement):
+        # NB TODO? Should we optionally disallow writes to variables which are owned by someone else (with e.g. a new modifier)
+        #if ast.lhs.annotated_type.is_private():
+        #    expected_rhs_type = AnnotatedTypeName(ast.lhs.annotated_type.type_name, Expression.me_expr())
+        #    if not ast.lhs.instanceof(expected_rhs_type):
+        #        raise TypeException("Only owner can assign to its private variables", ast)
+
+        if not isinstance(ast.lhs, (TupleExpr, LocationExpr)):
+            raise TypeException("Assignment target is not a location", ast.lhs)
+
         expected_type = ast.lhs.annotated_type
-        ast.rhs = self.get_right_hand_statement(ast.rhs, expected_type)
-        ast.annotated_type = expected_type
+        ast.rhs = self.get_rhs(ast.rhs, expected_type)
+
+        # prevent modifying final
+        f = ast.function
+        if isinstance(ast.lhs, (IdentifierExpr, TupleExpr)):
+            self.check_final(f, ast.lhs)
 
     def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
         if ast.expr:
-            ast.expr = self.get_right_hand_statement(
-                ast.expr, ast.variable_declaration.annotated_type)
+            ast.expr = self.get_rhs(ast.expr, ast.variable_declaration.annotated_type)
 
-    def handle_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction, private=False):
-        # set parameter type, like [uint, uint]
-        parameter_types = func.input_types()
-        # set output type
-        if private:
-            p = Expression.me_expr()
-        else:
-            p = Expression.all_expr()
-        output_type = AnnotatedTypeName(ast.func.output_type(), p)
-        # can function be evaluated privately?
-        can_be_private = func.can_be_private()
+    @staticmethod
+    def has_private_type(ast: Expression):
+        return ast.annotated_type.is_private()
 
+    @staticmethod
+    def has_literal_type(ast: Expression):
+        return isinstance(ast.annotated_type.type_name, (NumberLiteralType, BooleanLiteralType))
+
+    def handle_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction):
         # handle special cases
-        if func.is_eq():
-            # handle eq
-            t = ast.args[0].annotated_type.type_name
-            parameter_types = 2*[t]
-            can_be_private = t == TypeName.uint_type() or t == TypeName.bool_type()
-        elif func.is_index():
-            return self.handle_index(ast)
+        if func.is_ite():
+            cond_t = ast.args[0].annotated_type
+
+            # # Ensure that condition is boolean
+            # if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()):
+            #     raise TypeMismatchException(TypeName.bool_type(), cond_t.type_name, ast.args[0])
+
+            res_t = ast.args[1].annotated_type.type_name.combined_type(ast.args[2].annotated_type.type_name, True)
+
+            if cond_t.is_private():
+                # Everything is turned private
+                func.is_private = True
+                a = res_t.annotate(Expression.me_expr())
+            else:
+                p = ast.args[1].annotated_type.combined_privacy(ast.analysis, ast.args[2].annotated_type)
+                a = res_t.annotate(p)
+            ast.args[1] = self.get_rhs(ast.args[1], a)
+            ast.args[2] = self.get_rhs(ast.args[2], a)
+
+            ast.annotated_type = a
+            return
         elif func.is_parenthesis():
             ast.annotated_type = ast.args[0].annotated_type
             return
-        elif func.is_ite():
-            t = ast.args[1].annotated_type.type_name
-            if t == TypeName.uint_type() or t == TypeName.bool_type():
-                can_be_private = True
 
-            parameter_types = [TypeName.bool_type(), t, t]
-            output_type = AnnotatedTypeName(t, p)
+        # # Check that argument types conform to op signature
+        # parameter_types = func.input_types()
+        # if not func.is_eq():
+        #     for arg, t in zip(ast.args, parameter_types):
+        #         if not arg.instanceof_data_type(t):
+        #             raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
 
-        for i in range(len(parameter_types)):
-            t = parameter_types[i]
-            arg = ast.args[i]
-            expected = AnnotatedTypeName(t, p)
-            instance = arg.instanceof(expected)
-            if not instance:
-                if can_be_private and not private:
-                    func.is_private = True
-                    return self.handle_builtin_function_call(ast, func, True)
-                else:
-                    self.set_function_privacy_type(
-                        expected, arg, ast, instance)
-            elif instance == 'make-private':
-                # replace argument
-                self.set_function_privacy_type(expected, arg, ast, instance)
+        t1 = ast.args[0].annotated_type.type_name
+        t2 = None if len(ast.args) == 1 else ast.args[1].annotated_type.type_name
+
+        if len(ast.args) == 1:
+            arg_t = 'lit' if ast.args[0].annotated_type.type_name.is_literal else t1
+        else:
+            assert len(ast.args) == 2
+            is_eq_with_tuples = func.is_eq() and isinstance(t1, TupleType)
+            arg_t = t1.combined_type(t2, convert_literals=is_eq_with_tuples)
+
+        # Infer argument and output types
+        if arg_t == 'lit':
+            res = func.op_func(*[arg.annotated_type.type_name.value for arg in ast.args])
+            if isinstance(res, bool):
+                assert func.output_type() == TypeName.bool_type()
+                out_t = BooleanLiteralType(res)
             else:
-                # no action necessary
-                pass
+                assert func.output_type() == TypeName.number_type()
+                out_t = NumberLiteralType(res)
+            if func.is_eq():
+                arg_t = t1.to_abstract_type().combined_type(t2.to_abstract_type(), True)
+        elif func.output_type() == TypeName.bool_type():
+            out_t = TypeName.bool_type()
+        else:
+            out_t = arg_t
 
-        assert(output_type is not None)
-        assert(isinstance(output_type, AnnotatedTypeName))
-        ast.annotated_type = output_type
+        assert arg_t is not None and (arg_t != 'lit' or not func.is_eq())
 
-    def handle_index(self, ast: FunctionCallExpr):
-        map_t = ast.args[0].annotated_type
-        map_t.type_name.instantiated_key = ast.args[1]
-        ast.annotated_type = map_t.type_name.value_type
+        private_args = any(map(self.has_private_type, ast.args))
+        if private_args:
+            assert arg_t != 'lit'
+            if func.can_be_private():
+                func.is_private = True
+                p = Expression.me_expr()
+            else:
+                raise TypeException(f'Operation \'{func.op}\' does not support private operands', ast)
+        else:
+            p = None
+
+        if arg_t != 'lit':
+            # Add implicit casts for arguments
+            arg_pt = arg_t.annotate(p)
+            if func.is_shiftop() and p is not None:
+                ast.args[0] = self.get_rhs(ast.args[0], arg_pt)
+            else:
+                ast.args[:] = map(lambda argument: self.get_rhs(argument, arg_pt), ast.args)
+
+        ast.annotated_type = out_t.annotate(p)
+
+    @staticmethod
+    def is_accessible_by_invoker(ast: Expression):
+        return True
+        #return ast.annotated_type.is_public() or ast.is_lvalue() or \
+        #       ast.instanceof(AnnotatedTypeName(ast.annotated_type.type_name, Expression.me_expr()))
+
+    @staticmethod
+    def implicitly_converted_to(expr: Expression, t: TypeName) -> Expression:
+        assert expr.annotated_type.type_name.is_primitive_type()
+        cast = PrimitiveCastExpr(t.clone(), expr, is_implicit=True).override(
+            parent=expr.parent, statement=expr.statement, line=expr.line, column=expr.column)
+        cast.elem_type.parent = cast
+        expr.parent = cast
+        cast.annotated_type = AnnotatedTypeName(t.clone(), expr.annotated_type.privacy_annotation.clone()).override(parent=cast)
+        return cast
 
     def visitFunctionCallExpr(self, ast: FunctionCallExpr):
         if isinstance(ast.func, BuiltinFunction):
             self.handle_builtin_function_call(ast, ast.func)
+        elif ast.is_cast:
+            if not isinstance(ast.func.target, EnumDefinition):
+                raise NotImplementedError('User type casts only implemented for enums')
+            ast.annotated_type = self.handle_cast(ast.args[0], ast.func.target.annotated_type.type_name)
+        elif isinstance(ast.func, LocationExpr):
+            ft = ast.func.annotated_type.type_name
+
+            if len(ft.parameters) != len(ast.args):
+                raise TypeException("Wrong number of arguments", ast.func)
+
+            # Check arguments
+            for i in range(len(ast.args)):
+                ast.args[i] = self.get_rhs(ast.args[i], ft.parameters[i].annotated_type)
+
+            # Set expression type to return type
+            if len(ft.return_parameters) == 1:
+                ast.annotated_type = ft.return_parameters[0].annotated_type.clone()
+            else:
+                # TODO maybe not None label in the future
+                ast.annotated_type = AnnotatedTypeName(TupleType([t.annotated_type for t in ft.return_parameters]), None)
+        else:
+            raise TypeException('Invalid function call', ast)
+
+    def visitPrimitiveCastExpr(self, ast: PrimitiveCastExpr):
+        ast.annotated_type = self.handle_cast(ast.expr, ast.elem_type)
+
+    def handle_cast(self, expr: Expression, t: TypeName) -> AnnotatedTypeName:
+        # because of the fake solidity check we already know that the cast is possible -> don't have to check if cast possible
+        if expr.annotated_type.is_private():
+            expected = AnnotatedTypeName(expr.annotated_type.type_name, Expression.me_expr())
+            # if not expr.instanceof(expected):
+            #     raise TypeMismatchException(expected, expr.annotated_type, expr)
+            return AnnotatedTypeName(t.clone(), Expression.me_expr())
+        else:
+            return AnnotatedTypeName(t.clone())
+
+    def visitMemberAccessExpr(self, ast: MemberAccessExpr):
+        assert ast.target is not None
+        if ast.expr.annotated_type.is_address() and ast.expr.annotated_type.is_private():
+            raise TypeException("Cannot access members of private address variable", ast)
+        ast.annotated_type = ast.target.annotated_type.clone()
 
     def visitReclassifyExpr(self, ast: ReclassifyExpr):
         ast.annotated_type = AnnotatedTypeName(
             ast.expr.annotated_type.type_name, ast.privacy)
-        self.set_function_privacy_type(
+        FunctionTypeVisitor.set_function_privacy_type(
             ast.annotated_type, ast.expr, ast, None, True)
 
-    # def visitParameterList(self, ast: ParameterList):
-    # 	pass
-
     def visitReturnStatement(self, ast: ReturnStatement):
-        f = ast.parent
-        while not isinstance(f, FunctionDefinition):
-            f = f.parent
+        assert ast.function.is_function
+        rt = AnnotatedTypeName(ast.function.return_type)
+        if ast.expr is None:
+            self.get_rhs(TupleExpr([]), rt)
+        elif not isinstance(ast.expr, TupleExpr):
+            ast.expr = self.get_rhs(TupleExpr([ast.expr]), rt)
+        else:
+            ast.expr = self.get_rhs(ast.expr, rt)
 
-        assert(isinstance(f, FunctionDefinition))
-        expected_types = f.get_return_type()
-
-        instance = ast.expr.instanceof(expected_types)
-
-        if instance == 'make-private':
-            self.set_function_privacy_type(
-                expected_types, ast.expr, ast, None, True)
-
-    def visitBooleanLiteralExpr(self, ast: BooleanLiteralExpr):
-        ast.annotated_type = AnnotatedTypeName.bool_all()
-
-    def visitNumberLiteralExpr(self, ast: NumberLiteralExpr):
-        ast.annotated_type = AnnotatedTypeName.uint_all()
+    def visitTupleExpr(self, ast: TupleExpr):
+        ast.annotated_type = AnnotatedTypeName(TupleType([elem.annotated_type.clone() for elem in ast.elements]))
 
     def visitMeExpr(self, ast: MeExpr):
-        ast.annotated_type = AnnotatedTypeName.address_all()
-
-    def visitTeeExpr(self, ast: TeeExpr):
         ast.annotated_type = AnnotatedTypeName.address_all()
 
     def visitIdentifierExpr(self, ast: IdentifierExpr):
@@ -240,35 +342,109 @@ class FunctionTypeVisitor(AstVisitor):
             # no action necessary, the identifier will be replaced later
             pass
         else:
-            ast.annotated_type = deep_copy(ast.target.annotated_type)
+            target = ast.target
+            if isinstance(target, ContractDefinition):
+                raise TypeException(f'Unsupported use of contract type in expression', ast)
+            ast.annotated_type = target.annotated_type.clone()
 
-    def visitFunctionDefinition(self, ast: FunctionDefinition):
-        print(f'Function {ast.name} setted...')
+            if not self.is_accessible_by_invoker(ast):
+                raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
 
-    def visitConstructorDefinition(self, ast: ConstructorDefinition):
-        print(f'Function {ast.name} setted...')
+    def visitIndexExpr(self, ast: IndexExpr):
+        arr = ast.arr
+        index = ast.key
+
+        map_t = arr.annotated_type
+        # should have already been checked
+        assert (map_t.privacy_annotation.is_all_expr())
+
+        # do actual type checking
+        if isinstance(map_t.type_name, Mapping):
+            key_type = map_t.type_name.key_type
+            expected = AnnotatedTypeName(key_type, Expression.all_expr())
+            instance = index.instanceof(expected)
+            # if not instance:
+            #     raise TypeMismatchException(expected, index.annotated_type, ast)
+
+            # record indexing information
+            if map_t.type_name.key_label is not None: # TODO modification correct?
+                if index.privacy_annotation_label():
+                    map_t.type_name.instantiated_key = index
+                else:
+                    raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
+
+            # determine value type
+            ast.annotated_type = map_t.type_name.value_type
+
+            if not self.is_accessible_by_invoker(ast):
+                raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
+        elif isinstance(map_t.type_name, Array):
+            if ast.key.annotated_type.is_private():
+                raise TypeException('No private array index', ast)
+            if not ast.key.instanceof_data_type(TypeName.number_type()):
+                raise TypeException('Array index must be numeric', ast)
+            ast.annotated_type = map_t.type_name.value_type
+        else:
+            raise TypeException('Indexing into non-mapping', ast)
+
+
+    def visitEnumDefinition(self, ast: EnumDefinition):
+        ast.annotated_type = AnnotatedTypeName(EnumTypeName(ast.qualified_name).override(target=ast))
+
+    def visitEnumValue(self, ast: EnumValue):
+        ast.annotated_type = AnnotatedTypeName(EnumValueTypeName(ast.qualified_name).override(target=ast))
+
+    def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
+        if ast.expr:
+            # prevent private operations in declaration
+            if contains_private(ast):
+                raise TypeException('Private assignments to state variables must be in the constructor', ast)
+
+            # check type
+            self.get_rhs(ast.expr, ast.annotated_type)
+
+        # prevent "me" annotation
+        p = ast.annotated_type.privacy_annotation
+        if p.is_me_expr():
+            raise TypeException(f'State variables cannot be annotated as me', ast)
+
+    def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
+        if type(ast.type_name) == UserDefinedTypeName:
+            if not isinstance(ast.type_name.target, EnumDefinition):
+                raise TypeException('Unsupported use of user-defined type', ast.type_name)
+            ast.type_name = ast.type_name.target.annotated_type.type_name.clone()
+
+        if ast.privacy_annotation != Expression.all_expr():
+            if not ast.type_name.can_be_private():
+                raise TypeException(f'Currently, we do not support private {str(ast.type_name)}', ast)
+
+        p = ast.privacy_annotation
+        if isinstance(p, IdentifierExpr):
+            t = p.target
+            if isinstance(t, Mapping):
+                # no action necessary, this is the case: mapping(address!x => uint@x)
+                pass
+            elif not t.is_final and not t.is_constant:
+                raise TypeException('Privacy annotations must be "final" or "constant", if they are expressions', p)
+            elif t.annotated_type != AnnotatedTypeName.address_all():
+                raise TypeException(f'Privacy type is not a public address, but {str(t.annotated_type)}', p)
+
+
+
 
 
 class PrivacyTypeVisitor(AstVisitor):
 
+    # for privacy policy
+    __ppv = CodeVisitor()  
     privacy_policy = PrivacyPolicy()
 
     def __init__(self, traversal='post', log=False):
         super().__init__(traversal=traversal, log=log)
 
-    # def get_right_hand_statement(self, rhs: Expression, expected_type: AnnotatedTypeName):
-    # 	'''
-    # 	get right hand statement
-    # 	'''
-    # 	instance = rhs.instanceof(expected_type)
-    # 	if instance == 'make-private':
-    # 		return self.make_private(rhs, expected_type.privacy_annotation)
-    # 	else:
-    # 		return rhs
-
     def update_function_policy(self, ast, item, elem, key=""):
         f = ast
-        while not isinstance(f, FunctionDefinition):
+        while not isinstance(f, ConstructorOrFunctionDefinition):
             f = f.parent
 
         if not "function_policy" in f.__dict__:
@@ -296,9 +472,9 @@ class PrivacyTypeVisitor(AstVisitor):
                     map_id = ast.lhs
                     while isinstance(map_id, FunctionCallExpr):
                         if not map_key:
-                            map_key = ppv.visit(ast.lhs.args[1])
+                            map_key = self.__ppv.visit(ast.lhs.args[1])
                         else:
-                            map_key = ppv.visit(map_id.args[1]) + ":" + map_key
+                            map_key = self.__ppv.visit(map_id.args[1]) + ":" + map_key
                         map_id = map_id.args[0]
                     self.update_function_policy(
                         _related_function, FUNC_MUTATE, target, map_key)
@@ -309,149 +485,63 @@ class PrivacyTypeVisitor(AstVisitor):
                 lhs = self.visit(ast.lhs)
                 _related_function.mutate_states.append(lhs)
 
-    # def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
-    # 	if ast.expr:
-    # 		ast.expr = self.get_right_hand_statement(ast.expr, ast.variable_declaration.annotated_type)
-
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
         self.privacy_policy.add_state(ast)
 
-    def handle_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction, private=False):
-        # set parameter type, like [uint, uint]
-        parameter_types = func.input_types()
-        # set output type
-        if private:
-            p = Expression.me_expr()
-        else:
-            p = Expression.all_expr()
-        output_type = AnnotatedTypeName(ast.func.output_type(), p)
-        # can function be evaluated privately?
-        can_be_private = func.can_be_private()
+    def visitIndexExpr(self, ast: IndexExpr):
+        arr = ast.arr
+        index = ast.key
 
-        # handle special cases
-        if func.is_eq():
-            # handle eq
-            t = ast.args[0].annotated_type.type_name
-            parameter_types = 2*[t]
-            can_be_private = t == TypeName.uint_type() or t == TypeName.bool_type()
-        elif func.is_index():
-            return self.handle_index(ast)
-        elif func.is_parenthesis():
-            ast.annotated_type = ast.args[0].annotated_type
-            return
-        elif func.is_ite():
-            t = ast.args[1].annotated_type.type_name
-            if t == TypeName.uint_type() or t == TypeName.bool_type():
-                can_be_private = True
+        map_t = arr.annotated_type
+        # should have already been checked
+        assert (map_t.privacy_annotation.is_all_expr())
 
-            parameter_types = [TypeName.bool_type(), t, t]
-            output_type = AnnotatedTypeName(t, p)
+        # do actual type checking
+        if isinstance(map_t.type_name, Mapping):
+            key_type = map_t.type_name.key_type
+            expected = AnnotatedTypeName(key_type, Expression.all_expr())
+            instance = index.instanceof(expected)
 
-        for i in range(len(parameter_types)):
-            t = parameter_types[i]
-            arg = ast.args[i]
-            expected = AnnotatedTypeName(t, p)
-            instance = arg.instanceof(expected)
-            if not instance:
-                if can_be_private and not private:
-                    func.is_private = True
-                    return self.handle_builtin_function_call(ast, func, True)
-            elif instance == 'make-private':
-                # replace argument
-                ast.args[i] = self.make_private(arg, Expression.me_expr())
-            else:
-                # no action necessary
-                pass
+            # record indexing information
+            if map_t.type_name.key_label is not None: # TODO modification correct?
+                if index.privacy_annotation_label():
+                    map_t.type_name.instantiated_key = index
+                else:
+                    raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
 
-        assert(output_type is not None)
-        assert(isinstance(output_type, AnnotatedTypeName))
-        ast.annotated_type = output_type
+            # determine value type
+            ast.annotated_type = map_t.type_name.value_type
 
-    def handle_index(self, ast: FunctionCallExpr):
-        map_t = ast.args[0].annotated_type
-        map_t.type_name.instantiated_key = ast.args[1]
-        ast.annotated_type = map_t.type_name.value_type
-
-    @staticmethod
-    def make_private(expr: Expression, privacy: Expression):
-    	assert(privacy.privacy_annotation_label() is not None)
-
-    	if expr.get_related_function().privacy_type == FunctionPrivacyType.TEE:
-    		return expr
-    	else:
-    		_new_recla_expr = ReclassifyExpr(expr, privacy.privacy_annotation_label())
-
-    		# set type
-    		_new_recla_expr.annotated_type = AnnotatedTypeName(expr.annotated_type.type_name, privacy)
-
-    		# set statement
-    		_new_recla_expr.statement = expr.statement
-
-    		# set parents
-    		_new_recla_expr.parent = expr.parent
-    		_new_recla_expr.annotated_type.parent = _new_recla_expr
-    		expr.parent = _new_recla_expr
-
-    		return _new_recla_expr
-
-    def visitFunctionCallExpr(self, ast: FunctionCallExpr):
-        if isinstance(ast.func, BuiltinFunction):
             if ast.is_in_assignment_righthand():
-                _related_function = ast.get_related_function()
-                if ast.func.is_index():
-                    if not isinstance(ast.parent, FunctionCallExpr) \
-                            or (isinstance(ast.parent, FunctionCallExpr) and not ast.parent.func.is_index()):
-                        target = None
-                        # TODO: handle array
-                        map_id = ast
-                        while isinstance(map_id, FunctionCallExpr):
-                            map_id = map_id.args[0]
-                        target = map_id.target
+                # if not isinstance(ast.parent, IndexExpr):
+                #     target = None
+                #     map_id = ast
+                #     while isinstance(map_id, FunctionCallExpr):
+                #         map_id = map_id.args[0]
+                #     target = map_id.target
 
-                        if isinstance(target, StateVariableDeclaration):
-                            map_id = ast
-                            map_key = ""
-                            while isinstance(map_id, FunctionCallExpr):
-                                if not map_key:
-                                    map_key = ppv.visit(ast.args[1])
-                                else:
-                                    map_key = ppv.visit(
-                                        map_id.args[1]) + ":" + map_key
-                                map_id = map_id.args[0]
-                            self.update_function_policy(
-                                _related_function, FUNC_READ, target, map_key)
-
-            self.handle_builtin_function_call(ast, ast.func)
-
-    # def visitReclassifyExpr(self, ast: ReclassifyExpr):
-    # 	ast.annotated_type = AnnotatedTypeName(ast.expr.annotated_type.type_name, ast.privacy)
-
-    # def visitReturnStatement(self, ast: ReturnStatement):
-    # 	f = ast.parent
-    # 	while not isinstance(f, FunctionDefinition):
-    # 		f = f.parent
-
-    # 	assert(isinstance(f, FunctionDefinition))
-    # 	expected_types = f.get_return_type()
-
-    # 	instance = ast.expr.instanceof(expected_types)
-    # 	if instance == 'make-private':
-    # 		ast.expr = self.make_private(ast.expr, expected_types.privacy_annotation)
-
-    # def visitBooleanLiteralExpr(self, ast: BooleanLiteralExpr):
-    # 	ast.annotated_type = AnnotatedTypeName.bool_all()
-
-    # def visitNumberLiteralExpr(self, ast: NumberLiteralExpr):
-    # 	ast.annotated_type = AnnotatedTypeName.uint_all()
-
-    # def visitMeExpr(self, ast: MeExpr):
-    # 	ast.annotated_type = AnnotatedTypeName.address_all()
-
-    # def visitTeeExpr(self, ast: TeeExpr):
-    # 	ast.annotated_type = AnnotatedTypeName.address_all()
+                if isinstance(arr, StateVariableDeclaration):
+                    map_id = ast
+                    map_key = ""
+                    while isinstance(map_id, FunctionCallExpr):
+                        if not map_key:
+                            map_key = self.__ppv.visit(ast.args[1])
+                        else:
+                            map_key = self.__ppv.visit(
+                                map_id.args[1]) + ":" + map_key
+                        map_id = map_id.args[0]
+                    _related_function = ast.get_related_function()
+                    self.update_function_policy(
+                        _related_function, FUNC_READ, arr, map_key)
+        
+        elif isinstance(map_t.type_name, Array):
+            # TODO: handle array
+            pass
+        else:
+            pass
 
     def visitIdentifierExpr(self, ast: IdentifierExpr):
-        if ast.annotated_type and not isinstance(ast.annotated_type.type_name, Mapping) and not isinstance(ast.annotated_type.type_name, Array):
+        if ast.annotated_type and not isinstance(ast.annotated_type.type_name, (Mapping, Array)):
             # map and array are processed in visitFunctionCallExpr
             if ast.is_in_assignment_righthand():
                 if isinstance(ast.target, StateVariableDeclaration):
@@ -459,7 +549,7 @@ class PrivacyTypeVisitor(AstVisitor):
                     self.update_function_policy(
                         _related_function, FUNC_READ, ast.target)
 
-    def visitFunctionDefinition(self, ast: FunctionDefinition):
+    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         print(f'All type of function {ast.name} setted...')
         for p in ast.parameters:
             self.update_function_policy(ast, FUNC_INPUTS, p)
@@ -467,9 +557,6 @@ class PrivacyTypeVisitor(AstVisitor):
             self.update_function_policy(ast, FUNC_OUTPUTS, p)
 
         self.privacy_policy.add_function(ast.function_policy)
-
-    def visitConstructorDefinition(self, ast: ConstructorDefinition):
-        print(f'All type of function {ast.name} setted...')
 
     def visitContractDefinition(self, ast: ContractDefinition):
         self.privacy_policy.policy["contract"] = ast.idf.name

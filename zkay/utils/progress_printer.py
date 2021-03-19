@@ -7,9 +7,9 @@ from zkay.config import zk_print
 
 @contextlib.contextmanager
 def print_step(name):
-    zk_print(f'{name}... ', end='', flush=True)
+    zk_print(f'{name}...\n', end='', flush=True)
     yield
-    zk_print('done')
+    zk_print(f'{name} done!')
 
 
 class TermColor(Enum):
