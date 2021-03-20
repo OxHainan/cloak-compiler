@@ -49,7 +49,7 @@ def build_libsnark_backend(target_dir: str):
 
 def install_latest_compatible_solc():
     import solcx
-    from zkay.config_version import Versions
+    from cloak.config_version import Versions
     solcx.install_solc_pragma(Versions.CLOAK_SOLC_VERSION_COMPATIBILITY.expression)
 
 

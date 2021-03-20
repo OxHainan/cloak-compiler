@@ -135,7 +135,7 @@ To package a zkay contract that was previously compiled with output directory `<
 zkay export [-o "<output_filename>"] "<compilation_output>"
 ```
 
-This creates an archive containing the zkay code, the NIZK prover and verifier keys, and manifest file. The recommended file extension for the archive is `*.zkp`. This archive can be distributed to users of the contract.
+This creates an archive containing the cloak code, the NIZK prover and verifier keys, and manifest file. The recommended file extension for the archive is `*.zkp`. This archive can be distributed to users of the contract.
 
 ### Importing a Contract Package
 

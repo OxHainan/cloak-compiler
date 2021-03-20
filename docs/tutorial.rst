@@ -343,7 +343,7 @@ Most command line features which were described in this tutorial are also availa
 
 See :py:mod:`.cloak_frontend`
 
-- Compilation: :py:meth:`~zkay.cloak_frontend.compile_zkay_file`, :py:meth:`~zkay.cloak_frontend.compile_zkay`
+- Compilation: :py:meth:`~zkay.cloak_frontend.compile_zkay_file`, :py:meth:`~zkay.cloak_frontend.compile_cloak`
 - Deployment: :py:meth:`~zkay.cloak_frontend.deploy_contract`
 - Export/Import: :py:meth:`~zkay.cloak_frontend.package_zkay_contract`, :py:meth:`~zkay.cloak_frontend.extract_zkay_package`
 - Creating transaction interface object: :py:meth:`~zkay.cloak_frontend.connect_to_contract_at` (after loading the correct zkay configuration using :py:meth:`~zkay.cloak_frontend.use_configuration_from_manifest`)

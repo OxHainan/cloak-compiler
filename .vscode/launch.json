@@ -15,7 +15,7 @@
             "name": "Python: scores-check",
             "type": "python",
             "request": "launch",
-            "program": "zkay/__main__.py",
+            "program": "cloak/__main__.py",
             "args": ["check", "./eval-ccs2019/examples/scores/scores.sol"],
             "console": "integratedTerminal"
         },
@@ -23,7 +23,7 @@
             "name": "Python: scores-compile",
             "type": "python",
             "request": "launch",
-            "program": "zkay/__main__.py",
+            "program": "cloak/__main__.py",
             "args": ["compile", "-o", "test", "./eval-ccs2019/examples/scores/scores.sol"],
             "console": "integratedTerminal"
         },
@@ -32,7 +32,7 @@
             "type": "python",
             "request": "launch",
             "subProcess": true,
-            "program": "zkay/__main__.py",
+            "program": "cloak/__main__.py",
             "args": ["check", "zkay/examples/code/FuncCalls.zkay"],
             "console": "integratedTerminal"
         },
@@ -40,7 +40,7 @@
             "name": "Python: FuncCalls-compile",
             "type": "python",
             "request": "launch",
-            "program": "zkay/__main__.py",
+            "program": "cloak/__main__.py",
             "args": ["compile", "-o", "test", "zkay/examples/code/FuncCalls.zkay"],
             "console": "integratedTerminal"
         }
