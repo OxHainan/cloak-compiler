@@ -36,8 +36,8 @@ class CircuitHelper:
         :param fct: The function which is associated with this proof circuit
         :param static_owner_labels: A list of all static privacy labels for this contract
                                     (i.e. MeExpr + Identifiers of all final address state variables)
-        :param expr_trafo_constructor: Constructor of ZkayExpressionTransformer (cyclic dependency)
-        :param circ_trafo_constructor: Constructor fo ZkayCircuitTransformer (cyclic dependency)
+        :param expr_trafo_constructor: Constructor of ZkpExpressionTransformer (cyclic dependency)
+        :param circ_trafo_constructor: Constructor fo ZkpCircuitTransformer (cyclic dependency)
         :param internal_circuit [Optional]: When creating the external wrapper function (see ZkayContractTransformer),
                                             this should point to the CircuitHelper of the corresponding internal function.
                                             This circuit will then be initialized with the internal circuits data.

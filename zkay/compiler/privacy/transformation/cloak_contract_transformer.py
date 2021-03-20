@@ -8,8 +8,8 @@ from zkay.compiler.privacy.circuit_generation.circuit_helper import CircuitHelpe
 from zkay.compiler.privacy.library_contracts import bn128_scalar_field
 from zkay.compiler.privacy.transformation.internal_call_transformer import transform_internal_calls, compute_transitive_circuit_io_sizes
 from zkay.zkay_ast.visitor.transformer_visitor import AstTransformerVisitor
-from zkay.compiler.privacy.transformation.zkay_transformer import ZkayVarDeclTransformer, ZkayExpressionTransformer, ZkayCircuitTransformer, \
-    ZkayStatementTransformer
+from zkay.compiler.privacy.transformation.zkp_transformer import ZkpVarDeclTransformer, ZkpExpressionTransformer, ZkpCircuitTransformer, \
+    ZkpStatementTransformer
 from zkay.config import cfg
 from zkay.zkay_ast.ast import Expression, ConstructorOrFunctionDefinition, IdentifierExpr, VariableDeclaration, \
     AnnotatedTypeName, \
@@ -25,22 +25,22 @@ from zkay.zkay_ast.visitor.deep_copy import deep_copy
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
     """
-    Convert zkay to solidity AST + proof circuits
+    Convert cloak to solidity AST + proof circuits
 
-    :param ast: zkay AST
+    :param ast: cloak AST
     :return: solidity AST and dictionary which maps all function definitions which require verification
              to the corresponding circuit helper instance.
     """
-    zt = ZkayTransformer()
-    new_ast = zt.visit(ast)
+    ct = CloakTransformer()
+    new_ast = ct.visit(ast)
 
     # restore all parent pointers and identifier targets
     set_parents(new_ast)
     link_identifiers(new_ast)
-    return new_ast, zt.circuits
+    return new_ast, ct.circuits
 
 
-class ZkayTransformer(AstTransformerVisitor):
+class CloakTransformer(AstTransformerVisitor):
     """
     Transformer which transforms contract level AST elements (contract, function definitions, constructor definitions)
 
@@ -51,7 +51,7 @@ class ZkayTransformer(AstTransformerVisitor):
       | Note: This transformations initializes those state variables with address 0, which is a placeholder. 0 is replaced with the \
               real address upon deployment.
     * Transform state variable declarations with owner != @all (replace type by cipher type)
-    * For every function and constructor, the parameters and the body are transformed using the transformers defined in zkay_transformer.py
+    * For every function and constructor, the parameters and the body are transformed using the transformers defined in zkp_transformer.py
 
     To support verification, the functions themselves also need additional transformations:
 
@@ -139,7 +139,7 @@ class ZkayTransformer(AstTransformerVisitor):
         self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
         """Abstract circuits for all functions which require verification"""
 
-        self.var_decl_trafo = ZkayVarDeclTransformer()
+        self.var_decl_trafo = ZkpVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
 
     @staticmethod
@@ -198,7 +198,7 @@ class ZkayTransformer(AstTransformerVisitor):
                               (only used when creating the circuit of the external wrapper function)
         :return: new circuit helper
         """
-        return CircuitHelper(fct, global_owners, ZkayExpressionTransformer, ZkayCircuitTransformer, internal_circ)
+        return CircuitHelper(fct, global_owners, ZkpExpressionTransformer, ZkpCircuitTransformer, internal_circ)
 
     def visitSourceUnit(self, ast: SourceUnit):
         self.import_contract(cfg.pki_contract_name, ast)
@@ -210,7 +210,7 @@ class ZkayTransformer(AstTransformerVisitor):
 
     def transform_contract(self, su: SourceUnit, c: ContractDefinition) -> ContractDefinition:
         """
-        Transform an entire zkay contract into a public solidity contract.
+        Transform an entire cloak contract into a public solidity contract.
 
         This:
 
@@ -276,7 +276,7 @@ class ZkayTransformer(AstTransformerVisitor):
         # Transform bodies
         for fct in all_fcts:
             gen = self.circuits.get(fct, None)
-            fct.body = ZkayStatementTransformer(gen).visit(fct.body)
+            fct.body = ZkpStatementTransformer(gen).visit(fct.body)
 
         # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
         fcts_with_verification = [fct for fct in all_fcts if fct.requires_verification]
@@ -368,7 +368,7 @@ class ZkayTransformer(AstTransformerVisitor):
             stmts += Comment.comment_wrap_block('Serialize input values', serialize_stmts)
 
         # Add return statement at the end if necessary
-        # (was previously replaced by assignment to return_var by ZkayStatementTransformer)
+        # (was previously replaced by assignment to return_var by ZkpStatementTransformer)
         if circuit.has_return_var:
             stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()).override(target=vd) for vd in ast.return_var_decls])))
 

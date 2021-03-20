@@ -14,7 +14,6 @@ from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
 
 from zkay import my_logging
-import zkay
 from zkay.compiler.privacy import library_contracts
 from zkay.compiler.privacy.circuit_generation.backends.jsnark_generator import JsnarkGenerator
 from zkay.compiler.privacy.circuit_generation.circuit_generator import CircuitGenerator
@@ -24,7 +23,7 @@ from zkay.compiler.privacy.offchain_compiler import PythonOffchainVisitor
 from zkay.compiler.privacy.proving_scheme.backends.gm17 import ProvingSchemeGm17
 from zkay.compiler.privacy.proving_scheme.backends.groth16 import ProvingSchemeGroth16
 from zkay.compiler.privacy.proving_scheme.proving_scheme import ProvingScheme
-from zkay.compiler.privacy.transformation.zkay_contract_transformer import transform_ast
+from zkay.compiler.privacy.transformation.cloak_contract_transformer import transform_ast
 from zkay.compiler.solidity.compiler import check_compilation
 from zkay.config import cfg
 from zkay.utils.helpers import read_file, lines_of_code, without_extension
@@ -117,8 +116,14 @@ def compile_zkay(code: str, output_dir: str, import_keys: bool = False, **kwargs
 
     # Write public contract file
     with print_step('Write public solidity code'):
-        output_filename = 'contract.sol'
+        output_filename = 'public_contract.sol'
         solidity_code_output = _dump_to_output(to_solidity(ast), output_dir, output_filename)
+
+    # Write private contract file
+    with print_step('Write private solidity code'):
+        # TODO: may need to replace to_solidity with solify logic
+        output_filename = 'private_contract.sol'
+        solidity_code_output = _dump_to_output(to_solidity(deepcopy(zkay_ast)), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())

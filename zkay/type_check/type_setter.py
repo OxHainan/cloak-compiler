@@ -114,7 +114,7 @@ class FunctionTypeVisitor(AstVisitor):
             return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
 
         instance = rhs.instanceof(expected_type)
-        FunctionTypeVisitor.set_function_privacy_type(
+        self.set_function_privacy_type(
             expected_type, rhs, rhs.parent, instance)
 
         return rhs
@@ -311,7 +311,7 @@ class FunctionTypeVisitor(AstVisitor):
     def visitReclassifyExpr(self, ast: ReclassifyExpr):
         ast.annotated_type = AnnotatedTypeName(
             ast.expr.annotated_type.type_name, ast.privacy)
-        FunctionTypeVisitor.set_function_privacy_type(
+        self.set_function_privacy_type(
             ast.annotated_type, ast.expr, ast, None, True)
 
     def visitReturnStatement(self, ast: ReturnStatement):

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from parameterized import parameterized_class
 
-from zkay.zkay_frontend import compile_zkay
+from zkay.cloak_frontend import compile_zkay
 from zkay.config import cfg
 from zkay.examples.examples import all_examples, get_code_example
 from zkay.tests.utils.test_examples import TestExamples

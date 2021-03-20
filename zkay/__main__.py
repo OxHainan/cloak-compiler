@@ -185,7 +185,7 @@ def main():
 
     from pathlib import Path
 
-    import zkay.zkay_frontend as frontend
+    import zkay.cloak_frontend as frontend
     from zkay import my_logging
     from zkay.config import cfg
     from zkay.utils.helpers import read_file, save_to_file

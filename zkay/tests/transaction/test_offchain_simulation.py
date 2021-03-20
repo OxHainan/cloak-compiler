@@ -7,7 +7,7 @@ from contextlib import nullcontext, contextmanager
 
 from parameterized import parameterized_class
 
-from zkay.zkay_frontend import compile_zkay
+from zkay.cloak_frontend import compile_zkay
 from zkay.config import cfg
 from zkay.examples.scenario import TransactionAssertion, Transaction
 from zkay.examples.example_scenarios import all_scenarios, enc_scenarios, get_scenario

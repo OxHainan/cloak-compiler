@@ -21,7 +21,7 @@ from zkay.zkay_ast.ast import ReclassifyExpr, Expression, IfStatement, Statement
 from zkay.zkay_ast.visitor.deep_copy import replace_expr
 
 
-class ZkayVarDeclTransformer(AstTransformerVisitor):
+class ZkpVarDeclTransformer(AstTransformerVisitor):
     """
     Transformer for types, which was left out in the paper.
 
@@ -31,7 +31,7 @@ class ZkayVarDeclTransformer(AstTransformerVisitor):
 
     def __init__(self):
         super().__init__()
-        self.expr_trafo = ZkayExpressionTransformer(None)
+        self.expr_trafo = ZkpExpressionTransformer(None)
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
         if ast.is_private():
@@ -64,14 +64,14 @@ class ZkayVarDeclTransformer(AstTransformerVisitor):
         return self.visit_children(ast)
 
 
-class ZkayStatementTransformer(AstTransformerVisitor):
+class ZkpStatementTransformer(AstTransformerVisitor):
     """Corresponds to T from paper, (with additional handling of return statement and loops)."""
 
     def __init__(self, current_gen: CircuitHelper):
         super().__init__()
         self.gen = current_gen
-        self.expr_trafo = ZkayExpressionTransformer(self.gen)
-        self.var_decl_trafo = ZkayVarDeclTransformer()
+        self.expr_trafo = ZkpExpressionTransformer(self.gen)
+        self.var_decl_trafo = ZkpVarDeclTransformer()
 
     def visitStatementList(self, ast: StatementList):
         """
@@ -236,7 +236,7 @@ class ZkayStatementTransformer(AstTransformerVisitor):
         raise RuntimeError(f"Missed an expression of type {type(ast)}")
 
 
-class ZkayExpressionTransformer(AstTransformerVisitor):
+class ZkpExpressionTransformer(AstTransformerVisitor):
     """
     Roughly corresponds to T_L / T_e from paper.
 
@@ -379,7 +379,7 @@ class ZkayExpressionTransformer(AstTransformerVisitor):
         raise NotImplementedError()
 
 
-class ZkayCircuitTransformer(AstTransformerVisitor):
+class ZkpCircuitTransformer(AstTransformerVisitor):
     """
     Corresponds to T_phi from paper.
 

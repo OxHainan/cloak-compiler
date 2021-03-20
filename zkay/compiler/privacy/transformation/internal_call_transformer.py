@@ -68,7 +68,7 @@ def transform_internal_calls(fcts_with_verification: List[ConstructorOrFunctionD
     output/input array. This function thus transforms function calls to functions requiring verification, by adding these additional
     arguments. This must be done in a second pass, after all function bodies in the contract are fully transformed,
     since the correct start indices depend on the circuit IO sizes of the caller function
-    (see ZkayTransformer documentation for more information).
+    (see CloakTransformer documentation for more information).
 
     :param fcts_with_verification: [SIDE EFFECT] All functions which have a circuit associated with them
     :param cgens: A map from function to circuit

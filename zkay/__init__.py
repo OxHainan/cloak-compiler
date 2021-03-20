@@ -9,7 +9,7 @@ Submodules
                      (both user-configuration as well as zkay-internal configuration)
 * :py:mod:`.config_version`: Contains pinned version numbers (e.g. solc) used by zkay
 * :py:mod:`.config_user`: Defines options which the user can configure.
-* :py:mod:`.zkay_frontend`: Programmatic access to zkay compilation, transaction and packaging facilities.
+* :py:mod:`.cloak_frontend`: Programmatic access to zkay compilation, transaction and packaging facilities.
 
 ===========
 Subpackages

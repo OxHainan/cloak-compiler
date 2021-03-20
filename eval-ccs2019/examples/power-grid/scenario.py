@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from zkay.zkay_frontend import transaction_benchmark_ctx
+from zkay.cloak_frontend import transaction_benchmark_ctx
 
 # Scenario
 with transaction_benchmark_ctx(sys.argv[1]) as g:
