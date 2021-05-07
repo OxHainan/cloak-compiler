@@ -1,8 +1,8 @@
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.dict_wrapper import DictWrapper
 
 
-class TestDictWrapper(ZkayTestCase):
+class TestDictWrapper(CloakTestCase):
 
     def test_indexing(self):
         d = DictWrapper()

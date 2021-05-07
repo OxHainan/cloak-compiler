@@ -18,7 +18,7 @@ from cloak.transaction.interface import ZkayBlockchainInterface, IntegrityError,
     TransactionFailedException
 from cloak.transaction.types import PublicKeyValue, AddressValue, MsgStruct, BlockStruct, TxStruct
 from cloak.utils.helpers import get_contract_names, save_to_file
-from cloak.ast.process_ast import get_verification_contract_names
+from cloak.cloak_ast.process_ast import get_verification_contract_names
 
 max_gas_limit = 10000000
 

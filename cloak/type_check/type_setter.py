@@ -1,14 +1,14 @@
 from cloak.type_check.contains_private import contains_private
 from cloak.type_check.final_checker import check_final
 from cloak.type_check.type_exceptions import TypeMismatchException, TypeException
-from cloak.ast.ast import AST, CodeVisitor, IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TypeName, \
+from cloak.cloak_ast.ast import AST, CodeVisitor, IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TypeName, \
     StateVariableDeclaration, Mapping, AssignmentStatement, MeExpr, TeeExpr, ReclassifyExpr, FunctionCallExpr, \
     BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, \
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition, FunctionPrivacyType
-from cloak.ast.visitor.deep_copy import deep_copy, replace_expr
-from cloak.ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
+from cloak.cloak_ast.visitor.visitor import AstVisitor
 
 def set_type(ast):
     check_final(ast)
@@ -328,6 +328,9 @@ class FunctionTypeVisitor(AstVisitor):
         ast.annotated_type = AnnotatedTypeName(TupleType([elem.annotated_type.clone() for elem in ast.elements]))
 
     def visitMeExpr(self, ast: MeExpr):
+        ast.annotated_type = AnnotatedTypeName.address_all()
+
+    def visitTeeExpr(self, ast: TeeExpr):
         ast.annotated_type = AnnotatedTypeName.address_all()
 
     def visitIdentifierExpr(self, ast: IdentifierExpr):

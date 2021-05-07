@@ -1,4 +1,4 @@
-from cloak.ast.ast import AstException
+from cloak.cloak_ast.ast import AstException
 
 
 class TypeException(AstException):

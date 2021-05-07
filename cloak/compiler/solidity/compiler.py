@@ -9,7 +9,7 @@ from solcx import compile_standard
 from solcx.exceptions import SolcError
 
 from cloak.config import zk_print, cfg
-from cloak.ast.ast import get_code_error_msg
+from cloak.cloak_ast.ast import get_code_error_msg
 
 
 class SolcException(Exception):

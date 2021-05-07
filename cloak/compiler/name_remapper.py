@@ -3,8 +3,8 @@ from __future__ import annotations
 from contextlib import contextmanager
 from typing import Generic, TypeVar, Dict, ContextManager, Any, Callable
 
-from cloak.ast.ast import Expression, IdentifierExpr, HybridArgumentIdf, Identifier, BuiltinFunction, FunctionCallExpr, HybridArgType
-from cloak.ast.pointers.symbol_table import SymbolTableLinker
+from cloak.cloak_ast.ast import Expression, IdentifierExpr, HybridArgumentIdf, Identifier, BuiltinFunction, FunctionCallExpr, HybridArgType
+from cloak.cloak_ast.pointers.symbol_table import SymbolTableLinker
 
 K = TypeVar('K')
 V = TypeVar('V')

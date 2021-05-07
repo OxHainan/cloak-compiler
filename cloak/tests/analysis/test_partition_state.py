@@ -1,8 +1,8 @@
-from cloak.tests.zkay_unit_test import ZkayTestCase
-from cloak.ast.analysis.partition_state import PartitionState
+from cloak.tests.cloak_unit_test import CloakTestCase
+from cloak.cloak_ast.analysis.partition_state import PartitionState
 
 
-class TestPartitionState(ZkayTestCase):
+class TestPartitionState(CloakTestCase):
 
     def test_same_partition(self):
         s = PartitionState()

@@ -5,7 +5,7 @@ from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelp
 from cloak.config import cfg
 from cloak.utils.helpers import hash_file
 from cloak.utils.run_command import run_command
-from cloak.ast.ast import indent
+from cloak.cloak_ast.ast import indent
 
 # path jo jsnark interface jar
 circuit_builder_jar = os.path.join(os.path.dirname(os.path.realpath(__file__)),  'JsnarkCircuitBuilder.jar')
@@ -47,7 +47,7 @@ def prepare_proof(circuit_dir: str, output_dir: str, serialized_args: List[int])
 
 
 _class_template_str = '' + '''\
-import cloak.ZkayCircuitBase;
+import zkay.ZkayCircuitBase;
 import static zkay.ZkayType.ZkUint;
 import static zkay.ZkayType.ZkInt;
 import static zkay.ZkayType.ZkBool;

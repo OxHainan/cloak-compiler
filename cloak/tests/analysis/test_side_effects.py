@@ -2,8 +2,8 @@ from parameterized import parameterized_class
 
 from cloak.examples.examples import all_examples
 from cloak.tests.utils.test_examples import TestExamples
-from cloak.ast.analysis.side_effects import has_side_effects
-from cloak.ast.process_ast import get_processed_ast
+from cloak.cloak_ast.analysis.side_effects import has_side_effects
+from cloak.cloak_ast.process_ast import get_processed_ast
 
 
 @parameterized_class(('name', 'example'), all_examples)

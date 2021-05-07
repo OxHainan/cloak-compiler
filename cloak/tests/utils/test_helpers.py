@@ -1,4 +1,4 @@
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.helpers import lines_of_code
 
 example_code = """pragma solidity ^0.6.0;
@@ -27,7 +27,7 @@ contract MedStats {
 }"""
 
 
-class TestHelpers(ZkayTestCase):
+class TestHelpers(CloakTestCase):
 
     def test_lines_of_code(self):
         loc = lines_of_code(example_code)

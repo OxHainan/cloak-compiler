@@ -13,10 +13,10 @@ from abc import ABCMeta, abstractmethod
 from builtins import type
 from typing import Tuple, List, Optional, Union, Any, Dict, Collection
 
+from cloak.frontend import compile_cloak_file
 from cloak.compiler.privacy.library_contracts import bn128_scalar_field
 from cloak.compiler.privacy.proving_scheme.proving_scheme import ProvingScheme
-from cloak.ast.process_ast import get_verification_contract_names
-from cloak.cloak_frontend import compile_zkay_file
+from cloak.cloak_ast.process_ast import get_verification_contract_names
 from cloak.config import cfg, zk_print, zk_print_banner
 from cloak.transaction.types import AddressValue, MsgStruct, BlockStruct, TxStruct, PublicKeyValue, Value, \
     PrivateKeyValue, CipherValue, RandomnessValue, KeyPair
@@ -283,7 +283,7 @@ class ZkayBlockchainInterface(metaclass=ABCMeta):
             raise IntegrityError('No zkay contract found in specified directory')
         verifier_names = []
         if not os.path.exists(os.path.join(project_dir, 'contract.sol')):
-            compile_zkay_file(zk_file, project_dir, import_keys=True, verifier_names=verifier_names)
+            compile_cloak_file(zk_file, project_dir, import_keys=True, verifier_names=verifier_names)
         else:
             with open(zk_file) as f:
                 verifier_names = get_verification_contract_names(f.read())

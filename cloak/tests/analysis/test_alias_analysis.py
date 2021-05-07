@@ -2,18 +2,18 @@ import re
 
 from parameterized import parameterized_class
 
-from cloak.ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.examples.examples import analysis, all_examples
 from cloak.tests.utils.test_examples import TestExamples
-from cloak.tests.zkay_unit_test import ZkayTestCase
-from cloak.ast.analysis.alias_analysis import alias_analysis
-from cloak.ast.ast import Statement, Comment, BlankLine
-from cloak.ast.build_ast import build_ast
-from cloak.ast.pointers.parent_setter import set_parents
-from cloak.ast.pointers.symbol_table import link_identifiers
+from cloak.tests.cloak_unit_test import CloakTestCase
+from cloak.cloak_ast.analysis.alias_analysis import alias_analysis
+from cloak.cloak_ast.ast import Statement, Comment, BlankLine
+from cloak.cloak_ast.build_ast import build_ast
+from cloak.cloak_ast.pointers.parent_setter import set_parents
+from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 
 
-class TestAliasAnalysisDetail(ZkayTestCase):
+class TestAliasAnalysisDetail(CloakTestCase):
 
     def test_alias_analysis(self):
         # perform analysis

@@ -1,9 +1,9 @@
 # all commands involving docker use sudo, which is typically required to use docker commands
 
-TAG := version-1.3
+TAG := latest
 IMAGE := liam/cloak-prerequisites
-FULL_IMAGE := liam/cloak
-FULL_CONTAINER := cloak-container
+FULL_IMAGE := liam/cloak-compiler
+FULL_CONTAINER := cloak-compiler
 
 # build the prerequisites docker image
 .PHONY: image

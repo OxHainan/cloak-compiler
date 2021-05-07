@@ -22,7 +22,7 @@ from abc import ABCMeta
 from contextlib import contextmanager
 from typing import List, Optional, ContextManager
 
-from cloak.ast.ast import HybridArgumentIdf, Expression, ConstructorOrFunctionDefinition
+from cloak.cloak_ast.ast import HybridArgumentIdf, Expression, ConstructorOrFunctionDefinition
 
 
 class CircuitStatement(metaclass=ABCMeta):

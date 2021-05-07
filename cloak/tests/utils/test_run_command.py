@@ -1,10 +1,10 @@
 from subprocess import SubprocessError
 
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.run_command import run_command
 
 
-class TestRunCommand(ZkayTestCase):
+class TestRunCommand(CloakTestCase):
 
     def test_echo(self):
         output, error = run_command(['echo', 'abc'])

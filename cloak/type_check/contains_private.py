@@ -1,5 +1,5 @@
-from cloak.ast.ast import AnnotatedTypeName, AST
-from cloak.ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast.ast import AnnotatedTypeName, AST
+from cloak.cloak_ast.visitor.visitor import AstVisitor
 
 
 def contains_private(ast):

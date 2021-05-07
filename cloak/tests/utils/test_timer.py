@@ -2,7 +2,7 @@ import json
 import time
 
 from cloak import my_logging
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.helpers import read_file
 from cloak.utils.timer import Timer, time_measure
 
@@ -15,7 +15,7 @@ def sleep(n):
 base_log_file = my_logging.get_log_file(label='TestTimer')
 
 
-class TestTimer(ZkayTestCase):
+class TestTimer(CloakTestCase):
 
     def test_timer_decorator(self):
         log_file = base_log_file + '_decorator'

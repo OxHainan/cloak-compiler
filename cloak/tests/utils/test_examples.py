@@ -3,15 +3,15 @@ from parameterized import parameterized_class
 from cloak.examples.scenario import Scenario
 from cloak.examples.example_scenarios import all_scenarios
 from cloak.examples.examples import all_examples, Example
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 
 
-class TestExamples(ZkayTestCase):
+class TestExamples(CloakTestCase):
     name: str = None
     example: Example = None
 
 
-class TestScenarios(ZkayTestCase):
+class TestScenarios(CloakTestCase):
     name: str = None
     scenario: Scenario = None
 

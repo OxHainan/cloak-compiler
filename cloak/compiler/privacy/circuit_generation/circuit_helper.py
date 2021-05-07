@@ -8,14 +8,14 @@ from cloak.compiler.privacy.circuit_generation.circuit_constraints import Circui
 from cloak.compiler.privacy.circuit_generation.name_factory import NameFactory
 from cloak.config import cfg
 from cloak.type_check.type_checker import TypeCheckVisitor
-from cloak.ast.ast import Expression, IdentifierExpr, PrivacyLabelExpr, \
-    LocationExpr, TypeName, AssignmentStatement, UserDefinedTypeName, ConstructorOrFunctionDefinition, Parameter, \
+from cloak.cloak_ast.ast import Expression, IdentifierExpr, PrivacyLabelExpr, \
+    LocationExpr, TeeExpr, TypeName, AssignmentStatement, UserDefinedTypeName, ConstructorOrFunctionDefinition, Parameter, \
     HybridArgumentIdf, EncryptionExpression, FunctionCallExpr, Identifier, AnnotatedTypeName, HybridArgType, CircuitInputStatement, \
     CircuitComputationStatement, AllExpr, MeExpr, ReturnStatement, Block, MemberAccessExpr, NumberLiteralType, BooleanLiteralType, \
     Statement, StateVariableDeclaration, IfStatement, TupleExpr, VariableDeclaration, IndexExpr, get_privacy_expr_from_label, \
     ExpressionStatement, NumberLiteralExpr, VariableDeclarationStatement, EnterPrivateKeyStatement, KeyLiteralExpr
-from cloak.ast.visitor.deep_copy import deep_copy
-from cloak.ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.deep_copy import deep_copy
+from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 
 
 class CircuitHelper:
@@ -35,7 +35,7 @@ class CircuitHelper:
 
         :param fct: The function which is associated with this proof circuit
         :param static_owner_labels: A list of all static privacy labels for this contract
-                                    (i.e. MeExpr + Identifiers of all final address state variables)
+                                    (i.e. MeExpr + TeeExpr + Identifiers of all final address state variables)
         :param expr_trafo_constructor: Constructor of ZkpExpressionTransformer (cyclic dependency)
         :param circ_trafo_constructor: Constructor fo ZkpCircuitTransformer (cyclic dependency)
         :param internal_circuit [Optional]: When creating the external wrapper function (see ZkayContractTransformer),
@@ -83,7 +83,7 @@ class CircuitHelper:
         self._need_secret_key: bool = False
         """Whether msg.sender's secret key must be added to the private circuit inputs"""
 
-        self._global_keys: OrderedDict[Union[MeExpr, Identifier], None] = OrderedDict([])
+        self._global_keys: OrderedDict[Union[MeExpr, TeeExpr, Identifier], None] = OrderedDict([])
         """Set of statically known privacy labels (OrderedDict is used to ensure deterministic iteration order)"""
 
         self.function_calls_with_verification: List[FunctionCallExpr] = []
@@ -197,7 +197,7 @@ class CircuitHelper:
         return self._phi
 
     @property
-    def requested_global_keys(self) -> 'OrderedDict[Union[MeExpr, Identifier], None]':
+    def requested_global_keys(self) -> 'OrderedDict[Union[MeExpr, TeeExpr, Identifier], None]':
         """Statically known keys required by this circuit"""
         return self._global_keys
 
@@ -225,7 +225,7 @@ class CircuitHelper:
     @staticmethod
     def get_glob_key_name(label: PrivacyLabelExpr) -> str:
         """Return the name of the HybridArgumentIdf which holds the statically known public key for the given privacy label."""
-        assert isinstance(label, (MeExpr, Identifier))
+        assert isinstance(label, (MeExpr, TeeExpr, Identifier))
         return f'glob_key_{label.name}'
 
     @staticmethod
@@ -352,7 +352,7 @@ class CircuitHelper:
         self.function_calls_with_verification.append(ast)
         self.phi.append(CircCall(ast.func.target))
 
-    def request_public_key(self, plabel: Union[MeExpr, Identifier], name):
+    def request_public_key(self, plabel: Union[MeExpr, TeeExpr, Identifier], name):
         """
         Request key for the address corresponding to plabel from pki infrastructure and add it to the public circuit inputs.
 

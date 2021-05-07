@@ -15,9 +15,9 @@ from cloak.compiler.privacy.proving_scheme.backends.groth16 import ProvingScheme
 from cloak.compiler.privacy.proving_scheme.proving_scheme import VerifyingKey, G2Point, G1Point, ProvingScheme
 from cloak.config import cfg, zk_print
 from cloak.utils.helpers import hash_file, hash_string
-from cloak.ast.ast import FunctionCallExpr, BuiltinFunction, IdentifierExpr, BooleanLiteralExpr, \
+from cloak.cloak_ast.ast import FunctionCallExpr, BuiltinFunction, IdentifierExpr, BooleanLiteralExpr, \
     IndexExpr, NumberLiteralExpr, MemberAccessExpr, TypeName, indent, PrimitiveCastExpr, EnumDefinition, Expression
-from cloak.ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast.visitor.visitor import AstVisitor
 
 
 def _get_t(t: Union[TypeName, Expression]):

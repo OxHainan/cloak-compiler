@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sys
-from cloak.cloak_frontend import transaction_benchmark_ctx
+from cloak.frontend import transaction_benchmark_ctx
 
 # Scenario
 with transaction_benchmark_ctx(sys.argv[1]) as g:

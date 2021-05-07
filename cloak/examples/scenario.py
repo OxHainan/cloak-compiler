@@ -5,7 +5,7 @@ from unittest import TestCase
 from cloak.config import cfg
 from cloak.transaction.offchain import ContractSimulator
 from cloak.transaction.types import AddressValue
-from cloak.ast.ast import TypeName
+from cloak.cloak_ast.ast import TypeName
 
 
 class TransactionAssertion:

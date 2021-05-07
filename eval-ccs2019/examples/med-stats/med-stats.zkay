@@ -1,4 +1,4 @@
-pragma zkay >=0.2.0;
+pragma cloak >=0.2.0;
 
 // Description: Record medical statistics on patients
 // Domain: Healthcare

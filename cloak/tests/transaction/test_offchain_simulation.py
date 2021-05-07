@@ -7,7 +7,7 @@ from contextlib import nullcontext, contextmanager
 
 from parameterized import parameterized_class
 
-from cloak.cloak_frontend import compile_cloak
+from cloak.frontend import compile_cloak
 from cloak.config import cfg
 from cloak.examples.scenario import TransactionAssertion, Transaction
 from cloak.examples.example_scenarios import all_scenarios, enc_scenarios, get_scenario

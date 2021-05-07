@@ -1,6 +1,6 @@
 from typing import Optional
 
-from cloak.ast.ast import TypeName, HybridArgType, Expression, HybridArgumentIdf
+from cloak.cloak_ast.ast import TypeName, HybridArgType, Expression, HybridArgumentIdf
 
 
 class BaseNameFactory:

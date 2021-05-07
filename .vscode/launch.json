@@ -33,7 +33,7 @@
             "request": "launch",
             "subProcess": true,
             "program": "cloak/__main__.py",
-            "args": ["check", "zkay/examples/code/FuncCalls.zkay"],
+            "args": ["check", "cloak/examples/code/FuncCalls.zkay"],
             "console": "integratedTerminal"
         },
         {
@@ -41,7 +41,7 @@
             "type": "python",
             "request": "launch",
             "program": "cloak/__main__.py",
-            "args": ["compile", "-o", "test", "zkay/examples/code/FuncCalls.zkay"],
+            "args": ["compile", "-o", "test", "cloak/examples/code/FuncCalls.zkay"],
             "console": "integratedTerminal"
         }
     ]

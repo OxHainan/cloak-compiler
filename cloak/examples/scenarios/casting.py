@@ -1,6 +1,6 @@
 from cloak.examples.scenario import ScenarioBuilder
 from cloak.transaction.types import AddressValue
-from cloak.ast.ast import IntTypeName
+from cloak.cloak_ast.ast import IntTypeName
 
 a = 'a'
 sb = ScenarioBuilder('Casting', 'code/Cast.zkay').set_users(a)

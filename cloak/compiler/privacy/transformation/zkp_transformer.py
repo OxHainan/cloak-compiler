@@ -1,24 +1,24 @@
 """
-This module defines zkay->solidity transformers for the smaller contract elements (statements, expressions, state variables).
+This module defines cloak->solidity transformers for the smaller contract elements (statements, expressions, state variables).
 """
 
 import re
 from typing import Optional
 
 from cloak.compiler.privacy.circuit_generation.circuit_helper import HybridArgumentIdf, CircuitHelper
-from cloak.ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
 from cloak.config import cfg
-from cloak.ast.analysis.contains_private_checker import contains_private_expr
-from cloak.ast.ast import ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
-    IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, \
+from cloak.cloak_ast.analysis.contains_private_checker import contains_private_expr
+from cloak.cloak_ast.ast import ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
+    IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, TeeExpr, \
     VariableDeclarationStatement, ReturnStatement, LocationExpr, AST, AssignmentStatement, Block, \
     Comment, LiteralExpr, Statement, SimpleStatement, IndexExpr, FunctionCallExpr, BuiltinFunction, TupleExpr, \
     NumberLiteralExpr, \
     MemberAccessExpr, WhileStatement, BreakStatement, ContinueStatement, ForStatement, DoWhileStatement, \
     BooleanLiteralType, NumberLiteralType, BooleanLiteralExpr, PrimitiveCastExpr, EnumDefinition, EncryptionExpression, \
     TypeName
-from cloak.ast.visitor.deep_copy import replace_expr
+from cloak.cloak_ast.visitor.deep_copy import replace_expr
 
 
 class ZkpVarDeclTransformer(AstTransformerVisitor):
@@ -253,6 +253,11 @@ class ZkpExpressionTransformer(AstTransformerVisitor):
     def visitMeExpr(ast: MeExpr):
         """Replace me with msg.sender."""
         return replace_expr(ast, IdentifierExpr('msg').dot('sender')).as_type(AnnotatedTypeName.address_all())
+
+    @staticmethod
+    def visitTeeExpr(ast: TeeExpr):
+        """Replace tee with tee."""
+        return replace_expr(ast, IdentifierExpr('tee')).as_type(AnnotatedTypeName.address_all())
 
     def visitLiteralExpr(self, ast: LiteralExpr):
         """Rule (7), don't modify constants."""

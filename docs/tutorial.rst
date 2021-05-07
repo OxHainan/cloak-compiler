@@ -341,9 +341,9 @@ Programmatic Use
 
 Most command line features which were described in this tutorial are also available via an API.
 
-See :py:mod:`.cloak_frontend`
+See :py:mod:`.frontend`
 
-- Compilation: :py:meth:`~zkay.cloak_frontend.compile_zkay_file`, :py:meth:`~zkay.cloak_frontend.compile_cloak`
-- Deployment: :py:meth:`~zkay.cloak_frontend.deploy_contract`
-- Export/Import: :py:meth:`~zkay.cloak_frontend.package_zkay_contract`, :py:meth:`~zkay.cloak_frontend.extract_zkay_package`
-- Creating transaction interface object: :py:meth:`~zkay.cloak_frontend.connect_to_contract_at` (after loading the correct zkay configuration using :py:meth:`~zkay.cloak_frontend.use_configuration_from_manifest`)
+- Compilation: :py:meth:`~zkay.frontend.compile_cloak_file`, :py:meth:`~zkay.frontend.compile_cloak`
+- Deployment: :py:meth:`~zkay.frontend.deploy_contract`
+- Export/Import: :py:meth:`~zkay.frontend.package_zkay_contract`, :py:meth:`~zkay.frontend.extract_zkay_package`
+- Creating transaction interface object: :py:meth:`~zkay.frontend.connect_to_contract_at` (after loading the correct zkay configuration using :py:meth:`~zkay.frontend.use_configuration_from_manifest`)

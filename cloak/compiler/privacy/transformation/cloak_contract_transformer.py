@@ -7,20 +7,20 @@ from typing import Dict, Optional, List, Tuple
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper
 from cloak.compiler.privacy.library_contracts import bn128_scalar_field
 from cloak.compiler.privacy.transformation.internal_call_transformer import transform_internal_calls, compute_transitive_circuit_io_sizes
-from cloak.ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.privacy.transformation.zkp_transformer import ZkpVarDeclTransformer, ZkpExpressionTransformer, ZkpCircuitTransformer, \
     ZkpStatementTransformer
 from cloak.config import cfg
-from cloak.ast.ast import Expression, ConstructorOrFunctionDefinition, IdentifierExpr, VariableDeclaration, \
+from cloak.cloak_ast.ast import Expression, ConstructorOrFunctionDefinition, IdentifierExpr, TeeExpr, VariableDeclaration, \
     AnnotatedTypeName, \
     StateVariableDeclaration, Identifier, ExpressionStatement, SourceUnit, ReturnStatement, AST, \
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
     Parameter, \
     VariableDeclarationStatement, StatementList, CipherText, ArrayLiteralExpr, MeExpr
-from cloak.ast.pointers.parent_setter import set_parents
-from cloak.ast.pointers.symbol_table import link_identifiers
-from cloak.ast.visitor.deep_copy import deep_copy
+from cloak.cloak_ast.pointers.parent_setter import set_parents
+from cloak.cloak_ast.pointers.symbol_table import link_identifiers
+from cloak.cloak_ast.visitor.deep_copy import deep_copy
 
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
@@ -228,8 +228,13 @@ class CloakTransformer(AstTransformerVisitor):
         for fct in all_fcts:
             fct.original_body = deep_copy(fct.body, with_types=True, with_analysis=True)
         
+        # TODO: renqian - change fake address to PKI.getPK(tee)
+        c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
+                                            Identifier(TeeExpr().name), TeeExpr())] \
+                                    + c.state_variable_declarations
+
         c = self.transform_zkp_functions(su, c)
-        c = self.transform_tee_functions(su, c)
+        # c = self.transform_tee_functions(su, c)
 
         return c
 
@@ -251,10 +256,11 @@ class CloakTransformer(AstTransformerVisitor):
         :return: The contract itself
         """
         # Get list of static owner labels for this contract
-        global_owners = [Expression.me_expr()]
+        global_owners = [Expression.me_expr(), Expression.tee_expr()]
         for var in c.state_variable_declarations:
-            if var.annotated_type.is_address() and (var.is_final or var.is_constant):
-                global_owners.append(var.idf)
+            if isinstance(var, StateVariableDeclaration):
+                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
+                    global_owners.append(var.idf)
 
         self.var_decl_trafo = ZkpVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
@@ -353,8 +359,9 @@ class CloakTransformer(AstTransformerVisitor):
         # Get list of static owner labels for this contract
         global_owners = [Expression.me_expr()]
         for var in c.state_variable_declarations:
-            if var.annotated_type.is_address() and (var.is_final or var.is_constant):
-                global_owners.append(var.idf)
+            if isinstance(var, StateVariableDeclaration):
+                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
+                    global_owners.append(var.idf)
 
         self.var_decl_trafo = ZkpVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""

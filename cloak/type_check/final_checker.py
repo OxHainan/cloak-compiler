@@ -1,9 +1,9 @@
 from typing import Set, Dict, Optional
 
 from cloak.type_check.type_exceptions import TypeException
-from cloak.ast.ast import StateVariableDeclaration, \
+from cloak.cloak_ast.ast import StateVariableDeclaration, \
     AssignmentStatement, IdentifierExpr, ContractDefinition, Block, IfStatement, ConstructorOrFunctionDefinition
-from cloak.ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast.visitor.visitor import AstVisitor
 
 
 def check_final(ast):

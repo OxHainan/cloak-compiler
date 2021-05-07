@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, ContextManager, Set
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper, HybridArgumentIdf
 from cloak.config import cfg
 from cloak.utils.multiline_formatter import MultiLineFormatter
-from cloak.ast.ast import ContractDefinition, SourceUnit, ConstructorOrFunctionDefinition, \
+from cloak.cloak_ast.ast import ContractDefinition, SourceUnit, ConstructorOrFunctionDefinition, TeeExpr, \
     indent, FunctionCallExpr, IdentifierExpr, BuiltinFunction, \
     StateVariableDeclaration, MemberAccessExpr, IndexExpr, Parameter, TypeName, AnnotatedTypeName, Identifier, \
     ReturnStatement, EncryptionExpression, MeExpr, Expression, CipherText, Array, \
@@ -15,7 +15,7 @@ from cloak.ast.ast import ContractDefinition, SourceUnit, ConstructorOrFunctionD
     PrimitiveCastExpr, EnumDefinition, EnumTypeName, UintTypeName, \
     StatementList, StructDefinition, NumberTypeName, EnterPrivateKeyStatement, ArrayLiteralExpr, NumberLiteralExpr, \
     BoolTypeName
-from cloak.ast.visitor.python_visitor import PythonCodeVisitor
+from cloak.cloak_ast.visitor.python_visitor import PythonCodeVisitor
 
 
 def api(name: str, invoker: str = 'self') -> str:
@@ -560,7 +560,13 @@ class PythonOffchainVisitor(PythonCodeVisitor):
         return f'{PRIV_VALUES_NAME}["{self.current_circ.get_own_secret_key_name()}"] = {api("get_my_sk")}()'
 
     def visitEncryptionExpression(self, ast: EncryptionExpression):
-        priv_str = 'msg.sender' if isinstance(ast.privacy, MeExpr) else self.visit(ast.privacy.clone())
+        priv_str = ""
+        if isinstance(ast.privacy, MeExpr):
+            priv_str = 'msg.sender'
+        elif isinstance(ast.privacy, TeeExpr):
+            priv_str = 'tee'
+        else:
+            self.visit(ast.privacy.clone())
         plain = self.visit(ast.expr)
         if ast.expr.annotated_type.type_name.is_signed_numeric:
             plain = self.handle_cast(plain, UintTypeName(f'uint{ast.expr.annotated_type.type_name.elem_bitwidth}'))

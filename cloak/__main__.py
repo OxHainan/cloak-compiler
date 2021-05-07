@@ -185,14 +185,14 @@ def main():
 
     from pathlib import Path
 
-    import cloak.cloak_frontend as frontend
+    import cloak.frontend as frontend
     from cloak import my_logging
     from cloak.config import cfg
     from cloak.utils.helpers import read_file, save_to_file
     from cloak.errors.exceptions import CloakCompilerError
     from cloak.my_logging.log_context import log_context
     from cloak.utils.progress_printer import fail_print, success_print
-    from cloak.ast.process_ast import get_processed_ast, get_parsed_ast_and_fake_code
+    from cloak.cloak_ast.process_ast import get_processed_ast, get_parsed_ast_and_fake_code
 
     # Load configuration files
     try:
@@ -298,7 +298,7 @@ def main():
             # compile
             with log_context('inputfile', os.path.basename(a.input)):
                 try:
-                    frontend.compile_zkay_file(str(input_path), str(output_dir))
+                    frontend.compile_cloak_file(str(input_path), str(output_dir))
                 except CloakCompilerError as e:
                     with fail_print():
                         print(f'{e}')

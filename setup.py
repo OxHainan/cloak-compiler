@@ -14,13 +14,13 @@ def _read_file(path: str) -> str:
 # Versions
 antlr_version = '4.8'
 file_dir = os.path.dirname(os.path.realpath(__file__))
-cloak_version = _read_file(os.path.join(file_dir, 'zkay', 'VERSION'))
+cloak_version = _read_file(os.path.join(file_dir, 'cloak', 'VERSION'))
 zkay_libsnark_commit_hash = '4e3c7a53ec333f52fe27ff45ff836102bcdb8e28'
 packages = find_packages()
 
 
 def build_grammar():
-    source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'zkay')
+    source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cloak')
     antlr_jar_name = f'antlr-{antlr_version}.jar'
     antlr_jar_path = os.path.join(source_dir, 'solidity_parser', antlr_jar_name)
     if not os.path.exists(antlr_jar_path):
@@ -69,7 +69,7 @@ class CustomInstall(install):
 
 class CustomDevelop(develop):
     def run(self):
-        interface_source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'zkay', 'jsnark_interface')
+        interface_source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cloak', 'jsnark_interface')
         build_grammar()
         build_libsnark_backend(interface_source_dir)
         develop.run(self)
@@ -81,9 +81,9 @@ setup(
     name='cloak',
     version=cloak_version,
     author='Nick Baumann, SRI Lab ETH Zurich',
-    url='https://github.com/eth-sri/zkay',
+    # url='https://github.com/eth-sri/zkay',
     license='MIT',
-    description='Zkay is a programming language which enables automatic compilation of intuitive data privacy specifications to Ethereum smart contracts leveraging encryption and non-interactive zero-knowledge (NIZK) proofs. The zkay package provides a toolchain for compiling, deploying and using zkay contracts.',
+    description='Cloak is a programming language which enables automatic compilation of intuitive data privacy specifications to Ethereum smart contracts leveraging encryption and non-interactive zero-knowledge (NIZK) proofs. The zkay package provides a toolchain for compiling, deploying and using zkay contracts.',
 
     # Dependencies
     python_requires='>=3.7,<4',
@@ -106,7 +106,7 @@ setup(
     include_package_data=True,
     entry_points={
         "console_scripts": [
-            "zkay=zkay.__main__:main"
+            "cloak=cloak.__main__:main"
         ]
     },
 

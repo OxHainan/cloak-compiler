@@ -6,11 +6,11 @@ import re
 from typing import Optional
 
 from cloak.compiler.privacy.circuit_generation.circuit_helper import HybridArgumentIdf, CircuitHelper
-from cloak.ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
 from cloak.config import cfg
-from cloak.ast.analysis.contains_private_checker import contains_private_expr
-from cloak.ast.ast import ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
+from cloak.cloak_ast.analysis.contains_private_checker import contains_private_expr
+from cloak.cloak_ast.ast import ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
     IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, \
     VariableDeclarationStatement, ReturnStatement, LocationExpr, AST, AssignmentStatement, Block, \
     Comment, LiteralExpr, Statement, SimpleStatement, IndexExpr, FunctionCallExpr, BuiltinFunction, TupleExpr, \
@@ -18,7 +18,7 @@ from cloak.ast.ast import ReclassifyExpr, Expression, IfStatement, StatementList
     MemberAccessExpr, WhileStatement, BreakStatement, ContinueStatement, ForStatement, DoWhileStatement, \
     BooleanLiteralType, NumberLiteralType, BooleanLiteralExpr, PrimitiveCastExpr, EnumDefinition, EncryptionExpression, \
     TypeName
-from cloak.ast.visitor.deep_copy import replace_expr
+from cloak.cloak_ast.visitor.deep_copy import replace_expr
 
 
 class ZkpVarDeclTransformer(AstTransformerVisitor):

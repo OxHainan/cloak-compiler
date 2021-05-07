@@ -2,13 +2,13 @@ import json
 import warnings
 
 from cloak import my_logging
-from cloak.tests.zkay_unit_test import ZkayTestCase
+from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.helpers import read_file
 
 default_log_file = my_logging.get_log_file(label='TestLogger')
 
 
-class TestLogger(ZkayTestCase):
+class TestLogger(CloakTestCase):
     def test_logger(self):
         # ignore warnings
         warnings.simplefilter("ignore")

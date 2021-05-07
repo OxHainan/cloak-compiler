@@ -1,4 +1,4 @@
-pragma zkay >=0.2.0/*asdf*/;contract
+pragma cloak >=0.2.0/*asdf*/;contract
 bank {
 mapping (address  ! /*asdfasldfjalskfdj*/ x => uint  @  x)
 balances;function

@@ -2,7 +2,7 @@ import json
 from typing import Any
 from cloak.type_check.type_exceptions import TypeException
 from cloak.type_check import type_pure
-from cloak.ast.ast import Mapping, Array, CodeVisitor, StateVariableDeclaration
+from cloak.cloak_ast.ast import Mapping, Array, CodeVisitor, StateVariableDeclaration
 
 FUNC_INPUTS = "inputs"
 FUNC_READ = "read"

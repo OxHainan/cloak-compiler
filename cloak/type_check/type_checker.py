@@ -4,23 +4,23 @@ from cloak.utils.helpers import save_to_file
 from cloak.type_check.contains_private import contains_private
 from cloak.type_check.final_checker import check_final
 from cloak.type_check.type_exceptions import TypeMismatchException, TypeException
-from cloak.ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TeeExpr, TypeName, \
+from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, IfStatement, AnnotatedTypeName, Expression, TeeExpr, TypeName, \
     StateVariableDeclaration, Mapping, AssignmentStatement, MeExpr, ReclassifyExpr, FunctionCallExpr, \
     BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, FunctionPrivacyType, \
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
-from cloak.ast.visitor.deep_copy import replace_expr
-from cloak.ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast.visitor.deep_copy import replace_expr
+from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
 
 
 def check_type(ast):
     check_final(ast)
 
-    # generate privacy policy
-    ptv = PrivacyTypeVisitor()
-    ptv.visit(ast)
+    # # generate privacy policy
+    # ptv = PrivacyTypeVisitor()
+    # ptv.visit(ast)
 
     v = TypeCheckVisitor()
     v.visit(ast)
@@ -353,6 +353,9 @@ class TypeCheckVisitor(AstVisitor):
     def visitMeExpr(self, ast: MeExpr):
         ast.annotated_type = AnnotatedTypeName.address_all()
 
+    def visitTeeExpr(self, ast: TeeExpr):
+        ast.annotated_type = AnnotatedTypeName.address_all()
+
     def visitIdentifierExpr(self, ast: IdentifierExpr):
         if isinstance(ast.target, Mapping):
             # no action necessary, the identifier will be replaced later
@@ -406,12 +409,12 @@ class TypeCheckVisitor(AstVisitor):
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         for t in ast.parameter_types:
             if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-                raise TypeException('Only me/all accepted as privacy type of function parameters', ast)
+                raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
 
         if ast.can_be_external:
             for t in ast.return_type:
-                if not isinstance(t.privacy_annotation, (MeExpr, AllExpr)):
-                    raise TypeException('Only me/all accepted as privacy type of return values for public functions', ast)
+                if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+                    raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
 
     def visitEnumDefinition(self, ast: EnumDefinition):
         ast.annotated_type = AnnotatedTypeName(EnumTypeName(ast.qualified_name).override(target=ast))

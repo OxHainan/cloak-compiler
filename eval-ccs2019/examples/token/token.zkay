@@ -1,4 +1,4 @@
-pragma zkay >=0.2.0;
+pragma cloak >=0.2.0;
 
 // Description: Buy and transfer secret amount of tokens
 // Domain: Finance

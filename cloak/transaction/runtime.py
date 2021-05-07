@@ -1,7 +1,7 @@
 from cloak.config import cfg
 from cloak.transaction.crypto.ecdh_chaskey import EcdhChaskeyCrypto
 from cloak.transaction.interface import ZkayBlockchainInterface, ZkayCryptoInterface, ZkayKeystoreInterface, ZkayProverInterface
-from cloak.transaction.blockchain import *
+from cloak.transaction.blockchain import Web3TesterBlockchain, Web3HttpGanacheBlockchain, Web3IpcBlockchain, Web3WebsocketBlockchain, Web3HttpBlockchain, Web3CustomBlockchain
 from cloak.transaction.crypto.ecdh_aes import EcdhAesCrypto
 from cloak.transaction.crypto.dummy import DummyCrypto
 from cloak.transaction.crypto.rsa_pkcs15 import RSAPKCS15Crypto

@@ -14,7 +14,7 @@ class SyntaxException(ZkaySyntaxError):
     def __init__(self, msg: str, ctx=None, code=None) -> None:
         if ctx is not None:
             assert code is not None
-            from cloak.ast.ast import get_code_error_msg
+            from cloak.cloak_ast.ast import get_code_error_msg
             msg = f'{get_code_error_msg(ctx.start.line, ctx.start.column + 1, str(code).splitlines())}\n{msg}'
         super().__init__(msg)
 
@@ -26,7 +26,7 @@ class MyErrorListener(ErrorListener):
         self.code = code
 
     def syntaxError(self, recognizer, offending_symbol, line, column, msg, e):
-        from cloak.ast.ast import get_code_error_msg
+        from cloak.cloak_ast.ast import get_code_error_msg
         report = f'{get_code_error_msg(line, column + 1, str(self.code).splitlines())}\n{msg}'
         raise SyntaxException(report)
 

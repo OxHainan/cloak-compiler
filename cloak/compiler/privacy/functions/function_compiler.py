@@ -1,13 +1,13 @@
 import os
 import cloak.my_logging
 import cloak.compiler.privacy.functions.function_helper
-from cloak.ast.ast import AST, CodeVisitor, AnnotatedTypeName, MeExpr, TeeExpr, ReclassifyExpr, \
+from cloak.cloak_ast.ast import AST, CodeVisitor, AnnotatedTypeName, MeExpr, TeeExpr, ReclassifyExpr, \
 	FunctionDefinition, Parameter, RequireStatement, ExpressionStatement, SimpleStatement, \
 	AssignmentStatement, Expression, Identifier, IdentifierExpr, indent, ReturnStatement, Mapping, \
 	ConstructorDefinition, UserDefinedTypeName, ContractDefinition, StateVariableDeclaration, Block, \
 	VariableDeclaration, VariableDeclarationStatement, TypeName, FunctionCallExpr, BuiltinFunction, BooleanLiteralExpr, \
 	ConstructorOrFunctionDefinition, FunctionPrivacyType
-from cloak.ast.process_ast import get_processed_ast
+from cloak.cloak_ast.process_ast import get_processed_ast
 from cloak.compiler.privacy.used_contract import UsedContract
 from cloak.compiler.solidity.sol_template import hash_function
 from cloak.compiler.infra_contracts import pki_contract_filename, cloak_service_contract_filename

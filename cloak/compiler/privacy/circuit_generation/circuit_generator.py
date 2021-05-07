@@ -60,7 +60,7 @@ class CircuitGenerator(metaclass=ABCMeta):
         if import_keys:
             for path in self.get_all_key_paths():
                 if not os.path.exists(path):
-                    raise RuntimeError("Zkay contract import failed: Missing keys")
+                    raise RuntimeError("Cloak contract import failed: Missing keys")
         else:
             modified_circuits_to_prove = [circ for t, circ in zip(modified, self.circuits_to_prove)
                                           if t or not all(map(os.path.exists, self._get_vk_and_pk_paths(circ)))]

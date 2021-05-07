@@ -3,7 +3,7 @@ from typing import List, Dict
 
 from cloak.config import cfg
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper
-from cloak.ast.ast import ConstructorOrFunctionDefinition, IdentifierExpr, NumberLiteralExpr
+from cloak.cloak_ast.ast import ConstructorOrFunctionDefinition, IdentifierExpr, NumberLiteralExpr
 
 
 def compute_transitive_circuit_io_sizes(fcts_with_verification: List[ConstructorOrFunctionDefinition], cgens: Dict[ConstructorOrFunctionDefinition, CircuitHelper]):
