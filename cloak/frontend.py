@@ -119,11 +119,11 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
         output_filename = 'public_contract.sol'
         solidity_code_output = _dump_to_output(to_solidity(ast), output_dir, output_filename)
 
-    # # Write private contract file
-    # with print_step('Write private solidity code'):
-    #     # TODO: may need to replace to_solidity with solify logic
-    #     output_filename = 'private_contract.sol'
-    #     solidity_code_output = _dump_to_output(to_solidity(deepcopy(zkay_ast)), output_dir, output_filename)
+    # Write private contract file
+    with print_step('Write private solidity code'):
+        # TODO: may need to replace to_solidity with solify logic
+        output_filename = 'private_contract.sol'
+        solidity_code_output = _dump_to_output(to_solidity(deepcopy(cloak_ast)), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())
@@ -138,7 +138,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
 
     if 'verifier_names' in kwargs:
         assert isinstance(kwargs['verifier_names'], list)
-        verifier_names = get_verification_contract_names(zkay_ast)
+        verifier_names = get_verification_contract_names(cloak_ast)
         assert sorted(verifier_names) == sorted([cc.verifier_contract_type.code() for cc in cg.circuits_to_prove])
         kwargs['verifier_names'][:] = verifier_names[:]
 

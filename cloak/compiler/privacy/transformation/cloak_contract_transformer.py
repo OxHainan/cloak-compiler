@@ -10,6 +10,8 @@ from cloak.compiler.privacy.transformation.internal_call_transformer import tran
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.privacy.transformation.zkp_transformer import ZkpVarDeclTransformer, ZkpExpressionTransformer, ZkpCircuitTransformer, \
     ZkpStatementTransformer
+from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer, TeeExpressionTransformer, TeeCircuitTransformer, \
+    TeeStatementTransformer
 from cloak.config import cfg
 from cloak.cloak_ast.ast import Expression, ConstructorOrFunctionDefinition, IdentifierExpr, TeeExpr, VariableDeclaration, \
     AnnotatedTypeName, \
@@ -212,7 +214,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         * transforms state variables, function bodies and signatures
         * import verification contracts
-        * adds zk_data structs for each function with verification \
+        * adds data structs for each function with verification \
           (to store circuit I/O, to bypass solidity stack limit and allow for easy assignment of array variables),
         * creates external wrapper functions for all public functions which require verification
         * adds circuit IO serialization/deserialization code from/to zk_data struct to all functions which require verification.
@@ -228,10 +230,10 @@ class CloakTransformer(AstTransformerVisitor):
         for fct in all_fcts:
             fct.original_body = deep_copy(fct.body, with_types=True, with_analysis=True)
         
-        # TODO: renqian - change fake address to PKI.getPK(tee)
-        c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
-                                            Identifier(TeeExpr().name), TeeExpr())] \
-                                    + c.state_variable_declarations
+        # # TODO: renqian - change fake address to PKI.getPK(tee)
+        # c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
+        #                                     Identifier(TeeExpr().name), TeeExpr())] \
+        #                             + c.state_variable_declarations
 
         c = self.transform_zkp_functions(su, c)
         # c = self.transform_tee_functions(su, c)
@@ -262,7 +264,7 @@ class CloakTransformer(AstTransformerVisitor):
                 if var.annotated_type.is_address() and (var.is_final or var.is_constant):
                     global_owners.append(var.idf)
 
-        self.var_decl_trafo = ZkpVarDeclTransformer()
+        self.var_decl_trafo = TeeVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
 
         # Transform types of normal state variables
@@ -278,7 +280,8 @@ class CloakTransformer(AstTransformerVisitor):
         for fct in all_fcts:
             assert isinstance(fct, ConstructorOrFunctionDefinition)
             if fct.requires_verification or fct.requires_verification_when_external:
-                self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
+                # self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
+                pass
 
             if fct.requires_verification_when_external:
                 req_ext_fcts[fct] = fct.parameters[:]
@@ -291,11 +294,12 @@ class CloakTransformer(AstTransformerVisitor):
         field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
                                                     Identifier(cfg.field_prime_var_name),
                                                     NumberLiteralExpr(bn128_scalar_field))
-        contract_var_decls = self.include_verification_contracts(su, c)
-        c.state_variable_declarations = [field_prime_decl, Comment()]\
-                                        + Comment.comment_list('Helper Contracts', contract_var_decls)\
-                                        + [Comment('User state variables')]\
-                                        + c.state_variable_declarations
+
+        # contract_var_decls = self.include_verification_contracts(su, c)
+        # c.state_variable_declarations = [field_prime_decl, Comment()]\
+        #                                 + Comment.comment_list('Helper Contracts', contract_var_decls)\
+        #                                 + [Comment('User state variables')]\
+        #                                 + c.state_variable_declarations
 
         # Transform signatures
         for f in all_fcts:
@@ -307,7 +311,7 @@ class CloakTransformer(AstTransformerVisitor):
         # Transform bodies
         for fct in all_fcts:
             gen = self.circuits.get(fct, None)
-            fct.body = ZkpStatementTransformer(gen).visit(fct.body)
+            fct.body = TeeStatementTransformer(gen).visit(fct.body)
 
         # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
         fcts_with_verification = [fct for fct in all_fcts if fct.requires_verification]
@@ -357,7 +361,7 @@ class CloakTransformer(AstTransformerVisitor):
         :return: The contract itself
         """
         # Get list of static owner labels for this contract
-        global_owners = [Expression.me_expr()]
+        global_owners = [Expression.me_expr(), Expression.tee_expr()]
         for var in c.state_variable_declarations:
             if isinstance(var, StateVariableDeclaration):
                 if var.annotated_type.is_address() and (var.is_final or var.is_constant):

@@ -76,9 +76,9 @@ def process_ast(ast, parents=True, identifier_link=True, return_check=True, alia
         with print_step("Checking type"):
             try:
                 set_type(ast)
+                detect_hybrid_functions(ast)
                 check_type(ast)
                 check_circuit_compliance(ast)
-                detect_hybrid_functions(ast)
                 check_loops(ast)
             except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:
                 raise TypeCheckException(f'\n\nCOMPILER ERROR: {e}')

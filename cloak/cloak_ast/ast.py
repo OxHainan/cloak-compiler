@@ -1743,8 +1743,8 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         self.has_static_body = True
         self.can_be_private = True
 
-        # True if this function contains private expressions
-        self.requires_verification = False
+        # # True if this function contains private expressions
+        # self.requires_verification = False
 
         # True if this function is public and either requires verification or has private arguments
         self.requires_verification_when_external = False
@@ -1754,6 +1754,17 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         # assigned by type_checker
         self.privacy_related_params = None
         self.mutate_states = []
+
+    @property
+    def requires_verification(self) -> bool:
+        if self.is_zkp():
+            return True
+        return False
+
+    @requires_verification.setter
+    def requires_verification(self, req_verify):
+        if req_verify:
+            self.privacy_type = FunctionPrivacyType.ZKP
 
     @property
     def has_side_effects(self) -> bool:

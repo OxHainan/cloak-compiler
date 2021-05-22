@@ -17,6 +17,38 @@ def set_type(ast):
     fv = FunctionTypeVisitor() 
     fv.visit(ast)
 
+def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType, actual_type=None, expect_type=None, ast=None):
+    if FunctionTypeVisitor.is_prior_to(privacy_type, _func.privacy_type):
+        _func.privacy_type = privacy_type
+        if privacy_type == FunctionPrivacyType.PUB:
+            print(f'function {_func.name} is setted to \'PUB\'')
+        elif privacy_type == FunctionPrivacyType.ZKP:
+            if actual_type and expect_type:
+                print(
+                    f'function {_func.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {ast}')
+            else:
+                print(f'function {_func.name} is setted to \'ZKP\'')
+        elif privacy_type == FunctionPrivacyType.TEE:
+            _func.get_related_contract().is_tee_related = True
+            if actual_type and ast:
+                print(
+                    f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {ast}')
+            else:
+                print(f'function {_func.name} is setted to \'TEE\'')
+        elif privacy_type == FunctionPrivacyType.MPC:
+            # renqian TODO: temperoly replace MPC with TEE, restore it in the future.
+            # print(f'function {_func.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}')
+            _func.privacy_type = FunctionPrivacyType.TEE
+            _func.get_related_contract().is_tee_related = True
+            if actual_type and expect_type and ast:
+                print(f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}, thus being marked as MPT')
+            else:
+                print(f'function {_func.name} is setted to \'TEE\'')
+        else:
+            TypeException(
+                f"Unknown function privacy type: {privacy_type}")
+
+
 class FunctionTypeVisitor(AstVisitor):
 
     @staticmethod
@@ -49,58 +81,35 @@ class FunctionTypeVisitor(AstVisitor):
 
         _func = ast.get_related_function()
 
-        def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType):
-            if FunctionTypeVisitor.is_prior_to(privacy_type, _func.privacy_type):
-                _func.privacy_type = privacy_type
-                if privacy_type == FunctionPrivacyType.PUB:
-                    print(f'function {_func.name} is setted to \'PUB\'')
-                elif privacy_type == FunctionPrivacyType.ZKP:
-                    print(
-                        f'function {_func.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {ast}')
-                elif privacy_type == FunctionPrivacyType.TEE:
-                    _func.get_related_contract().is_tee_related = True
-                    print(
-                        f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {ast}')
-                elif privacy_type == FunctionPrivacyType.MPC:
-                    # TODO: temperoly replace MPC with TEE, restore it in the future.
-                    # print(f'function {_func.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}')
-                    _func.privacy_type = FunctionPrivacyType.TEE
-                    _func.get_related_contract().is_tee_related = True
-                    print(f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}, thus being marked as MPT')
-                else:
-                    TypeException(
-                        f"Unknown function privacy type: {privacy_type}")
-
         if isinstance(_func, ConstructorOrFunctionDefinition):
             act_pri = actual_type.privacy_annotation
             exp_pri = expect_type.privacy_annotation
 
             if isReclasify:
-                update_function_privacy_type(_func, FunctionPrivacyType.ZKP)
+                update_function_privacy_type(_func, FunctionPrivacyType.ZKP, actual_type, expect_type, ast)
             else:
                 if not instance:
                     # act_pri != AllExpr and exp_pri != AllExpr
                     if isinstance(act_pri, TeeExpr):
                         update_function_privacy_type(
-                            _func, FunctionPrivacyType.TEE)
+                            _func, FunctionPrivacyType.TEE, actual_type, expect_type, ast)
                     else:
                         update_function_privacy_type(
-                            _func, FunctionPrivacyType.MPC)
+                            _func, FunctionPrivacyType.MPC, actual_type, expect_type, ast)
                 elif instance == 'make-private':
                     # act_pri == AllExpr and exp_pri != AllExpr
-                    update_function_privacy_type(_func, FunctionPrivacyType.ZKP)
+                    update_function_privacy_type(_func, FunctionPrivacyType.ZKP, actual_type, expect_type, ast)
                 elif instance:
                     # act_pri == exp_pri
                     if isinstance(act_pri, TeeExpr):
                         # both private to tee.
-                        update_function_privacy_type(
-                            _func, FunctionPrivacyType.TEE)
+                        update_function_privacy_type(_func, FunctionPrivacyType.TEE, actual_type, expect_type, ast)
                     elif not isinstance(act_pri, AllExpr):
                         # both private to id, me
-                        update_function_privacy_type(
-                            _func, FunctionPrivacyType.ZKP)
+                        pass
+                        # update_function_privacy_type(_func, FunctionPrivacyType.ZKP, actual_type, expect_type, ast)
                     else:
-                        # both AllExpr
+                        # both AllExpr, default to PUB
                         pass
                 else:
                     TypeException(
@@ -108,8 +117,8 @@ class FunctionTypeVisitor(AstVisitor):
 
     def get_rhs(self, rhs: Expression, expected_type: AnnotatedTypeName):
         if isinstance(rhs, TupleExpr):
-            # if not isinstance(rhs, TupleExpr) or not isinstance(expected_type.type_name, TupleType) or len(rhs.elements) != len(expected_type.type_name.types):
-                # raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
+            if not isinstance(rhs, TupleExpr) or not isinstance(expected_type.type_name, TupleType) or len(rhs.elements) != len(expected_type.type_name.types):
+                raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
             exprs = [self.get_rhs(a, e) for e, a, in zip(expected_type.type_name.types, rhs.elements)]
             return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
 
@@ -169,9 +178,9 @@ class FunctionTypeVisitor(AstVisitor):
         if func.is_ite():
             cond_t = ast.args[0].annotated_type
 
-            # # Ensure that condition is boolean
-            # if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()):
-            #     raise TypeMismatchException(TypeName.bool_type(), cond_t.type_name, ast.args[0])
+            # Ensure that condition is boolean
+            if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()):
+                raise TypeMismatchException(TypeName.bool_type(), cond_t.type_name, ast.args[0])
 
             res_t = ast.args[1].annotated_type.type_name.combined_type(ast.args[2].annotated_type.type_name, True)
 
@@ -191,12 +200,12 @@ class FunctionTypeVisitor(AstVisitor):
             ast.annotated_type = ast.args[0].annotated_type
             return
 
-        # # Check that argument types conform to op signature
-        # parameter_types = func.input_types()
-        # if not func.is_eq():
-        #     for arg, t in zip(ast.args, parameter_types):
-        #         if not arg.instanceof_data_type(t):
-        #             raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
+        # Check that argument types conform to op signature
+        parameter_types = func.input_types()
+        if not func.is_eq():
+            for arg, t in zip(ast.args, parameter_types):
+                if not arg.instanceof_data_type(t):
+                    raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
 
         t1 = ast.args[0].annotated_type.type_name
         t2 = None if len(ast.args) == 1 else ast.args[1].annotated_type.type_name
@@ -233,7 +242,9 @@ class FunctionTypeVisitor(AstVisitor):
                 func.is_private = True
                 p = Expression.me_expr()
             else:
-                raise TypeException(f'Operation \'{func.op}\' does not support private operands', ast)
+                func.is_private = True
+                p = Expression.tee_expr()
+                # raise TypeException(f'Operation \'{func.op}\' does not support private operands', ast)
         else:
             p = None
 
@@ -311,8 +322,6 @@ class FunctionTypeVisitor(AstVisitor):
     def visitReclassifyExpr(self, ast: ReclassifyExpr):
         ast.annotated_type = AnnotatedTypeName(
             ast.expr.annotated_type.type_name, ast.privacy)
-        self.set_function_privacy_type(
-            ast.annotated_type, ast.expr, ast, None, True)
 
     def visitReturnStatement(self, ast: ReturnStatement):
         assert ast.function.is_function

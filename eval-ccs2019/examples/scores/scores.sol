@@ -16,7 +16,7 @@ contract Scores {
     mapping (address => uint@_examinator) points;
     mapping (address!x => bool@x) passed;
 	
-	// ZKP
+	// CT
     constructor(
 		uint pass,
 		uint point
@@ -26,7 +26,7 @@ contract Scores {
 		_avgScore = point;
     }
 
-    // ZKP
+    // CT
     function recordAnswer(
 		uint task, 
 		uint@me ans
@@ -36,7 +36,7 @@ contract Scores {
         points[me] = 0;
     }
 
-    // ZKP
+    // CT
     function gradeTask(
 		uint task, 
 		address examinee

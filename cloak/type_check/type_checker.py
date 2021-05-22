@@ -110,37 +110,8 @@ class TypeCheckVisitor(AstVisitor):
 
     def handle_builtin_function_call(self, ast: FunctionCallExpr, func: BuiltinFunction):
         # handle special cases
-        if func.is_ite():
-            cond_t = ast.args[0].annotated_type
-
-            # Ensure that condition is boolean
-            if not cond_t.type_name.implicitly_convertible_to(TypeName.bool_type()) and not ast.get_related_function().is_tee():
-                raise TypeMismatchException(TypeName.bool_type(), cond_t.type_name, ast.args[0])
-
-            res_t = ast.args[1].annotated_type.type_name.combined_type(ast.args[2].annotated_type.type_name, True)
-
-            if cond_t.is_private():
-                # Everything is turned private
-                func.is_private = True
-                a = res_t.annotate(Expression.me_expr())
-            else:
-                p = ast.args[1].annotated_type.combined_privacy(ast.analysis, ast.args[2].annotated_type)
-                a = res_t.annotate(p)
-            ast.args[1] = self.get_rhs(ast.args[1], a)
-            ast.args[2] = self.get_rhs(ast.args[2], a)
-
-            ast.annotated_type = a
+        if func.is_ite() or func.is_parenthesis():
             return
-        elif func.is_parenthesis():
-            ast.annotated_type = ast.args[0].annotated_type
-            return
-
-        # Check that argument types conform to op signature
-        parameter_types = func.input_types()
-        if not func.is_eq():
-            for arg, t in zip(ast.args, parameter_types):
-                if not arg.instanceof_data_type(t) and not ast.get_related_function().is_tee():
-                    raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
 
         t1 = ast.args[0].annotated_type.type_name
         t2 = None if len(ast.args) == 1 else ast.args[1].annotated_type.type_name
@@ -173,40 +144,46 @@ class TypeCheckVisitor(AstVisitor):
         private_args = any(map(self.has_private_type, ast.args))
         if private_args:
             assert arg_t != 'lit'
-            if func.can_be_private():
-                if func.is_shiftop():
-                    if not ast.args[1].annotated_type.type_name.is_literal:
-                        raise TypeException('Private shift expressions must use a constant (literal) shift amount', ast.args[1])
-                    if ast.args[1].annotated_type.type_name.value < 0:
-                        raise TypeException('Cannot shift by negative amount', ast.args[1])
-                if func.is_bitop() or func.is_shiftop():
-                    for arg in ast.args:
-                        if arg.annotated_type.type_name.elem_bitwidth == 256:
-                            raise TypeException('Private bitwise and shift operations are only supported for integer types < 256 bit, '
-                                                'please use a smaller type', arg)
+            if func.statement.function.is_zkp():
+                # ZKP
+                if func.can_be_private():
+                    if func.is_shiftop():
+                        if not ast.args[1].annotated_type.type_name.is_literal:
+                            raise TypeException('Private shift expressions must use a constant (literal) shift amount', ast.args[1])
+                        if ast.args[1].annotated_type.type_name.value < 0:
+                            raise TypeException('Cannot shift by negative amount', ast.args[1])
+                    if func.is_bitop() or func.is_shiftop():
+                        for arg in ast.args:
+                            if arg.annotated_type.type_name.elem_bitwidth == 256:
+                                raise TypeException('Private bitwise and shift operations are only supported for integer types < 256 bit, '
+                                                    'please use a smaller type', arg)
 
-                if func.is_arithmetic():
-                    for a in ast.args:
-                        if a.annotated_type.type_name.elem_bitwidth == 256:
-                            issue_compiler_warning(func, 'Possible field prime overflow',
-                                                         'Private arithmetic 256bit operations overflow at FIELD_PRIME.\n'
-                                                         'If you need correct overflow behavior, use a smaller integer type.')
-                            break
-                elif func.is_comp():
-                    for a in ast.args:
-                        if a.annotated_type.type_name.elem_bitwidth == 256:
-                            issue_compiler_warning(func, 'Possible private comparison failure',
-                                                         'Private 256bit comparison operations will fail for values >= 2^252.\n'
-                                                         'If you cannot guarantee that the value stays in range, you must use '
-                                                         'a smaller integer type to ensure correctness.')
-                            break
-
-                func.is_private = True
-                p = Expression.me_expr()
+                    if func.is_arithmetic():
+                        for a in ast.args:
+                            if a.annotated_type.type_name.elem_bitwidth == 256:
+                                issue_compiler_warning(func, 'Possible field prime overflow',
+                                                            'Private arithmetic 256bit operations overflow at FIELD_PRIME.\n'
+                                                            'If you need correct overflow behavior, use a smaller integer type.')
+                                break
+                    elif func.is_comp():
+                        for a in ast.args:
+                            if a.annotated_type.type_name.elem_bitwidth == 256:
+                                issue_compiler_warning(func, 'Possible private comparison failure',
+                                                            'Private 256bit comparison operations will fail for values >= 2^252.\n'
+                                                            'If you cannot guarantee that the value stays in range, you must use '
+                                                            'a smaller integer type to ensure correctness.')
+                                break
+                    func.is_private = True
+                    p = Expression.me_expr()
+                else:
+                    raise TypeException(f'Operation \'{func.op}\' does not support private operands', ast)
             else:
-                raise TypeException(f'Operation \'{func.op}\' does not support private operands', ast)
+                # TEE
+                p = None
+                pass
         else:
             p = None
+            pass
 
         if arg_t != 'lit':
             # Add implicit casts for arguments
@@ -217,6 +194,7 @@ class TypeCheckVisitor(AstVisitor):
                 ast.args[:] = map(lambda argument: self.get_rhs(argument, arg_pt), ast.args)
 
         ast.annotated_type = out_t.annotate(p)
+
 
     @staticmethod
     def is_accessible_by_invoker(ast: Expression):

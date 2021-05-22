@@ -21,7 +21,7 @@ from cloak.cloak_ast.ast import ReclassifyExpr, Expression, IfStatement, Stateme
 from cloak.cloak_ast.visitor.deep_copy import replace_expr
 
 
-class ZkpVarDeclTransformer(AstTransformerVisitor):
+class TeeVarDeclTransformer(AstTransformerVisitor):
     """
     Transformer for types, which was left out in the paper.
 
@@ -31,7 +31,7 @@ class ZkpVarDeclTransformer(AstTransformerVisitor):
 
     def __init__(self):
         super().__init__()
-        self.expr_trafo = ZkpExpressionTransformer(None)
+        self.expr_trafo = TeeExpressionTransformer(None)
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
         if ast.is_private():
@@ -64,14 +64,14 @@ class ZkpVarDeclTransformer(AstTransformerVisitor):
         return self.visit_children(ast)
 
 
-class ZkpStatementTransformer(AstTransformerVisitor):
+class TeeStatementTransformer(AstTransformerVisitor):
     """Corresponds to T from paper, (with additional handling of return statement and loops)."""
 
     def __init__(self, current_gen: CircuitHelper):
         super().__init__()
         self.gen = current_gen
-        self.expr_trafo = ZkpExpressionTransformer(self.gen)
-        self.var_decl_trafo = ZkpVarDeclTransformer()
+        self.expr_trafo = TeeExpressionTransformer(self.gen)
+        self.var_decl_trafo = TeeVarDeclTransformer()
 
     def visitStatementList(self, ast: StatementList):
         """
@@ -236,7 +236,7 @@ class ZkpStatementTransformer(AstTransformerVisitor):
         raise RuntimeError(f"Missed an expression of type {type(ast)}")
 
 
-class ZkpExpressionTransformer(AstTransformerVisitor):
+class TeeExpressionTransformer(AstTransformerVisitor):
     """
     Roughly corresponds to T_L / T_e from paper.
 
@@ -379,7 +379,7 @@ class ZkpExpressionTransformer(AstTransformerVisitor):
         raise NotImplementedError()
 
 
-class ZkpCircuitTransformer(AstTransformerVisitor):
+class TeeCircuitTransformer(AstTransformerVisitor):
     """
     Corresponds to T_phi from paper.
 

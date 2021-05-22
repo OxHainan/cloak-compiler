@@ -28,6 +28,23 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Python: FuncCallsMPT-check",
+            "type": "python",
+            "request": "launch",
+            "subProcess": true,
+            "program": "cloak/__main__.py",
+            "args": ["check", "cloak/examples/code/FuncCallsMPT.zkay"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python: FuncCallsMPT-compile",
+            "type": "python",
+            "request": "launch",
+            "program": "cloak/__main__.py",
+            "args": ["compile", "-o", "test", "cloak/examples/code/FuncCallsMPT.zkay"],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python: FuncCalls-check",
             "type": "python",
             "request": "launch",

@@ -1,7 +1,8 @@
 from cloak.type_check.type_exceptions import TypeException
-from cloak.cloak_ast.ast import ReclassifyExpr, ConstructorOrFunctionDefinition, AllExpr, FunctionCallExpr, LocationExpr, BuiltinFunction, \
+from cloak.cloak_ast.ast import FunctionPrivacyType, FunctionTypeName, ReclassifyExpr, ConstructorOrFunctionDefinition, AllExpr, FunctionCallExpr, LocationExpr, BuiltinFunction, \
     PrimitiveCastExpr
 from cloak.cloak_ast.visitor.function_visitor import FunctionVisitor
+from cloak.type_check.type_setter import update_function_privacy_type
 
 
 def detect_hybrid_functions(ast):
@@ -22,11 +23,12 @@ def detect_hybrid_functions(ast):
 
 class DirectHybridFunctionDetectionVisitor(FunctionVisitor):
     def visitReclassifyExpr(self, ast: ReclassifyExpr):
-        ast.statement.function.requires_verification = True
+        update_function_privacy_type(ast.statement.function, FunctionPrivacyType.ZKP)
+
 
     def visitPrimitiveCastExpr(self, ast: PrimitiveCastExpr):
         if ast.expr.evaluate_privately:
-            ast.statement.function.requires_verification = True
+            update_function_privacy_type(ast.statement.function, FunctionPrivacyType.ZKP)
         else:
             self.visitChildren(ast)
 
@@ -35,9 +37,9 @@ class DirectHybridFunctionDetectionVisitor(FunctionVisitor):
 
     def visitFunctionCallExpr(self, ast: FunctionCallExpr):
         if isinstance(ast.func, BuiltinFunction) and ast.func.is_private:
-            ast.statement.function.requires_verification = True
+            update_function_privacy_type(ast.statement.function, FunctionPrivacyType.ZKP)
         elif ast.is_cast and ast.evaluate_privately:
-            ast.statement.function.requires_verification = True
+            update_function_privacy_type(ast.statement.function, FunctionPrivacyType.ZKP)
         else:
             self.visitChildren(ast)
 
@@ -56,13 +58,15 @@ class DirectHybridFunctionDetectionVisitor(FunctionVisitor):
 
 class IndirectHybridFunctionDetectionVisitor(FunctionVisitor):
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        if not ast.requires_verification:
+        if not ast.is_tee():
             for fct in ast.called_functions:
-                if fct.requires_verification:
-                    ast.requires_verification = True
+                if not fct.is_pub():
+                    update_function_privacy_type(ast, fct.privacy_type)
+                    # renqian TODO: adapt requires_verification_when_external to TEE
                     if ast.can_be_external:
                         ast.requires_verification_when_external = True
-                    break
+                    if ast.is_tee():
+                        break
 
 
 class NonInlineableCallDetector(FunctionVisitor):
