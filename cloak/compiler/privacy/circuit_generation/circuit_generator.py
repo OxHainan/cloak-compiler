@@ -49,40 +49,42 @@ class CircuitGenerator(metaclass=ABCMeta):
         c_count = len(self.circuits_to_prove)
         zk_print(f'Compiling {c_count} circuits...')
 
-        gen_circs = functools.partial(self._generate_zkcircuit, import_keys)
-        with time_measure('circuit_compilation', True):
-            if cfg.is_unit_test:
-                modified = list(map(gen_circs, self.circuits_to_prove))
-            else:
-                with Pool(processes=self.p_count) as pool:
-                    modified = pool.map(gen_circs, self.circuits_to_prove)
-
-        if import_keys:
-            for path in self.get_all_key_paths():
-                if not os.path.exists(path):
-                    raise RuntimeError("Cloak contract import failed: Missing keys")
-        else:
-            modified_circuits_to_prove = [circ for t, circ in zip(modified, self.circuits_to_prove)
-                                          if t or not all(map(os.path.exists, self._get_vk_and_pk_paths(circ)))]
-
-            # Generate keys in parallel
-            zk_print(f'Generating keys for {c_count} circuits...')
-            with time_measure('key_generation', True):
-                if self.parallel_keygen and not cfg.is_unit_test:
-                    counter = Value('i', 0)
-                    with Pool(processes=self.p_count, initializer=self.__init_worker, initargs=(counter, c_count,)) as pool:
-                        pool.map(self._generate_keys_par, modified_circuits_to_prove)
+        # When cpu and circuits to prove exist
+        if self.p_count > 0:
+            gen_circs = functools.partial(self._generate_zkcircuit, import_keys)
+            with time_measure('circuit_compilation', True):
+                if cfg.is_unit_test:
+                    modified = list(map(gen_circs, self.circuits_to_prove))
                 else:
-                    for circ in modified_circuits_to_prove:
-                        self._generate_keys(circ)
+                    with Pool(processes=self.p_count) as pool:
+                        modified = pool.map(gen_circs, self.circuits_to_prove)
 
-        with print_step('Write verification contracts'):
-            for circuit in self.circuits_to_prove:
-                vk = self._parse_verification_key(circuit)
-                pk_hash = self._get_prover_key_hash(circuit)
-                with open(os.path.join(self.output_dir, circuit.verifier_contract_filename), 'w') as f:
-                    primary_inputs = self._get_primary_inputs(circuit)
-                    f.write(self.proving_scheme.generate_verification_contract(vk, circuit, primary_inputs, pk_hash))
+            if import_keys:
+                for path in self.get_all_key_paths():
+                    if not os.path.exists(path):
+                        raise RuntimeError("Cloak contract import failed: Missing keys")
+            else:
+                modified_circuits_to_prove = [circ for t, circ in zip(modified, self.circuits_to_prove)
+                                            if t or not all(map(os.path.exists, self._get_vk_and_pk_paths(circ)))]
+
+                # Generate keys in parallel
+                zk_print(f'Generating keys for {c_count} circuits...')
+                with time_measure('key_generation', True):
+                    if self.parallel_keygen and not cfg.is_unit_test:
+                        counter = Value('i', 0)
+                        with Pool(processes=self.p_count, initializer=self.__init_worker, initargs=(counter, c_count,)) as pool:
+                            pool.map(self._generate_keys_par, modified_circuits_to_prove)
+                    else:
+                        for circ in modified_circuits_to_prove:
+                            self._generate_keys(circ)
+
+            with print_step('Write verification contracts'):
+                for circuit in self.circuits_to_prove:
+                    vk = self._parse_verification_key(circuit)
+                    pk_hash = self._get_prover_key_hash(circuit)
+                    with open(os.path.join(self.output_dir, circuit.verifier_contract_filename), 'w') as f:
+                        primary_inputs = self._get_primary_inputs(circuit)
+                        f.write(self.proving_scheme.generate_verification_contract(vk, circuit, primary_inputs, pk_hash))
 
     def get_all_key_paths(self) -> List[str]:
         """Return paths of all key files for this contract."""
@@ -112,7 +114,7 @@ class CircuitGenerator(metaclass=ABCMeta):
 
     def _get_circuit_output_dir(self, circuit: CircuitHelper):
         """Return the output directory for an individual circuit"""
-        return os.path.join(self.output_dir, cfg.get_circuit_output_dir_name(circuit.get_verification_contract_name()))
+        return os.path.join(self.output_dir, cfg.get_circuit_output_dir_name(circuit.get_zk_verification_contract_name()))
 
     def _get_vk_and_pk_paths(self, circuit: CircuitHelper) -> Tuple[str, ...]:
         """Return a tuple which contains the paths to the verification and prover key files."""

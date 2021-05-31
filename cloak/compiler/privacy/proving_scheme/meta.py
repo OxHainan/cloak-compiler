@@ -10,5 +10,8 @@ provingschemeparams = {
     'gm17': {
         'proof_len': 8,
         'external_sol_libs': ['BN256G2']
+    },
+    'tee': {
+        'proof_len': 4
     }
 }

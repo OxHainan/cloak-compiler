@@ -4,7 +4,7 @@ from cloak.cloak_ast.ast import AST, SourceUnit, ContractDefinition, VariableDec
     SimpleStatement, IdentifierExpr, Block, Mapping, Identifier, Comment, MemberAccessExpr, IndexExpr, LocationExpr, \
     StructDefinition, UserDefinedTypeName, StatementList, Array, ConstructorOrFunctionDefinition, EnumDefinition, \
     EnumValue, NamespaceDefinition, TargetDefinition, VariableDeclarationStatement, ForStatement, IdentifierDeclaration
-from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_member
+from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_member, array_push_member
 from cloak.cloak_ast.pointers.pointer_exceptions import UnknownIdentifierException
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 
@@ -70,7 +70,7 @@ class SymbolTableFiller(AstVisitor):
         funcs = {}
         for f in ast.function_definitions:
             if f.idf.name in funcs:
-                raise UnknownIdentifierException(f'Zkay does not currently support method overloading.', f)
+                raise UnknownIdentifierException(f'Cloak does not currently support method overloading.', f)
             funcs[f.idf.name] = f.idf
         structs = {s.idf.name: s.idf for s in ast.struct_definitions}
         enums = {e.idf.name: e.idf for e in ast.enum_definitions}
@@ -189,8 +189,11 @@ class SymbolTableLinker(AstVisitor):
         else:
             t = ast.expr.target.annotated_type.type_name
             if isinstance(t, Array):
-                assert ast.member.name == 'length'
-                ast.target = array_length_member
+                assert ast.member.name == 'length' or ast.member.name == 'push'
+                if ast.member.name == 'length':
+                    ast.target = array_length_member
+                elif ast.member.name == 'push':
+                    ast.target = array_push_member
             else:
                 assert isinstance(t, UserDefinedTypeName)
                 if t.target is None:
@@ -202,5 +205,8 @@ class SymbolTableLinker(AstVisitor):
 
     def visitIndexExpr(self, ast: IndexExpr):
         assert isinstance(ast.arr, LocationExpr), "Function call return value indexing not yet supported"
-        source_t = ast.arr.target.annotated_type.type_name
+        if ast.arr.annotated_type:
+            source_t = ast.arr.annotated_type.type_name
+        else:
+            source_t = ast.arr.target.annotated_type.type_name
         ast.target = VariableDeclaration([], source_t.value_type, Identifier(''))

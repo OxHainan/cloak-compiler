@@ -314,7 +314,7 @@ class ZkayBlockchainInterface(metaclass=ABCMeta):
                 vcontract = self._verify_contract_integrity(v_address, os.path.join(project_dir, f'{verifier}.sol'), libraries=libs)
 
                 # Verify prover key
-                expected_hash = self._req_state_var(vcontract, cfg.prover_key_hash_name)
+                expected_hash = self._req_state_var(vcontract, cfg.zk_prover_key_hash_name)
                 from cloak.transaction.runtime import Runtime
                 actual_hash = Runtime.prover().get_prover_key_hash(os.path.join(project_dir, cfg.get_circuit_output_dir_name(verifier)))
                 if expected_hash != actual_hash:
@@ -664,7 +664,7 @@ class ZkayProverInterface(metaclass=ABCMeta):
             assert int(arg) < bn128_scalar_field, 'argument overflow'
 
         with time_measure(f'generate_proof', True):
-            verify_dir = cfg.get_circuit_output_dir_name(cfg.get_verification_contract_name(contract, function))
+            verify_dir = cfg.get_circuit_output_dir_name(cfg.get_zk_verification_contract_name(contract, function))
             return self._generate_proof(os.path.join(project_dir, verify_dir), priv_values, in_vals, out_vals)
 
     @abstractmethod

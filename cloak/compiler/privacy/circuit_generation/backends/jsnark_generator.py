@@ -217,7 +217,7 @@ class JsnarkGenerator(CircuitGenerator):
                 f.write(digest)
             return True
         else:
-            zk_print(f'Circuit \'{circuit.get_verification_contract_name()}\' not modified, skipping compilation')
+            zk_print(f'Circuit \'{circuit.get_zk_verification_contract_name()}\' not modified, skipping compilation')
             return False
 
     def _generate_keys(self, circuit: CircuitHelper):

@@ -23,8 +23,8 @@ def api(name: str, invoker: str = 'self') -> str:
     assert name in dir(ApiWrapper)
     return f'{invoker}.api.{name}'
 
-PRIV_VALUES_NAME = f'{cfg.reserved_name_prefix}priv'
-IS_EXTERNAL_CALL = f'{cfg.reserved_name_prefix}is_ext'
+PRIV_VALUES_NAME = f'{cfg.zk_reserved_name_prefix}priv'
+IS_EXTERNAL_CALL = f'{cfg.zk_reserved_name_prefix}is_ext'
 
 SCALAR_FIELD_NAME = 'bn128_scalar_field'
 
@@ -197,7 +197,7 @@ class PythonOffchainVisitor(PythonCodeVisitor):
             deploy_cmd = f'c.constructor({c_args}{val_arg})'
 
         sv_constr = []
-        for svd in [sv for sv in ast.state_variable_declarations if isinstance(sv, StateVariableDeclaration) and not sv.idf.name.startswith(cfg.reserved_name_prefix)]:
+        for svd in [sv for sv in ast.state_variable_declarations if isinstance(sv, StateVariableDeclaration) and not (sv.idf.name.startswith(cfg.zk_reserved_name_prefix) or sv.idf.name.startswith(cfg.tee_reserved_name_prefix))] :
             t = svd.annotated_type.type_name
             while not isinstance(t, CipherText) and hasattr(t, 'value_type'):
                 t = t.value_type.type_name
@@ -231,7 +231,7 @@ class PythonOffchainVisitor(PythonCodeVisitor):
 
     @staticmethod
     def is_special_var(idf: Identifier):
-        return idf.name.startswith(cfg.reserved_name_prefix) or idf.name in ['msg', 'block', 'tx', '_tmp_key', 'now']
+        return idf.name.startswith(cfg.zk_reserved_name_prefix) or idf.name in ['msg', 'block', 'tx', '_tmp_key', 'now']
 
     @staticmethod
     def get_priv_value(idf: str):
@@ -467,7 +467,7 @@ class PythonOffchainVisitor(PythonCodeVisitor):
         post_body_code = self.do_if_external(ast, [
             generate_proof_str,
             invoke_transact_str
-        ], [f'return {", ".join([f"{cfg.return_var_name}_{idx}" for idx in range(len(ast.return_parameters))])}'
+        ], [f'return {", ".join([f"{cfg.return_zk_var_name}_{idx}" for idx in range(len(ast.return_parameters))])}'
             if ast.is_function and ast.requires_verification and ast.return_parameters else None])
 
         code = '\n\n'.join(s.strip() for s in [
@@ -643,7 +643,7 @@ class PythonOffchainVisitor(PythonCodeVisitor):
         # Special identifiers
         if ast.idf.name == f'{cfg.pki_contract_name}_inst' and not ast.is_lvalue():
             return api('keystore')
-        elif ast.idf.name == cfg.field_prime_var_name:
+        elif ast.idf.name == cfg.zk_field_prime_var_name:
             assert ast.is_rvalue()
             return f'{SCALAR_FIELD_NAME}'
 
@@ -725,7 +725,7 @@ class PythonOffchainVisitor(PythonCodeVisitor):
         self.current_f = ast
         self.current_circ = self.circuits.get(ast, None)
         if self.current_circ and self.current_f.can_be_external:
-            self.current_params = [p for p in ast.parameters if p.idf.name != cfg.zk_out_name and p.idf.name != cfg.proof_param_name]
+            self.current_params = [p for p in ast.parameters if p.idf.name != cfg.zk_out_name and p.idf.name != cfg.zk_proof_param_name]
         else:
             self.current_params = ast.parameters.copy()
         yield

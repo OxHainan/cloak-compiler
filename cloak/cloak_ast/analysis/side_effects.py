@@ -63,7 +63,8 @@ class DirectModificationDetector(FunctionVisitor):
     def visitLocationExpr(self, ast: LocationExpr):
         self.visitAST(ast)
         if ast.is_rvalue() and isinstance(ast.target, (VariableDeclaration, StateVariableDeclaration, Parameter)):
-            ast.read_values.add(InstanceTarget(ast))
+            red_value = InstanceTarget(ast)
+            ast.read_values.add(red_value)
 
     def visitVariableDeclaration(self, ast: VariableDeclaration):
         ast.modified_values[InstanceTarget(ast)] = None

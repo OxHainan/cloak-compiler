@@ -1,13 +1,14 @@
 # BUILTIN SPECIAL TYPE DEFINITIONS
-from cloak.cloak_ast.ast import AnnotatedTypeName, FunctionTypeName, Parameter, Identifier, StructDefinition, \
-    VariableDeclaration, TypeName, StateVariableDeclaration, UserDefinedTypeName, StructTypeName, Block, ConstructorOrFunctionDefinition
+from cloak.cloak_ast.ast import AnnotatedTypeName, AssignmentStatement, FunctionTypeName, IdentifierDeclaration, Parameter, Identifier, RequireStatement, StructDefinition, \
+    VariableDeclaration, TypeName, StateVariableDeclaration, IdentifierExpr, StructTypeName, Block, ConstructorOrFunctionDefinition
 from cloak.cloak_ast.pointers.parent_setter import set_parents
-
+from cloak.config import cfg
 array_length_member = VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('length'))
+array_push_member = VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('push'))
 
 
 class GlobalDefs:
-    # gasleft: FunctionDefinition = FunctionDefinition(
+    # gasleft: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition (
     #     idf=Identifier('gasleft'),
     #     parameters=[],
     #     modifiers=[],
@@ -15,6 +16,30 @@ class GlobalDefs:
     #     body=Block([])
     # )
     # gasleft.idf.parent = gasleft
+
+    set_code_hash: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('setCodeHash'),
+        parameters=[Parameter([], annotated_type=AnnotatedTypeName.uint_all(), idf=Identifier('newCodeHash'))],
+        modifiers=['external'],
+        return_parameters=[],
+        body=Block([
+            RequireStatement(IdentifierExpr('msg').dot('sender').as_type(AnnotatedTypeName.address_all()).binop('==', IdentifierExpr('owner').as_type(AnnotatedTypeName.address_all()))),
+            AssignmentStatement(IdentifierExpr(cfg.tee_code_hash_name), IdentifierExpr('setCodeHash'))
+        ])
+    )
+    set_parents(set_code_hash)
+
+    set_policy: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('setPolicy'),
+        parameters=[Parameter([], annotated_type=AnnotatedTypeName.uint_all(), idf=Identifier('newPolicy'))],
+        modifiers=['external'],
+        return_parameters=[],
+        body=Block([
+            RequireStatement(IdentifierExpr('msg').dot('sender').as_type(AnnotatedTypeName.address_all()).binop('==', IdentifierExpr('owner').as_type(AnnotatedTypeName.address_all()))),
+            AssignmentStatement(IdentifierExpr(cfg.tee_policy_hash_name), IdentifierExpr('newPolicy'))
+        ])
+    )
+    set_parents(set_policy)
 
     address_struct: StructDefinition = StructDefinition(
         Identifier('<address>'), [
@@ -88,3 +113,15 @@ class GlobalVars:
         Identifier('now'), None
     )
     now.idf.parent = now
+
+    address: StateVariableDeclaration = StateVariableDeclaration(
+        AnnotatedTypeName.uint_all(), [],
+        Identifier('address'), None
+    )
+    address.idf.parent = address
+
+    uint256: StateVariableDeclaration = StateVariableDeclaration(
+        AnnotatedTypeName.uint_all(), [],
+        Identifier('uint256'), None
+    )
+    uint256.idf.parent = uint256

@@ -136,13 +136,13 @@ def check_compilation(filename: str, show_errors: bool = False, display_code: st
             raise SolcException(fatal_error_report)
 
 
-def check_for_zkay_solc_errors(zkay_code: str, fake_solidity_code: str):
+def check_for_cloak_solc_errors(cloak_code: str, fake_solidity_code: str):
     """
     Run fake solidity code (stripped privacy features) through solc and report errors in the context of the original cloak code.
 
     Fake solidity code = cloak code with privacy features removed in a source-location preserving way (whitespace padding)
 
-    :param zkay_code: Original cloak code
+    :param cloak_code: Original cloak code
     :param fake_solidity_code: Corresponding "fake solidity code"
     """
 
@@ -150,7 +150,7 @@ def check_for_zkay_solc_errors(zkay_code: str, fake_solidity_code: str):
     with tempfile.NamedTemporaryFile('w', suffix='.sol') as f:
         f.write(fake_solidity_code)
         f.flush()
-        check_compilation(f.name, True, display_code=zkay_code)
+        check_compilation(f.name, True, display_code=cloak_code)
 
 
 def compile_solidity_code(code: str, working_directory: Optional[str] = None, optimizer_runs=cfg.opt_solc_optimizer_runs) -> Dict:

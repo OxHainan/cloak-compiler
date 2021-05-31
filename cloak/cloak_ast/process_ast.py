@@ -1,7 +1,7 @@
 from typing import Tuple, List
 from cloak.utils.timer import time_measure
 
-from cloak.compiler.solidity.compiler import check_for_zkay_solc_errors, SolcException
+from cloak.compiler.solidity.compiler import check_for_cloak_solc_errors, SolcException
 from cloak.config import cfg
 from cloak.errors.exceptions import CloakCompilerError, PreprocessAstException, TypeCheckException, AnalysisException, \
     ZkaySyntaxError
@@ -37,7 +37,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
         # Solc type checking
         with print_step("Type checking with solc"):
             try:
-                check_for_zkay_solc_errors(code, fake_code)
+                check_for_cloak_solc_errors(code, fake_code)
             except SolcException as e:
                 raise CloakCompilerError(f'{e}')
     return ast, fake_code
@@ -96,5 +96,5 @@ def get_verification_contract_names(code_or_ast) -> List[str]:
     for contract in ast.contracts:
         cname = contract.idf.name
         fcts = [fct for fct in contract.function_definitions + contract.constructor_definitions if fct.requires_verification_when_external and fct.has_side_effects]
-        vc_names += [cfg.get_verification_contract_name(cname, fct.name) for fct in fcts]
+        vc_names += [cfg.get_zk_verification_contract_name(cname, fct.name) for fct in fcts]
     return vc_names

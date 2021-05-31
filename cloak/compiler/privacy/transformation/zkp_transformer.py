@@ -341,7 +341,7 @@ class ZkpExpressionTransformer(AstTransformerVisitor):
                 # Reroute the function call to the corresponding internal function if the called function was split into external/internal.
                 if not isinstance(ast.func, IdentifierExpr):
                     raise NotImplementedError()
-                ast.func.idf.name = cfg.get_internal_name(ast.func.target)
+                ast.func.idf.name = cfg.get_zk_internal_name(ast.func.target)
 
             if ast.func.target.requires_verification:
                 # If the target function has an associated circuit, make this function's circuit aware of the call.

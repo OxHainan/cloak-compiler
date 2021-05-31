@@ -51,11 +51,11 @@ class ProvingSchemeGroth16(ProvingScheme):
 
         import {{ Pairing, G1Point as G1, G2Point as G2 }} from "{ProvingScheme.verify_libs_contract_filename}";
 
-        contract {circuit.get_verification_contract_name()} {{''' / f'''\
+        contract {circuit.get_zk_verification_contract_name()} {{''' / f'''\
             using Pairing for G1;
             using Pairing for G2;
 
-            bytes32 public constant {cfg.prover_key_hash_name} = 0x{prover_key_hash.hex()};
+            bytes32 public constant {cfg.zk_prover_key_hash_name} = 0x{prover_key_hash.hex()};
             uint256 constant {self.snark_scalar_field_var_name} = {bn128_scalar_field};
 
             struct Proof {{
@@ -80,7 +80,7 @@ class ProvingSchemeGroth16(ProvingScheme):
                 f'vk.gamma_abc[{idx}] = G1({str(g)});''' for idx, g in enumerate(vk.gamma_abc)] // f'''\
             }}
 
-            function {cfg.verification_function_name}(uint[8] memory proof_, uint[] memory {cfg.zk_in_name}, uint[] memory {cfg.zk_out_name}) public {{''' / f'''\
+            function {cfg.zk_verification_function_name}(uint[8] memory proof_, uint[] memory {cfg.zk_in_name}, uint[] memory {cfg.zk_out_name}) public {{''' / f'''\
                 // Check if input size correct
                 require({cfg.zk_in_name}.length == {circuit.in_size_trans});
 

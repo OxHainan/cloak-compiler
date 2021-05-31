@@ -38,9 +38,9 @@ def parse_arguments():
                 args = usage, actions, groups, prefix
                 self._add_item(self._format_usage, args)
 
-    main_parser = argparse.ArgumentParser(prog='zkay')
-    zkay_files = ('zkay', 'sol')
-    zkay_package_files = ('zkp', )
+    main_parser = argparse.ArgumentParser(prog='cloak')
+    cloak_files = ('cloak', 'sol')
+    cloak_package_files = ('zkp', )
     config_files = ('json', )
 
     msg = 'Path to local configuration file (defaults to "config.json" in cwd). ' \
@@ -73,8 +73,8 @@ def parse_arguments():
                     arg.completer = DirectoriesCompleter()
     add_config_args(cfg_group, cfg_docs.keys())
 
-    solc_version_help = 'zkay defaults to the latest installed\n' \
-          'solidity version supported by the current zkay version.\n\n' \
+    solc_version_help = 'cloak defaults to the latest installed\n' \
+          'solidity version supported by the current cloak version.\n\n' \
           'If you need to use a particular minor release (e.g. because \n' \
           'the latest release is broken or you need determinism for testing)\n' \
           'you can specify a particular solc version (e.g. v0.5.12) via this argument.\n' \
@@ -83,49 +83,49 @@ def parse_arguments():
     subparsers = main_parser.add_subparsers(title='actions', dest='cmd', required=True)
 
     # 'compile' parser
-    compile_parser = subparsers.add_parser('compile', parents=[config_parser], help='Compile a zkay contract.', formatter_class=ShowSuppressedInHelpFormatter)
+    compile_parser = subparsers.add_parser('compile', parents=[config_parser], help='Compile a cloak contract.', formatter_class=ShowSuppressedInHelpFormatter)
     msg = 'The directory to output the compiled contract to. Default: Current directory'
     compile_parser.add_argument('-o', '--output', default=os.getcwd(), help=msg, metavar='<output_directory>').completer = DirectoriesCompleter()
-    compile_parser.add_argument('input', help='The zkay source file', metavar='<zkay_file>').completer = FilesCompleter(zkay_files)
+    compile_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
     compile_parser.add_argument('--log', action='store_true', help='enable logging')
     compile_parser.add_argument('--solc-version', help=solc_version_help, metavar='<cfg_val>')
 
     # 'check' parser
     typecheck_parser = subparsers.add_parser('check', parents=[config_parser], help='Only type-check, do not compile.', formatter_class=ShowSuppressedInHelpFormatter)
-    typecheck_parser.add_argument('input', help='The zkay source file', metavar='<zkay_file>').completer = FilesCompleter(zkay_files)
+    typecheck_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
     typecheck_parser.add_argument('--solc-version', help=solc_version_help, metavar='<cfg_val>')
 
     # 'solify' parser
     msg = 'Output solidity code which corresponds to cloak code with all privacy features and comments removed, ' \
           'useful in conjunction with analysis tools which operate on solidity code.)'
     solify_parser = subparsers.add_parser('solify', parents=[config_parser], help=msg, formatter_class=ShowSuppressedInHelpFormatter)
-    solify_parser.add_argument('input', help='The zkay source file', metavar='<zkay_file>').completer = FilesCompleter(zkay_files)
+    solify_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
 
     # 'export' parser
-    export_parser = subparsers.add_parser('export', parents=[config_parser], help='Package a compiled zkay contract.', formatter_class=ShowSuppressedInHelpFormatter)
+    export_parser = subparsers.add_parser('export', parents=[config_parser], help='Package a compiled cloak contract.', formatter_class=ShowSuppressedInHelpFormatter)
     msg = 'Output filename. Default: ./contract.zkp'
-    export_parser.add_argument('-o', '--output', default='contract.zkp', help=msg, metavar='<output_filename>').completer = FilesCompleter(zkay_package_files)
+    export_parser.add_argument('-o', '--output', default='contract.zkp', help=msg, metavar='<output_filename>').completer = FilesCompleter(cloak_package_files)
     msg = 'Directory with the compilation output of the contract which should be packaged.'
-    export_parser.add_argument('input', help=msg, metavar='<zkay_compilation_output_dir>').completer = DirectoriesCompleter()
+    export_parser.add_argument('input', help=msg, metavar='<cloak_compilation_output_dir>').completer = DirectoriesCompleter()
 
     # 'import' parser
-    msg = 'Unpack a packaged zkay contract.\n' \
+    msg = 'Unpack a packaged cloak contract.\n' \
           'Note: An internet connection is required if the packaged contract used a solc version which is not currently installed.'
     import_parser = subparsers.add_parser('import', parents=[config_parser], help=msg, formatter_class=ShowSuppressedInHelpFormatter)
     msg = 'Directory where the contract should be unpacked to. Default: Current Directory'
     import_parser.add_argument('-o', '--output', default=os.getcwd(), help=msg, metavar='<target_directory>').completer = DirectoriesCompleter()
     msg = 'Contract package to unpack.'
-    import_parser.add_argument('input', help=msg, metavar='<zkay_package_file>').completer = FilesCompleter(zkay_package_files)
+    import_parser.add_argument('input', help=msg, metavar='<cloak_package_file>').completer = FilesCompleter(cloak_package_files)
 
     # 'run, deploy and connect' parsers
     interact_parser = argparse.ArgumentParser(add_help=False)
     msg = 'Directory with the compilation output of the contract with which you want to interact.'
-    interact_parser.add_argument('input', help=msg, metavar='<zkay_compilation_output_dir>').completer = DirectoriesCompleter()
+    interact_parser.add_argument('input', help=msg, metavar='<cloak_compilation_output_dir>').completer = DirectoriesCompleter()
     interact_parser.add_argument('--log', action='store_true', help='enable logging')
     interact_parser.add_argument('--account', help='Sender blockchain address', metavar='<address>')
 
     subparsers.add_parser('run', parents=[interact_parser, config_parser],
-                          help='Enter transaction shell for a compiled zkay contract.',
+                          help='Enter transaction shell for a compiled cloak contract.',
                           formatter_class=ShowSuppressedInHelpFormatter)
 
     deploy_parser = subparsers.add_parser('deploy', parents=[interact_parser, config_parser],
@@ -156,7 +156,7 @@ def parse_arguments():
                                           help='Manually deploy proving-scheme specific crypto libraries (if any needed) to a blockchain')
     add_config_args(dclibs_parser, {'proving_scheme', 'blockchain_backend', 'blockchain_node_uri'})
 
-    subparsers.add_parser('version', help='Display zkay version information')
+    subparsers.add_parser('version', help='Display cloak version information')
     subparsers.add_parser('update-solc', help='Install latest compatible solc version (requires internet connection)')
 
     # parse
@@ -312,23 +312,23 @@ def main():
                 exit(2)
 
             try:
-                frontend.extract_zkay_package(str(input_path), str(output_dir))
+                frontend.extract_cloak_package(str(input_path), str(output_dir))
             except CloakCompilerError as e:
                 with fail_print():
-                    print(f"ERROR while compiling unpacked zkay contract.\n{e}")
+                    print(f"ERROR while compiling unpacked cloak contract.\n{e}")
                 exit(3)
             except Exception as e:
                 with fail_print():
-                    print(f"ERROR while unpacking zkay contract\n{e}")
+                    print(f"ERROR while unpacking cloak contract\n{e}")
                 exit(5)
         elif a.cmd == 'export':
             output_filename = Path(a.output).absolute()
             os.makedirs(output_filename.parent, exist_ok=True)
             try:
-                frontend.package_zkay_contract(str(input_path), str(output_filename))
+                frontend.package_cloak_contract(str(input_path), str(output_filename))
             except Exception as e:
                 with fail_print():
-                    print(f"ERROR while exporting zkay contract\n{e}")
+                    print(f"ERROR while exporting cloak contract\n{e}")
                 exit(4)
         elif a.cmd in ['run', 'deploy', 'connect']:
             from enum import IntEnum

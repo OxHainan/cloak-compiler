@@ -2,6 +2,9 @@
 This module provides functionality to transform a zkay AST into an equivalent public solidity AST + proof circuits
 """
 
+import hashlib
+import web3
+from cloak.transaction.types import AddressValue
 from typing import Dict, Optional, List, Tuple
 
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper
@@ -10,10 +13,10 @@ from cloak.compiler.privacy.transformation.internal_call_transformer import tran
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.privacy.transformation.zkp_transformer import ZkpVarDeclTransformer, ZkpExpressionTransformer, ZkpCircuitTransformer, \
     ZkpStatementTransformer
-from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer, TeeExpressionTransformer, TeeCircuitTransformer, \
+from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer, TeeExpressionTransformer, \
     TeeStatementTransformer
 from cloak.config import cfg
-from cloak.cloak_ast.ast import Expression, ConstructorOrFunctionDefinition, IdentifierExpr, TeeExpr, VariableDeclaration, \
+from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFunctionDefinition, IdentifierExpr, Mapping, TeeExpr, VariableDeclaration, \
     AnnotatedTypeName, \
     StateVariableDeclaration, Identifier, ExpressionStatement, SourceUnit, ReturnStatement, AST, \
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
@@ -23,7 +26,7 @@ from cloak.cloak_ast.ast import Expression, ConstructorOrFunctionDefinition, Ide
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
-
+from cloak.cloak_ast.global_defs import GlobalDefs
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
     """
@@ -175,12 +178,13 @@ class CloakTransformer(AstTransformerVisitor):
         :return: list of all constant state variable declarations for the pki contract + all the verification contracts
         """
         contract_var_decls = [self.create_contract_variable(cfg.pki_contract_name)]
+        contract_var_decls.append(self.create_contract_variable('CloakService'))
 
-        for f in c.constructor_definitions + c.function_definitions:
-            if f.requires_verification_when_external and f.has_side_effects:
-                name = cfg.get_verification_contract_name(c.idf.name, f.name)
-                self.import_contract(name, su, self.circuits[f])
-                contract_var_decls.append(self.create_contract_variable(name))
+        # for f in c.constructor_definitions + c.function_definitions:
+        #     if f.requires_verification_when_external and f.has_side_effects:
+        #         name = cfg.get_zk_verification_contract_name(c.idf.name, f.name)
+        #         self.import_contract(name, su, self.circuits[f])
+        #         contract_var_decls.append(self.create_contract_variable(name))
 
         return contract_var_decls
 
@@ -200,6 +204,7 @@ class CloakTransformer(AstTransformerVisitor):
 
     def visitSourceUnit(self, ast: SourceUnit):
         self.import_contract(cfg.pki_contract_name, ast)
+        self.import_contract(cfg.cloak_service_contract_name, ast)
 
         for c in ast.contracts:
             self.transform_contract(ast, c)
@@ -230,19 +235,19 @@ class CloakTransformer(AstTransformerVisitor):
         for fct in all_fcts:
             fct.original_body = deep_copy(fct.body, with_types=True, with_analysis=True)
         
-        # # TODO: renqian - change fake address to PKI.getPK(tee)
+        # renqian TODO: change fake address to PKI.getPK(tee)
         # c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
         #                                     Identifier(TeeExpr().name), TeeExpr())] \
         #                             + c.state_variable_declarations
 
-        c = self.transform_zkp_functions(su, c)
-        # c = self.transform_tee_functions(su, c)
+        # c = self.transform_zkp_functions(su, c)
+        c = self.transform_tee_functions(su, c)
 
         return c
 
     def transform_tee_functions(self, su: SourceUnit, c: ContractDefinition):
         """
-        Transform the TEE funtions into public functions and corresponding circuits
+        Transform the TEE funtions into public functions
 
         This:
 
@@ -273,75 +278,365 @@ class CloakTransformer(AstTransformerVisitor):
         self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
         """Abstract circuits for all functions which require verification"""
 
-        # Split into functions which require verification and those which don't need a circuit helper
+        # Split into functions which require verification(external function) and those which don't need a circuit helper (internal function)
         req_ext_fcts = {}
         new_fcts, new_constr = [], []
         all_fcts = c.constructor_definitions + c.function_definitions
         for fct in all_fcts:
             assert isinstance(fct, ConstructorOrFunctionDefinition)
-            if fct.requires_verification or fct.requires_verification_when_external:
-                # self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
-                pass
+            # if fct.requires_verification or fct.requires_verification_when_external:
+            #     self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
+            #     pass
 
-            if fct.requires_verification_when_external:
+            if fct.requires_verification_when_external and fct.is_tee():
                 req_ext_fcts[fct] = fct.parameters[:]
             elif fct.is_constructor:
                 new_constr.append(fct)
             else:
                 new_fcts.append(fct)
 
-        # Add constant state variables for external contracts and field prime
-        field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(cfg.field_prime_var_name),
-                                                    NumberLiteralExpr(bn128_scalar_field))
+        # Add constant state variables for external contracts
+        code_hash_hb = web3.Web3.solidityKeccak(['bytes'], [c.code().encode()])
+        print(code_hash_hb.hex())
+        code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                    Identifier(cfg.tee_code_hash_name),
+                                                    NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
+        policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                    Identifier(cfg.tee_policy_hash_name),
+                                                    NumberLiteralExpr(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4))
 
-        # contract_var_decls = self.include_verification_contracts(su, c)
-        # c.state_variable_declarations = [field_prime_decl, Comment()]\
-        #                                 + Comment.comment_list('Helper Contracts', contract_var_decls)\
-        #                                 + [Comment('User state variables')]\
-        #                                 + c.state_variable_declarations
+        contract_var_decls = self.include_verification_contracts(su, c)
+        c.state_variable_declarations = [code_hash_decl, policy_hash_decl, Comment()]\
+                                        + Comment.comment_list('Helper Contracts', contract_var_decls)\
+                                        + [Comment('User state variables')]\
+                                        + c.state_variable_declarations
 
-        # Transform signatures
-        for f in all_fcts:
-            f.parameters = self.var_decl_trafo.visit_list(f.parameters)
-        for f in c.function_definitions:
-            f.return_parameters = self.var_decl_trafo.visit_list(f.return_parameters)
-            f.return_var_decls = self.var_decl_trafo.visit_list(f.return_var_decls)
+        fcts_is_tee = [fct for fct in all_fcts if fct.is_tee()]
+
+        # Transform function signatures
+        for fct in fcts_is_tee:
+            fct.parameters = self.var_decl_trafo.visit_list(fct.parameters)
+        for fct in c.function_definitions:
+            fct.return_parameters = self.var_decl_trafo.visit_list(fct.return_parameters)
+            fct.return_var_decls = self.var_decl_trafo.visit_list(fct.return_var_decls)
 
         # Transform bodies
-        for fct in all_fcts:
-            gen = self.circuits.get(fct, None)
-            fct.body = TeeStatementTransformer(gen).visit(fct.body)
+        for fct in fcts_is_tee:
+            # gen = self.circuits.get(fct, None)
+            fct.body = TeeStatementTransformer().visit(fct.body)
 
         # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
-        fcts_with_verification = [fct for fct in all_fcts if fct.requires_verification]
-        compute_transitive_circuit_io_sizes(fcts_with_verification, self.circuits)
-        transform_internal_calls(fcts_with_verification, self.circuits)
-        for f in fcts_with_verification:
-            circuit = self.circuits[f]
-            assert circuit.requires_verification()
-            if circuit.requires_zk_data_struct():
-                # Add zk data struct for f to contract
-                zk_data_struct = StructDefinition(Identifier(circuit.zk_data_struct_name), [
-                    VariableDeclaration([], AnnotatedTypeName(idf.t), idf.clone(), '')
-                    for idf in circuit.output_idfs + circuit.input_idfs
-                ])
-                c.struct_definitions.append(zk_data_struct)
-            self.create_internal_verification_wrapper(f)
+
+        # renqian TODO: delete internal calls
+        # transform_internal_calls(fcts_is_tee, self.circuits)
+        for fct in fcts_is_tee:
+            self.create_tee_internal_verification_wrapper(fct)
 
         # Create external wrapper functions where necessary
         for f, params in req_ext_fcts.items():
-            ext_f, int_f = self.split_into_external_and_internal_fct(f, params, global_owners)
+            ext_f, int_f = self.split_tee_into_external_and_internal_fct(f, params, global_owners)
             if ext_f.is_function:
                 new_fcts.append(ext_f)
             else:
                 new_constr.append(ext_f)
             new_fcts.append(int_f)
+            
 
+        # new_fcts = [GlobalDefs.set_code_hash, GlobalDefs.set_policy] + new_fcts
         c.constructor_definitions = new_constr
-        c.function_definitions = new_fcts
+        c.function_definitions = [fct for fct in new_fcts if fct.body.statements]
 
         return c
+
+    def create_tee_internal_verification_wrapper(self, ast: ConstructorOrFunctionDefinition):
+        """
+        Add the necessary additional parameters and boiler plate code for verification support to the given function.
+
+        :param ast: [SIDE EFFECT] Internal function which requires verification
+        """
+        stmts = []
+
+        if cfg.is_symmetric_cipher() and 'pure' in ast.modifiers:
+            # Symmetric trafo requires msg.sender access -> change from pure to view
+            ast.modifiers = ['view' if mod == 'pure' else mod for mod in ast.modifiers]
+
+        # Add additional params
+        # renqian TODO: delete original paramaters
+        # ast.parameters = []
+        ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_old_state_name)
+        ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_read_name)
+        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.tee_read_name}_start_idx')
+        ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_mutate_name)
+        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.tee_mutate_name}_start_idx')
+
+        # # Verify that in/out parameters have correct size
+        # out_start_idx, in_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx'), IdentifierExpr(f'{cfg.tee_read_name}_start_idx')
+        # out_var, in_var = IdentifierExpr(cfg.tee_mutate_name), IdentifierExpr(cfg.tee_read_name).as_type(Array(AnnotatedTypeName.uint_all()))
+        # stmts.append(RequireStatement(out_start_idx.binop('+', NumberLiteralExpr(circuit.out_size_trans)).binop('<=', out_var.dot('length'))))
+        # stmts.append(RequireStatement(in_start_idx.binop('+', NumberLiteralExpr(circuit.in_size_trans)).binop('<=', in_var.dot('length'))))
+
+        # Declare return variable if necessary
+        if ast.return_parameters:
+            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(vd) for vd in ast.return_var_decls])
+
+        # # Deserialize out array (if any)
+        # deserialize_stmts = []
+        # offset = 0
+        # for s in circuit.output_idfs:
+        #     deserialize_stmts.append(s.deserialize(cfg.tee_mutate_name, out_start_idx, offset))
+        #     if isinstance(s.t, CipherText) and cfg.is_symmetric_cipher():
+        #         # Assign sender field to user-encrypted values if necessary
+        #         sender_key = in_var.index(0)
+        #         deserialize_stmts.append(s.get_loc_expr().index(cfg.cipher_payload_len).assign(sender_key))
+        #     offset += s.t.size_in_uints
+        # if deserialize_stmts:
+        #     stmts.append(StatementList(Comment.comment_wrap_block("Deserialize output values", deserialize_stmts), excluded_from_simulation=True))
+
+        # Include original transformed function body
+        stmts += ast.body.statements
+
+        # # Serialize in parameters to in array (if any)
+        # serialize_stmts = []
+        # offset = 0
+        # for s in circuit.input_idfs:
+        #     serialize_stmts += [s.serialize(cfg.tee_read_name, in_start_idx, offset)]
+        #     offset += s.t.size_in_uints
+        # if offset:
+        #     stmts.append(Comment())
+        #     stmts += Comment.comment_wrap_block('Serialize input values', serialize_stmts)
+
+        # # Add return statement at the end if necessary
+        # # (was previously replaced by assignment to return_var by ZkpStatementTransformer)
+        # if circuit.has_return_var:
+        #     stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()).override(target=vd) for vd in ast.return_var_decls])))
+
+        ast.body.statements[:] = stmts
+
+    def split_tee_into_external_and_internal_fct(self, f: ConstructorOrFunctionDefinition, original_params: List[Parameter],
+                                             global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
+                                                                                             ConstructorOrFunctionDefinition]:
+        """
+        Take public function f and split it into an internal function and an external wrapper function.
+
+        :param f: [SIDE EFFECT] function to split (at least requires_verification_if_external)
+        :param original_params: list of transformed function parameters without additional parameters added due to transformation
+        :param global_owners: list of static labels (me + final address state variable identifiers)
+        :return: Tuple of newly created external and internal function definitions
+        """
+        assert f.requires_verification_when_external
+
+        # Create new empty function with same parameters as original -> external wrapper
+        if f.is_function:
+            new_modifiers = ['external']
+            original_params = [deep_copy(p, with_types=True).with_changed_storage('memory', 'calldata') for p in original_params]
+        else:
+            new_modifiers = ['public']
+        if f.is_payable:
+            new_modifiers.append('payable')
+
+        requires_proof = True
+        if not f.has_side_effects:
+            requires_proof = False
+            new_modifiers.append('view')
+        new_f = ConstructorOrFunctionDefinition(f.idf, [], new_modifiers, f.return_parameters, Block([]))
+
+        # Make original function internal
+        f.idf = Identifier(cfg.get_tee_internal_name(f))
+        f.modifiers = ['internal' if mod == 'public' else mod for mod in f.modifiers if mod != 'payable']
+        f.requires_verification_when_external = False
+
+        # # Create new circuit for external function
+        # circuit = self.create_circuit_helper(new_f, global_owners, self.circuits[f])
+        # if not f.requires_verification:
+        #     del self.circuits[f]
+        # self.circuits[new_f] = circuit
+
+        # Set meta attributes and populate body
+        new_f.requires_verification = True
+        new_f.requires_verification_when_external = True
+        new_f.called_functions = f.called_functions
+        new_f.called_functions[f] = None
+        new_f.body = self.create_tee_external_wrapper_body(f, original_params, requires_proof)
+
+        # Add out and proof parameter to external wrapper
+        storage_loc = 'calldata' if new_f.is_function else 'memory'
+        new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.tee_read_name), storage_loc)
+        new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.tee_mutate_name), storage_loc)
+
+        if requires_proof:
+            new_f.add_param(AnnotatedTypeName.tee_proof_type(), Identifier(cfg.tee_proof_param_name), storage_loc)
+
+        return new_f, f
+
+    @staticmethod
+    def create_tee_external_wrapper_body(int_fct: ConstructorOrFunctionDefinition, original_params: List[Parameter],
+                                        requires_proof: bool) -> Block:
+        """
+        Return Block with external wrapper function body.
+
+        :param int_fct: corresponding internal function
+        :param original_params: list of transformed function parameters without additional parameters added due to transformation
+        :return: body with wrapper code
+        """
+        stmts = []
+
+        # # Verify that out parameter has correct size
+        # stmts += [RequireStatement(IdentifierExpr(cfg.tee_mutate_name).dot('length').binop('==', NumberLiteralExpr(ext_circuit.out_size_trans)))]
+
+        # IdentifierExpr for array var holding serialized public circuit inputs
+        read_arr_var = IdentifierExpr(cfg.tee_read_name).as_type(Array(AnnotatedTypeName.uint_all()))
+        mutate_arr_var = IdentifierExpr(cfg.tee_mutate_name).as_type(Array(AnnotatedTypeName.uint_all()))
+
+        # # Find index of me's public key in requested_global_keys
+        # glob_me_key_index = -1
+        # for idx, e in enumerate(ext_circuit.requested_global_keys):
+        #     if isinstance(e, MeExpr):
+        #         glob_me_key_index = idx
+        #         break
+
+        # # Request static public keys
+        # offset = 0
+        # key_req_stmts = []
+        # if ext_circuit.requested_global_keys:
+        #     # Ensure that me public key is stored starting at in[0]
+        #     keys = [key for key in ext_circuit.requested_global_keys]
+        #     if glob_me_key_index != -1:
+        #         (keys[0], keys[glob_me_key_index]) = (keys[glob_me_key_index], keys[0])
+
+        #     tmp_key_var = Identifier('_tmp_key')
+        #     key_req_stmts.append(tmp_key_var.decl_var(AnnotatedTypeName.key_type()))
+        #     for key_owner in keys:
+        #         idf, assignment = ext_circuit.request_public_key(key_owner, ext_circuit.get_glob_key_name(key_owner))
+        #         assignment.lhs = IdentifierExpr(tmp_key_var.clone())
+        #         key_req_stmts.append(assignment)
+
+        #         # Manually add to circuit inputs
+        #         key_req_stmts.append(in_arr_var.slice(offset, cfg.key_len).assign(IdentifierExpr(tmp_key_var.clone()).slice(0, cfg.key_len)))
+        #         offset += cfg.key_len
+        #         assert offset == ext_circuit.in_size
+
+        # # Check encrypted parameters
+        # param_stmts = []
+        # for p in original_params:
+        #     """ * of T_e rule 8 """
+        #     if p.annotated_type.is_cipher():
+        #         assign_stmt = in_arr_var.slice(offset, cfg.cipher_payload_len).assign(IdentifierExpr(p.idf.clone()).slice(0, cfg.cipher_payload_len))
+        #         ext_circuit.ensure_parameter_encryption(assign_stmt, p)
+
+        #         # Manually add to circuit inputs
+        #         param_stmts.append(assign_stmt)
+        #         offset += cfg.cipher_payload_len
+
+        # if cfg.is_symmetric_cipher():
+        #     # Populate sender field of encrypted parameters
+        #     copy_stmts = []
+        #     for p in original_params:
+        #         if p.annotated_type.is_cipher():
+        #             sender_key = in_arr_var.index(0)
+        #             idf = IdentifierExpr(p.idf.clone()).as_type(p.annotated_type.clone())
+        #             lit = ArrayLiteralExpr([idf.clone().index(i) for i in range(cfg.cipher_payload_len)] + [sender_key])
+        #             copy_stmts.append(VariableDeclarationStatement(VariableDeclaration([], p.annotated_type.clone(), p.idf.clone(), 'memory'), lit))
+        #     if copy_stmts:
+        #         param_stmts += [Comment(), Comment('Copy from calldata to memory and set sender field')] + copy_stmts
+
+        #     assert glob_me_key_index != -1, "Symmetric cipher but did not request me key"
+
+        # # Declare in array
+        # new_in_array_expr = NewExpr(AnnotatedTypeName(TypeName.dyn_uint_array()), [NumberLiteralExpr(5)])
+        # in_var_decl = in_arr_var.idf.decl_var(TypeName.dyn_uint_array(), new_in_array_expr)
+        # stmts.append(in_var_decl)
+        # stmts.append(Comment())
+
+        stmts.append(Comment("Constant function hash"))
+        func_hash_var = IdentifierExpr(cfg.tee_func_hash_name).as_type(AnnotatedTypeName(TypeName.uint_type()))
+        func_hash_var_decl = func_hash_var.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4))
+        stmts.append(func_hash_var_decl)
+
+        old_state_arr_var = IdentifierExpr(cfg.tee_old_state_name).as_type(Array(AnnotatedTypeName.uint_all()))
+        old_state_var_decl = old_state_arr_var.idf.decl_var(TypeName.dyn_uint_array(), None)
+        stmts.append(old_state_var_decl)
+        stmts.append(Comment())
+
+        # Initialize index of read, mutate and old state
+        stmts.append(Comment("Initialize start index of read, mutate and old state"))
+        read_start_idx = IdentifierExpr(f'{cfg.tee_read_name}_start_idx').as_type(AnnotatedTypeName(TypeName.uint_type()))
+        read_start_idx_var_decl = read_start_idx.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0))
+        stmts.append(read_start_idx_var_decl)
+
+        mutate_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx').as_type(AnnotatedTypeName(TypeName.uint_type()))
+        mutate_start_idx_var_decl = mutate_start_idx.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0))
+        stmts.append(mutate_start_idx_var_decl)
+        stmts.append(Comment())
+
+        # stmts += Comment.comment_wrap_block('Request static public keys', key_req_stmts)
+        # stmts += Comment.comment_wrap_block('Backup private arguments for verification', param_stmts)
+
+        # Call internal function
+        # args = [IdentifierExpr(param.idf.clone()) for param in original_params]
+        args = []
+        args += [old_state_arr_var, read_arr_var.clone(), read_start_idx,
+                    mutate_arr_var, mutate_start_idx]
+
+        internal_call = FunctionCallExpr(IdentifierExpr(int_fct.idf.clone()).override(target=int_fct), args)
+        # internal_call.sec_start_offset = 0
+
+
+        if int_fct.return_parameters:
+            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(deep_copy(vd)) for vd in int_fct.return_var_decls])
+            in_call = TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls]).assign(internal_call)
+        else:
+            in_call = ExpressionStatement(internal_call)
+        stmts.append(Comment("Call internal function"))
+        stmts.append(in_call)
+        stmts.append(Comment())
+
+        # Call verifier
+        if requires_proof:
+            verifier = IdentifierExpr('CloakService_inst')
+
+            get_hash_args = [old_state_arr_var]
+            old_state_hash_var = IdentifierExpr(cfg.tee_old_state_hash_name).as_type(AnnotatedTypeName(TypeName.uint_type()))
+            old_state_var_decl = old_state_hash_var.idf.decl_var(TypeName.uint_type(), verifier.call(cfg.tee_get_hash_function_name, get_hash_args))
+            stmts.append(old_state_var_decl)
+
+            verify_args = [IdentifierExpr(cfg.tee_proof_param_name), IdentifierExpr(cfg.tee_code_hash_name), IdentifierExpr(cfg.tee_policy_hash_name), IdentifierExpr(cfg.tee_func_hash_name), IdentifierExpr(cfg.tee_old_state_hash_name)]
+            verify = RequireStatement(verifier.call(cfg.tee_verification_function_name, verify_args))
+            stmts.append(StatementList([Comment('Verify tee proof of execution'), verify], excluded_from_simulation=True))
+
+        # Add return statement at the end if necessary
+        if int_fct.return_parameters:
+            stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
+
+        return Block(stmts)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def transform_zkp_functions(self, su: SourceUnit, c: ContractDefinition):
         """
@@ -394,7 +689,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Add constant state variables for external contracts and field prime
         field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(cfg.field_prime_var_name),
+                                                    Identifier(cfg.zk_field_prime_var_name),
                                                     NumberLiteralExpr(bn128_scalar_field))
         contract_var_decls = self.include_verification_contracts(su, c)
         c.state_variable_declarations = [field_prime_decl, Comment()]\
@@ -428,11 +723,11 @@ class CloakTransformer(AstTransformerVisitor):
                     for idf in circuit.output_idfs + circuit.input_idfs
                 ])
                 c.struct_definitions.append(zk_data_struct)
-            self.create_internal_verification_wrapper(f)
+            self.create_zkp_internal_verification_wrapper(f)
 
         # Create external wrapper functions where necessary
         for f, params in req_ext_fcts.items():
-            ext_f, int_f = self.split_into_external_and_internal_fct(f, params, global_owners)
+            ext_f, int_f = self.split_zkp_into_external_and_internal_fct(f, params, global_owners)
             if ext_f.is_function:
                 new_fcts.append(ext_f)
             else:
@@ -444,7 +739,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         return c
 
-    def create_internal_verification_wrapper(self, ast: ConstructorOrFunctionDefinition):
+    def create_zkp_internal_verification_wrapper(self, ast: ConstructorOrFunctionDefinition):
         """
         Add the necessary additional parameters and boiler plate code for verification support to the given function.
 
@@ -511,7 +806,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         ast.body.statements[:] = stmts
 
-    def split_into_external_and_internal_fct(self, f: ConstructorOrFunctionDefinition, original_params: List[Parameter],
+    def split_zkp_into_external_and_internal_fct(self, f: ConstructorOrFunctionDefinition, original_params: List[Parameter],
                                              global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
                                                                                              ConstructorOrFunctionDefinition]:
         """
@@ -540,7 +835,7 @@ class CloakTransformer(AstTransformerVisitor):
         new_f = ConstructorOrFunctionDefinition(f.idf, original_params, new_modifiers, f.return_parameters, Block([]))
 
         # Make original function internal
-        f.idf = Identifier(cfg.get_internal_name(f))
+        f.idf = Identifier(cfg.get_zk_internal_name(f))
         f.modifiers = ['internal' if mod == 'public' else mod for mod in f.modifiers if mod != 'payable']
         f.requires_verification_when_external = False
 
@@ -555,19 +850,19 @@ class CloakTransformer(AstTransformerVisitor):
         new_f.requires_verification_when_external = True
         new_f.called_functions = f.called_functions
         new_f.called_functions[f] = None
-        new_f.body = self.create_external_wrapper_body(f, circuit, original_params, requires_proof)
+        new_f.body = self.create_zkp_external_wrapper_body(f, circuit, original_params, requires_proof)
 
         # Add out and proof parameter to external wrapper
         storage_loc = 'calldata' if new_f.is_function else 'memory'
         new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.zk_out_name), storage_loc)
 
         if requires_proof:
-            new_f.add_param(AnnotatedTypeName.proof_type(), Identifier(cfg.proof_param_name), storage_loc)
+            new_f.add_param(AnnotatedTypeName.proof_type(), Identifier(cfg.zk_proof_param_name), storage_loc)
 
         return new_f, f
 
     @staticmethod
-    def create_external_wrapper_body(int_fct: ConstructorOrFunctionDefinition, ext_circuit: CircuitHelper,
+    def create_zkp_external_wrapper_body(int_fct: ConstructorOrFunctionDefinition, ext_circuit: CircuitHelper,
                                      original_params: List[Parameter], requires_proof: bool) -> Block:
         """
         Return Block with external wrapper function body.
@@ -678,8 +973,8 @@ class CloakTransformer(AstTransformerVisitor):
         # Call verifier
         if requires_proof:
             verifier = IdentifierExpr(cfg.get_contract_var_name(ext_circuit.verifier_contract_type.code()))
-            verifier_args = [IdentifierExpr(cfg.proof_param_name), IdentifierExpr(cfg.zk_in_name), IdentifierExpr(cfg.zk_out_name)]
-            verify = ExpressionStatement(verifier.call(cfg.verification_function_name, verifier_args))
+            verifier_args = [IdentifierExpr(cfg.zk_proof_param_name), IdentifierExpr(cfg.zk_in_name), IdentifierExpr(cfg.zk_out_name)]
+            verify = ExpressionStatement(verifier.call(cfg.zk_verification_function_name, verifier_args))
             stmts.append(StatementList([Comment('Verify zk proof of execution'), verify], excluded_from_simulation=True))
 
         # Add return statement at the end if necessary

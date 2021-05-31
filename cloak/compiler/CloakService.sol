@@ -164,7 +164,6 @@ contract CloakService {
 	        hash = sha256(packed);
 	    }
     
-	    // split result into 2 parts (needed for zokrates)
 	    uint hash_int = uint(hash);
 	    return hash_int;
 	}

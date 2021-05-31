@@ -85,7 +85,7 @@ def get_jsnark_circuit_class_str(circuit: CircuitHelper, fdefs: List[str], circu
     if function_definitions:
         function_definitions = f'\n{function_definitions}\n'
     return _class_template_str.format(circuit_class_name=cfg.jsnark_circuit_classname, crypto_backend=cfg.crypto_backend,
-                                      circuit_name=circuit.get_verification_contract_name(),
+                                      circuit_name=circuit.get_zk_verification_contract_name(),
                                       key_bits=cfg.key_bits, pub_in_size=circuit.in_size_trans, pub_out_size=circuit.out_size_trans,
                                       priv_in_size=circuit.priv_in_size_trans, use_input_hashing=str(cfg.should_use_hash(circuit)).lower(),
                                       fdefs=indent(function_definitions), circuit_statements=indent(indent('\n'.join(circuit_statements))))

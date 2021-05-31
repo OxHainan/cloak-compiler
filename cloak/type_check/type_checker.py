@@ -10,7 +10,7 @@ from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, If
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, FunctionPrivacyType, \
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
-from cloak.cloak_ast.visitor.deep_copy import replace_expr
+from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
 
@@ -18,13 +18,12 @@ from cloak.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder
 def check_type(ast):
     check_final(ast)
 
-    # # generate privacy policy
-    # ptv = PrivacyTypeVisitor()
-    # ptv.visit(ast)
-
     v = TypeCheckVisitor()
     v.visit(ast)
 
+    # generate privacy policy
+    ptv = PrivacyTypeVisitor()
+    ptv.visit(ast)
 
 class TypeCheckVisitor(AstVisitor):
 
@@ -445,131 +444,56 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException(f'Privacy type is not a public address, but {str(t.annotated_type)}', p)
 
 
-class PrivacyTypeVisitor(AstVisitor):
-
-    # for privacy policy
-    __ppv = CodeVisitor()  
-    privacy_policy = PrivacyPolicy()
+class PrivacyTypeVisitor(AstVisitor): 
 
     def __init__(self, traversal='post', log=False):
         super().__init__(traversal=traversal, log=log)
-
-    def update_function_policy(self, ast, item, elem, key=""):
-        f = ast
-        while not isinstance(f, ConstructorOrFunctionDefinition):
-            f = f.parent
-
-        if not "function_policy" in f.__dict__:
-            f.function_policy = FunctionPolicy()
-            f.function_policy.fpolicy["name"] = f.name
-        f.function_policy.add_item(item, elem, key)
-
-    def visitAssignmentStatement(self, ast: AssignmentStatement):
-        _related_function = ast.get_related_function()
-        if _related_function.privacy_type == FunctionPrivacyType.TEE:
-            target = None
-            if isinstance(ast.lhs, IdentifierExpr):
-                target = ast.lhs.target
-            elif isinstance(ast.lhs, FunctionCallExpr):
-                # Left node of an AssignmentStatement must be map or array
-                # TODO: handle array
-                map_id = ast.lhs
-                while isinstance(map_id, FunctionCallExpr):
-                    map_id = map_id.args[0]
-                target = map_id.target
-
-            if isinstance(target, StateVariableDeclaration):
-                if isinstance(ast.lhs, FunctionCallExpr):
-                    map_key = ""
-                    map_id = ast.lhs
-                    while isinstance(map_id, FunctionCallExpr):
-                        if not map_key:
-                            map_key = self.__ppv.visit(ast.lhs.args[1])
-                        else:
-                            map_key = self.__ppv.visit(map_id.args[1]) + ":" + map_key
-                        map_id = map_id.args[0]
-                    self.update_function_policy(
-                        _related_function, FUNC_MUTATE, target, map_key)
-                else:
-                    self.update_function_policy(
-                        _related_function, FUNC_MUTATE, target)
-
-                lhs = self.visit(ast.lhs)
-                _related_function.mutate_states.append(lhs)
+        self.privacy_policy = PrivacyPolicy()
 
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
         self.privacy_policy.add_state(ast)
 
-    def visitIndexExpr(self, ast: IndexExpr):
-        arr = ast.arr
-        index = ast.key
-
-        map_t = arr.annotated_type
-        # should have already been checked
-        assert (map_t.privacy_annotation.is_all_expr())
-
-        # do actual type checking
-        if isinstance(map_t.type_name, Mapping):
-            key_type = map_t.type_name.key_type
-            expected = AnnotatedTypeName(key_type, Expression.all_expr())
-            instance = index.instanceof(expected)
-
-            # record indexing information
-            if map_t.type_name.key_label is not None: # TODO modification correct?
-                if index.privacy_annotation_label():
-                    map_t.type_name.instantiated_key = index
-                else:
-                    raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
-
-            # determine value type
-            ast.annotated_type = map_t.type_name.value_type
-
-            if ast.is_in_assignment_righthand():
-                # if not isinstance(ast.parent, IndexExpr):
-                #     target = None
-                #     map_id = ast
-                #     while isinstance(map_id, FunctionCallExpr):
-                #         map_id = map_id.args[0]
-                #     target = map_id.target
-
-                if isinstance(arr, StateVariableDeclaration):
-                    map_id = ast
-                    map_key = ""
-                    while isinstance(map_id, FunctionCallExpr):
-                        if not map_key:
-                            map_key = self.__ppv.visit(ast.args[1])
-                        else:
-                            map_key = self.__ppv.visit(
-                                map_id.args[1]) + ":" + map_key
-                        map_id = map_id.args[0]
-                    _related_function = ast.get_related_function()
-                    self.update_function_policy(
-                        _related_function, FUNC_READ, arr, map_key)
-        
-        elif isinstance(map_t.type_name, Array):
-            # TODO: handle array
-            pass
-        else:
-            pass
-
-    def visitIdentifierExpr(self, ast: IdentifierExpr):
-        if ast.annotated_type and not isinstance(ast.annotated_type.type_name, (Mapping, Array)):
-            # map and array are processed in visitFunctionCallExpr
-            if ast.is_in_assignment_righthand():
-                if isinstance(ast.target, StateVariableDeclaration):
-                    _related_function = ast.get_related_function()
-                    self.update_function_policy(
-                        _related_function, FUNC_READ, ast.target)
-
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        print(f'All type of function {ast.name} setted...')
-        for p in ast.parameters:
-            self.update_function_policy(ast, FUNC_INPUTS, p)
-        for p in ast.return_parameters:
-            self.update_function_policy(ast, FUNC_OUTPUTS, p)
+        print(f'Generate policy of function {ast.name}...')
+        new_fp = FunctionPolicy(ast.name)
 
+        for v in ast.parameters:
+            new_fp.add_item(FUNC_INPUTS, v)
+
+        for v in ast.read_values:
+            if isinstance(v.target, StateVariableDeclaration):
+                if v.target.annotated_type.type_name.is_primitive_type():
+                    if new_fp.add_item(FUNC_READ, v.target):
+                        new_fp.read_values.append(v.target)
+
+        for v in ast.read_values:
+            if isinstance(v.target, StateVariableDeclaration):
+                if not v.target.annotated_type.type_name.is_primitive_type():
+                    if isinstance(v[2], IndexExpr):
+                        top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
+                        if new_fp.add_item(FUNC_READ, map_idx_expr.target, map_key):
+                            new_fp.read_values.append(map_idx_expr.target)
+
+        for v in ast.modified_values:
+            if isinstance(v.target, StateVariableDeclaration):
+                if v.target.annotated_type.type_name.is_primitive_type():
+                    if new_fp.add_item(FUNC_MUTATE, v.target):
+                        new_fp.mutate_values.append(v.target)
+
+        for v in ast.modified_values:
+            if isinstance(v.target, StateVariableDeclaration):
+                if not v.target.annotated_type.type_name.is_primitive_type():
+                    if isinstance(v[2], IndexExpr):
+                        top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
+                        if new_fp.add_item(FUNC_MUTATE, map_idx_expr.target, map_key):
+                            new_fp.mutate_values.append(map_idx_expr.target)
+
+        for p in ast.return_parameters:
+            new_fp.add_item(FUNC_OUTPUTS, p)
+
+        ast.function_policy = new_fp
         self.privacy_policy.add_function(ast.function_policy)
 
     def visitContractDefinition(self, ast: ContractDefinition):
         self.privacy_policy.policy["contract"] = ast.idf.name
-        ast.get_related_sourceuint().privacy_policy = json.dumps(self.privacy_policy, cls=PrivacyPolicyEncoder)
+        ast.get_related_sourceuint().privacy_policy = self.privacy_policy

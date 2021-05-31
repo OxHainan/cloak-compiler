@@ -129,7 +129,7 @@ class CircuitHelper:
 
     # Properties #
 
-    def get_verification_contract_name(self) -> str:
+    def get_zk_verification_contract_name(self) -> str:
         assert self.verifier_contract_type is not None
         return self.verifier_contract_type.code()
 

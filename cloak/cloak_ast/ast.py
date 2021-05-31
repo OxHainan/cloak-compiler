@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from ctypes import Array
 import math
 import operator
 import textwrap
@@ -14,6 +15,7 @@ from cloak.config import cfg, zk_print
 from cloak.utils.progress_printer import warn_print
 from cloak.cloak_ast.analysis.partition_state import PartitionState
 from cloak.cloak_ast.visitor.visitor import AstVisitor
+import cloak.type_check.privacy_policy as pp
 
 T = TypeVar('T')
 
@@ -106,12 +108,12 @@ class AST:
             _ast_iter = _ast_iter.parent
         return _ast_iter
 
-    def is_in_assignment_righthand(self):
+    def is_in_assignment_lefthand(self):
         _ast_iter = self
         _child = self
         while not isinstance(_ast_iter, SourceUnit):
             if isinstance(_ast_iter, AssignmentStatement):
-                if _child == _ast_iter.rhs:
+                if _child == _ast_iter.lhs:
                     return True
                 else:
                     return False
@@ -761,7 +763,7 @@ class HybridArgumentIdf(Identifier):
                 # Cast to same size uint to prevent sign extension
                 expr = expr.explicitly_converted(UintTypeName(f'uint{self.t.elem_bitwidth}'))
             elif self.t.is_numeric and self.t.elem_bitwidth == 256:
-                expr = expr.binop('%', IdentifierExpr(cfg.field_prime_var_name)).as_type(self.t)
+                expr = expr.binop('%', IdentifierExpr(cfg.zk_field_prime_var_name)).as_type(self.t)
             else:
                 expr = expr.explicitly_converted(TypeName.uint_type())
 
@@ -1002,8 +1004,12 @@ class TypeName(AST):
         return Key()
 
     @staticmethod
-    def proof_type():
-        return Proof()
+    def zk_proof_type():
+        return ZKProof()
+
+    @staticmethod
+    def tee_proof_type():
+        return TEEProof()
 
     @staticmethod
     def dyn_uint_array():
@@ -1061,6 +1067,14 @@ class TypeName(AST):
         elif self.implicitly_convertible_to(other_type):
             return other_type
         return None
+
+    def get_type(self):
+        n_map = self
+
+        while isinstance(n_map, (Mapping, Array)) and not isinstance(n_map, CipherText):
+            n_map = n_map.value_type.type_name
+        
+        return n_map
 
     def annotate(self, privacy_annotation):
         return AnnotatedTypeName(self, privacy_annotation)
@@ -1327,6 +1341,7 @@ class Mapping(TypeName):
         self.value_type = value_type
         # set by type checker: instantiation of the key by IndexExpr
         self.instantiated_key: Optional[Expression] = None
+        
 
     def process_children(self, f: Callable[[T], T]):
         self.key_type = f(self.key_type)
@@ -1347,6 +1362,18 @@ class Mapping(TypeName):
             return self.key_type == other.key_type and self.value_type == other.value_type
         else:
             return False
+
+    def get_map_depth(self):
+        n_map = self
+        
+        def recursively_update_depth(n_map, depth):
+            if isinstance(n_map.value_type.type_name, Mapping):
+                depth += 1
+                return recursively_update_depth(n_map.value_type.type_name, depth)
+            else:
+                return depth
+
+        return recursively_update_depth(n_map, 1)
 
 
 class Array(TypeName):
@@ -1422,13 +1449,19 @@ class Key(Array):
         return isinstance(other, Key)
 
 
-class Proof(Array):
+class ZKProof(Array):
     def __init__(self):
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.proof_len))
+        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.zk_proof_len))
 
     def __eq__(self, other):
-        return isinstance(other, Proof)
+        return isinstance(other, ZKProof)
 
+class TEEProof(Array):
+    def __init__(self):
+        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.tee_proof_len))
+
+    def __eq__(self, other):
+        return isinstance(other, TEEProof)
 
 class DummyAnnotation:
     pass
@@ -1609,8 +1642,12 @@ class AnnotatedTypeName(AST):
         return AnnotatedTypeName(TypeName.key_type())
 
     @staticmethod
-    def proof_type():
-        return AnnotatedTypeName(TypeName.proof_type())
+    def zk_proof_type():
+        return AnnotatedTypeName(TypeName.zk_proof_type())
+
+    @staticmethod
+    def tee_proof_type():
+        return AnnotatedTypeName(TypeName.tee_proof_type())
 
     @staticmethod
     def all(type: TypeName):
@@ -1722,13 +1759,6 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         self.body = body
         self.return_parameters = [] if return_parameters is None else return_parameters
 
-        self.return_var_decls: List[VariableDeclaration] = [
-            VariableDeclaration([], rp.annotated_type, Identifier(f'{cfg.return_var_name}_{idx}'), rp.storage_location)
-            for idx, rp in enumerate(self.return_parameters)
-        ]
-        for vd in self.return_var_decls:
-            vd.idf.parent = vd
-
         # specify parent type
         self.parent: Optional[ContractDefinition] = None
         self.original_body: Optional[Block] = None
@@ -1754,6 +1784,15 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         # assigned by type_checker
         self.privacy_related_params = None
         self.mutate_states = []
+
+        self.return_var_decls: List[VariableDeclaration] = [
+            VariableDeclaration([], rp.annotated_type, Identifier(f'{cfg.return_zk_var_name}_{idx}'), rp.storage_location) \
+            if self.is_zkp() else VariableDeclaration([], rp.annotated_type, Identifier(f'{cfg.return_tee_var_name}_{idx}'), rp.storage_location) \
+            for idx, rp in enumerate(self.return_parameters)
+        ]
+
+        for vd in self.return_var_decls:
+            vd.idf.parent = vd
 
     @property
     def requires_verification(self) -> bool:
@@ -1926,7 +1965,7 @@ class SourceUnit(AST):
         self.used_contracts = [] if used_contracts is None else used_contracts
 
         self.original_code: List[str] = []
-        self.privacy_policy: str
+        self.privacy_policy: pp.PrivacyPolicy
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)
@@ -1956,7 +1995,7 @@ class InstanceTarget(tuple):
             # copy constructor
             target_key = expr[:]
         else:
-            target_key = [None, None]
+            target_key = [None, None, None]
             if isinstance(expr, VariableDeclaration):
                 target_key[0] = expr
             elif isinstance(expr, IdentifierExpr):
@@ -1968,6 +2007,7 @@ class InstanceTarget(tuple):
                 assert isinstance(expr, IndexExpr)
                 target_key[0] = expr.arr.target
                 target_key[1] = expr.key
+                target_key[2] = expr
 
         assert isinstance(target_key[0], (VariableDeclaration, Parameter, StateVariableDeclaration))
         return super(InstanceTarget, cls).__new__(cls, target_key)
@@ -2347,7 +2387,7 @@ class CodeVisitor(AstVisitor):
         keywords = [k for k in ast.keywords if self.display_final or k != 'final']
         k = ' '.join(keywords)
         t = self.visit(ast.annotated_type)
-        s = '' if ast.storage_location is None else f' {ast.storage_location}'
+        s = '' if not ast.storage_location else f' {ast.storage_location}'
         i = self.visit(ast.idf)
         return f'{k} {t}{s} {i}'.strip()
 

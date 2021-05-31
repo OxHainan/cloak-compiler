@@ -31,6 +31,8 @@ from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
 from cloak.cloak_ast.process_ast import get_processed_ast, get_verification_contract_names
 from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
+from cloak.type_check.privacy_policy import PrivacyPolicyEncoder
+from cloak.type_check.type_pure import delete_cloak_annotation
 
 proving_scheme_classes: Dict[str, Type[ProvingScheme]] = {
     'groth16': ProvingSchemeGroth16,
@@ -98,8 +100,8 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # Type checking
     cloak_ast = get_processed_ast(code)
 
-    # with print_step("Generate privacy policy"):
-    #     _dump_to_output(cloak_ast.privacy_policy, output_dir, f'policy.json')
+    with print_step("Generate privacy policy"):
+        _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')
 
     # Contract transformation
     with print_step("Transforming cloak contract"):
@@ -121,16 +123,15 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
 
     # Write private contract file
     with print_step('Write private solidity code'):
-        # TODO: may need to replace to_solidity with solify logic
         output_filename = 'private_contract.sol'
-        solidity_code_output = _dump_to_output(to_solidity(deepcopy(cloak_ast)), output_dir, output_filename)
+        solidity_code_output = _dump_to_output(delete_cloak_annotation(code), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())
 
-    # Generate offchain simulation code (transforms transactions, interface to deploy and access the zkay contract)
-    offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
-    _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
+    # # Generate offchain simulation code (transforms transactions, interface to deploy and access the zkay contract)
+    # offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
+    # _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
 
     # Instantiate proving scheme and circuit generator
     ps = proving_scheme_classes[cfg.proving_scheme]()
@@ -154,13 +155,13 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     elif not os.path.exists(os.path.join(output_dir, 'manifest.json')):
         raise RuntimeError('Zkay contract import failed: Manifest file is missing')
 
-    # Generate circuits and corresponding verification contracts
-    cg.generate_circuits(import_keys=import_keys)
+    # # Generate circuits and corresponding verification contracts
+    # cg.generate_circuits(import_keys=import_keys)
 
-    # Check that all verification contracts and the main contract compile
-    main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
-    for f in main_solidity_files:
-        check_compilation(f, show_errors=False)
+    # # Check that all verification contracts and the main contract compile
+    # main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
+    # for f in main_solidity_files:
+    #     check_compilation(f, show_errors=False)
 
     return cg, solidity_code_output
 
