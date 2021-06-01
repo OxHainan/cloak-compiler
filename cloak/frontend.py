@@ -129,9 +129,9 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())
 
-    # # Generate offchain simulation code (transforms transactions, interface to deploy and access the zkay contract)
-    # offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
-    # _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
+    # Generate offchain simulation code (transforms transactions, interface to deploy and access the cloak contract)
+    offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
+    _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
 
     # Instantiate proving scheme and circuit generator
     ps = proving_scheme_classes[cfg.proving_scheme]()
@@ -158,10 +158,10 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # # Generate circuits and corresponding verification contracts
     # cg.generate_circuits(import_keys=import_keys)
 
-    # # Check that all verification contracts and the main contract compile
-    # main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
-    # for f in main_solidity_files:
-    #     check_compilation(f, show_errors=False)
+    # Check that all verification contracts and the main contract compile
+    main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
+    for f in main_solidity_files:
+        check_compilation(f, show_errors=False)
 
     return cg, solidity_code_output
 

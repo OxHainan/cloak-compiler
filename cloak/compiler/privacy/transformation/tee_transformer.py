@@ -116,8 +116,8 @@ class TeeStatementTransformer(AstTransformerVisitor):
                 read_prim_args = [self.get_type_transform_stmt(target_idx,
                                                                var.annotated_type.type_name,
                                                                old_state_arr_idx.annotated_type.type_name.get_type())]
-                new_read_stmts.append(ExpressionStatement(
-                    old_state_arr_idx.call('push', read_prim_args)))
+                # new_read_stmts.append(ExpressionStatement(
+                #     old_state_arr_idx.call('push', read_prim_args)))
                 if is_mutate:
                     new_assign_stmts.append(AssignmentStatement(
                         target_idx,
@@ -131,8 +131,8 @@ class TeeStatementTransformer(AstTransformerVisitor):
             read_prim_args = [self.get_type_transform_stmt(target_idx.idf,
                                                            var.annotated_type.type_name,
                                                            old_state_arr_idx.annotated_type.type_name.get_type())]
-            new_stmts.append(ExpressionStatement(
-                old_state_arr_idx.call('push', read_prim_args)))
+            # new_stmts.append(ExpressionStatement(
+            #     old_state_arr_idx.call('push', read_prim_args)))
             if is_mutate:
                 new_stmts.append(AssignmentStatement(
                     target_idx,
@@ -338,7 +338,6 @@ class TeeExpressionTransformer(AstTransformerVisitor):
 
         The reclassified expression is evaluated in the circuit and its result is made available in solidity.
         """
-        # renqian TODO: replace the reveal(x) with x
         ast = ast.expr
         self.visit_children(ast)
         return ast

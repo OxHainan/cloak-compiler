@@ -455,7 +455,7 @@ class PrivacyTypeVisitor(AstVisitor):
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         print(f'Generate policy of function {ast.name}...')
-        new_fp = FunctionPolicy(ast.name)
+        new_fp = FunctionPolicy(ast.name, ast.privacy_type)
 
         for v in ast.parameters:
             new_fp.add_item(FUNC_INPUTS, v)

@@ -197,7 +197,8 @@ class PythonOffchainVisitor(PythonCodeVisitor):
             deploy_cmd = f'c.constructor({c_args}{val_arg})'
 
         sv_constr = []
-        for svd in [sv for sv in ast.state_variable_declarations if isinstance(sv, StateVariableDeclaration) and not (sv.idf.name.startswith(cfg.zk_reserved_name_prefix) or sv.idf.name.startswith(cfg.tee_reserved_name_prefix))] :
+        # TODO: renqian - replace 'Cloak' with global variables
+        for svd in [sv for sv in ast.state_variable_declarations if isinstance(sv, StateVariableDeclaration) and not (sv.idf.name.startswith(cfg.zk_reserved_name_prefix) or sv.idf.name.startswith(cfg.tee_reserved_name_prefix) or sv.idf.name.startswith('Cloak'))] :
             t = svd.annotated_type.type_name
             while not isinstance(t, CipherText) and hasattr(t, 'value_type'):
                 t = t.value_type.type_name

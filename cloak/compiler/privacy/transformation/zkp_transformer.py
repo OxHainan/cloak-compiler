@@ -60,7 +60,7 @@ class ZkpVarDeclTransformer(AstTransformerVisitor):
 
     def visitMapping(self, ast: Mapping):
         if ast.key_label is not None:
-            ast.key_label = ast.key_label.name
+            ast.key_label = ast.key_label
         return self.visit_children(ast)
 
 

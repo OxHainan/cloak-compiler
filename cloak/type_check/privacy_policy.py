@@ -11,7 +11,7 @@ FUNC_OUTPUTS = "outputs"
 
 class FunctionPolicy():
 
-    def __init__(self, function_name: str = ""):
+    def __init__(self, function_name: str = "", privacy_type = None):
         """
         init function info
         """
@@ -19,6 +19,7 @@ class FunctionPolicy():
         self.fpolicy = {}
         self.fpolicy["type"] = "function"
         self.fpolicy["name"] = function_name
+        self.fpolicy["privacy"] = privacy_type if privacy_type else ast.FunctionPrivacyType.PUB
         self.read_values = []
         self.mutate_values = []
 

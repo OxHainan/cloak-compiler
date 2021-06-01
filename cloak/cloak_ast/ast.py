@@ -1779,7 +1779,7 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         # True if this function is public and either requires verification or has private arguments
         self.requires_verification_when_external = False
         
-        self.privacy_type = FunctionPrivacyType.PUB
+        self.privacy_type: FunctionPrivacyType = FunctionPrivacyType.PUB
 
         # assigned by type_checker
         self.privacy_related_params = None

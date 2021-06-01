@@ -240,11 +240,11 @@ class Config(UserConfig):
 
     @property
     def pki_contract_name(self) -> str:
-        return f'PublicKeyInfrastructure'
+        return f'CloakPublicKeyInfrastructure'
 
     @property
-    def cloak_service_contract_name(self) -> str:
-        return f'CloakService'
+    def tee_service_contract_name(self) -> str:
+        return f'{self.tee_reserved_name_prefix}Verify_Service'
 
     @property
     def zk_out_name(self) -> str:

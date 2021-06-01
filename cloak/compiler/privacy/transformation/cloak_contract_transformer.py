@@ -2,9 +2,8 @@
 This module provides functionality to transform a zkay AST into an equivalent public solidity AST + proof circuits
 """
 
-import hashlib
 import web3
-from cloak.transaction.types import AddressValue
+import json
 from typing import Dict, Optional, List, Tuple
 
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper
@@ -27,6 +26,7 @@ from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.global_defs import GlobalDefs
+from cloak.type_check.privacy_policy import PrivacyPolicyEncoder
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
     """
@@ -177,16 +177,16 @@ class CloakTransformer(AstTransformerVisitor):
         :param c: contract for which verification contracts should be imported
         :return: list of all constant state variable declarations for the pki contract + all the verification contracts
         """
-        contract_var_decls = [self.create_contract_variable(cfg.pki_contract_name)]
-        contract_var_decls.append(self.create_contract_variable('CloakService'))
+        c.contract_var_decls = [self.create_contract_variable(cfg.pki_contract_name)]
+        c.contract_var_decls.append(self.create_contract_variable(cfg.tee_service_contract_name))
+        
+        for f in c.fcts_is_zkp:
+            if f.requires_verification_when_external and f.has_side_effects:
+                name = cfg.get_zk_verification_contract_name(c.idf.name, f.name)
+                self.import_contract(name, su, self.circuits[f])
+                c.contract_var_decls.append(self.create_contract_variable(name))
 
-        # for f in c.constructor_definitions + c.function_definitions:
-        #     if f.requires_verification_when_external and f.has_side_effects:
-        #         name = cfg.get_zk_verification_contract_name(c.idf.name, f.name)
-        #         self.import_contract(name, su, self.circuits[f])
-        #         contract_var_decls.append(self.create_contract_variable(name))
-
-        return contract_var_decls
+        return c.contract_var_decls
 
     @staticmethod
     def create_circuit_helper(fct: ConstructorOrFunctionDefinition, global_owners: List[PrivacyLabelExpr],
@@ -204,7 +204,7 @@ class CloakTransformer(AstTransformerVisitor):
 
     def visitSourceUnit(self, ast: SourceUnit):
         self.import_contract(cfg.pki_contract_name, ast)
-        self.import_contract(cfg.cloak_service_contract_name, ast)
+        self.import_contract(cfg.tee_service_contract_name, ast)
 
         for c in ast.contracts:
             self.transform_contract(ast, c)
@@ -229,19 +229,52 @@ class CloakTransformer(AstTransformerVisitor):
         :return: The contract itself
         """
 
-        all_fcts = c.constructor_definitions + c.function_definitions
+        # Get list of static owner labels for this contract
+        c.global_owners = [Expression.me_expr(), Expression.tee_expr()]
+        for var in c.state_variable_declarations:
+            if isinstance(var, StateVariableDeclaration):
+                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
+                    c.global_owners.append(var.idf)
 
         # Backup untransformed function bodies
-        for fct in all_fcts:
+        c.all_fcts = c.constructor_definitions + c.function_definitions
+        for fct in c.all_fcts:
             fct.original_body = deep_copy(fct.body, with_types=True, with_analysis=True)
         
-        # renqian TODO: change fake address to PKI.getPK(tee)
-        # c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
-        #                                     Identifier(TeeExpr().name), TeeExpr())] \
-        #                             + c.state_variable_declarations
+        c.fcts_is_zkp = [fct for fct in c.all_fcts if fct.is_zkp()]
+        c.fcts_is_tee = [fct for fct in c.all_fcts if fct.is_tee()]
 
-        # c = self.transform_zkp_functions(su, c)
+        # Split into functions which require verification and those which don't need a circuit helper
+        self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
+        """Abstract circuits for all functions which require verification"""
+        c.req_ext_zk_fcts, c.req_ext_tee_fcts = {}, {}
+        c.new_fcts, c.new_constr = [], []
+        for fct in c.all_fcts:
+            assert isinstance(fct, ConstructorOrFunctionDefinition)
+            if fct.requires_verification or fct.requires_verification_when_external:
+                self.circuits[fct] = self.create_circuit_helper(fct, c.global_owners)
+
+            if fct.requires_verification_when_external and fct.is_zkp():
+                c.req_ext_zk_fcts[fct] = fct.parameters[:]
+            elif fct.requires_verification_when_external and fct.is_tee():
+                c.req_ext_tee_fcts[fct] = fct.parameters[:]
+            elif fct.is_constructor:
+                c.new_constr.append(fct)
+            else:
+                c.new_fcts.append(fct)
+
+        self.include_verification_contracts(su, c)
+
+        c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
+                                            Identifier(TeeExpr().name), TeeExpr())] \
+                                    + c.state_variable_declarations
+
+        c = self.transform_zkp_functions(su, c)
         c = self.transform_tee_functions(su, c)
+
+        # new_fcts = [GlobalDefs.set_code_hash, GlobalDefs.set_policy] + new_fcts
+        c.constructor_definitions = c.new_constr
+        c.function_definitions = [fct for fct in c.new_fcts if fct.body.statements]
 
         return c
 
@@ -252,7 +285,7 @@ class CloakTransformer(AstTransformerVisitor):
         This:
 
         * transforms state variables, function bodies and signatures
-        * import CloakService contracts
+        * import tee_Verify_Service contracts
         * adds tee_data structs for each function with verification \
           (to store tee proof, to bypass solidity stack limit and allow for easy assignment of array variables),
         * creates external wrapper functions for all public functions which require verification
@@ -262,38 +295,14 @@ class CloakTransformer(AstTransformerVisitor):
         :param c: [SIDE EFFECTS] The contract to transform
         :return: The contract itself
         """
-        # Get list of static owner labels for this contract
-        global_owners = [Expression.me_expr(), Expression.tee_expr()]
-        for var in c.state_variable_declarations:
-            if isinstance(var, StateVariableDeclaration):
-                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
-                    global_owners.append(var.idf)
 
-        self.var_decl_trafo = TeeVarDeclTransformer()
+
+        var_decl_trafo = TeeVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
 
         # Transform types of normal state variables
-        c.state_variable_declarations = self.var_decl_trafo.visit_list(c.state_variable_declarations)
+        c.state_variable_declarations = var_decl_trafo.visit_list(c.state_variable_declarations)
 
-        self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
-        """Abstract circuits for all functions which require verification"""
-
-        # Split into functions which require verification(external function) and those which don't need a circuit helper (internal function)
-        req_ext_fcts = {}
-        new_fcts, new_constr = [], []
-        all_fcts = c.constructor_definitions + c.function_definitions
-        for fct in all_fcts:
-            assert isinstance(fct, ConstructorOrFunctionDefinition)
-            # if fct.requires_verification or fct.requires_verification_when_external:
-            #     self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
-            #     pass
-
-            if fct.requires_verification_when_external and fct.is_tee():
-                req_ext_fcts[fct] = fct.parameters[:]
-            elif fct.is_constructor:
-                new_constr.append(fct)
-            else:
-                new_fcts.append(fct)
 
         # Add constant state variables for external contracts
         code_hash_hb = web3.Web3.solidityKeccak(['bytes'], [c.code().encode()])
@@ -301,51 +310,45 @@ class CloakTransformer(AstTransformerVisitor):
         code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
                                                     Identifier(cfg.tee_code_hash_name),
                                                     NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
+        policy_hash_hb = web3.Web3.solidityKeccak(['bytes'], [json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode()])
+        print(policy_hash_hb.hex())
         policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
                                                     Identifier(cfg.tee_policy_hash_name),
-                                                    NumberLiteralExpr(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4))
+                                                    NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
 
-        contract_var_decls = self.include_verification_contracts(su, c)
         c.state_variable_declarations = [code_hash_decl, policy_hash_decl, Comment()]\
-                                        + Comment.comment_list('Helper Contracts', contract_var_decls)\
+                                        + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
                                         + [Comment('User state variables')]\
                                         + c.state_variable_declarations
 
-        fcts_is_tee = [fct for fct in all_fcts if fct.is_tee()]
-
         # Transform function signatures
-        for fct in fcts_is_tee:
-            fct.parameters = self.var_decl_trafo.visit_list(fct.parameters)
-        for fct in c.function_definitions:
-            fct.return_parameters = self.var_decl_trafo.visit_list(fct.return_parameters)
-            fct.return_var_decls = self.var_decl_trafo.visit_list(fct.return_var_decls)
+        for fct in c.fcts_is_tee:
+            fct.parameters = var_decl_trafo.visit_list(fct.parameters)
+        for fct in c.fcts_is_tee:
+            fct.return_parameters = var_decl_trafo.visit_list(fct.return_parameters)
+            fct.return_var_decls = var_decl_trafo.visit_list(fct.return_var_decls)
 
         # Transform bodies
-        for fct in fcts_is_tee:
+        for fct in c.fcts_is_tee:
             # gen = self.circuits.get(fct, None)
             fct.body = TeeStatementTransformer().visit(fct.body)
 
         # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
 
         # renqian TODO: delete internal calls
-        # transform_internal_calls(fcts_is_tee, self.circuits)
-        for fct in fcts_is_tee:
+        # transform_internal_calls(c.fcts_is_tee, self.circuits)
+        for fct in c.fcts_is_tee:
             self.create_tee_internal_verification_wrapper(fct)
 
         # Create external wrapper functions where necessary
-        for f, params in req_ext_fcts.items():
-            ext_f, int_f = self.split_tee_into_external_and_internal_fct(f, params, global_owners)
+        for f, params in c.req_ext_tee_fcts.items():
+            ext_f, int_f = self.split_tee_into_external_and_internal_fct(f, params, c.global_owners)
             if ext_f.is_function:
-                new_fcts.append(ext_f)
+                c.new_fcts.append(ext_f)
             else:
-                new_constr.append(ext_f)
-            new_fcts.append(int_f)
+                c.new_constr.append(ext_f)
+            c.new_fcts.append(int_f)
             
-
-        # new_fcts = [GlobalDefs.set_code_hash, GlobalDefs.set_policy] + new_fcts
-        c.constructor_definitions = new_constr
-        c.function_definitions = [fct for fct in new_fcts if fct.body.statements]
-
         return c
 
     def create_tee_internal_verification_wrapper(self, ast: ConstructorOrFunctionDefinition):
@@ -592,7 +595,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Call verifier
         if requires_proof:
-            verifier = IdentifierExpr('CloakService_inst')
+            verifier = IdentifierExpr(f'{cfg.tee_service_contract_name}_inst')
 
             get_hash_args = [old_state_arr_var]
             old_state_hash_var = IdentifierExpr(cfg.tee_old_state_hash_name).as_type(AnnotatedTypeName(TypeName.uint_type()))
@@ -608,26 +611,6 @@ class CloakTransformer(AstTransformerVisitor):
             stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
 
         return Block(stmts)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -655,65 +638,39 @@ class CloakTransformer(AstTransformerVisitor):
         :param c: [SIDE EFFECTS] The contract to transform
         :return: The contract itself
         """
-        # Get list of static owner labels for this contract
-        global_owners = [Expression.me_expr(), Expression.tee_expr()]
-        for var in c.state_variable_declarations:
-            if isinstance(var, StateVariableDeclaration):
-                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
-                    global_owners.append(var.idf)
 
-        self.var_decl_trafo = ZkpVarDeclTransformer()
+        var_decl_trafo = ZkpVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
 
         # Transform types of normal state variables
-        c.state_variable_declarations = self.var_decl_trafo.visit_list(c.state_variable_declarations)
-
-        self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
-        """Abstract circuits for all functions which require verification"""
-
-        # Split into functions which require verification and those which don't need a circuit helper
-        req_ext_fcts = {}
-        new_fcts, new_constr = [], []
-        all_fcts = c.constructor_definitions + c.function_definitions
-        for fct in all_fcts:
-            assert isinstance(fct, ConstructorOrFunctionDefinition)
-            if fct.requires_verification or fct.requires_verification_when_external:
-                self.circuits[fct] = self.create_circuit_helper(fct, global_owners)
-
-            if fct.requires_verification_when_external:
-                req_ext_fcts[fct] = fct.parameters[:]
-            elif fct.is_constructor:
-                new_constr.append(fct)
-            else:
-                new_fcts.append(fct)
+        c.state_variable_declarations = var_decl_trafo.visit_list(c.state_variable_declarations)
 
         # Add constant state variables for external contracts and field prime
         field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
                                                     Identifier(cfg.zk_field_prime_var_name),
                                                     NumberLiteralExpr(bn128_scalar_field))
-        contract_var_decls = self.include_verification_contracts(su, c)
+
         c.state_variable_declarations = [field_prime_decl, Comment()]\
-                                        + Comment.comment_list('Helper Contracts', contract_var_decls)\
+                                        + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
                                         + [Comment('User state variables')]\
                                         + c.state_variable_declarations
 
         # Transform signatures
-        for f in all_fcts:
-            f.parameters = self.var_decl_trafo.visit_list(f.parameters)
+        for f in c.fcts_is_zkp:
+            f.parameters = var_decl_trafo.visit_list(f.parameters)
         for f in c.function_definitions:
-            f.return_parameters = self.var_decl_trafo.visit_list(f.return_parameters)
-            f.return_var_decls = self.var_decl_trafo.visit_list(f.return_var_decls)
+            f.return_parameters = var_decl_trafo.visit_list(f.return_parameters)
+            f.return_var_decls = var_decl_trafo.visit_list(f.return_var_decls)
 
         # Transform bodies
-        for fct in all_fcts:
+        for fct in c.fcts_is_zkp:
             gen = self.circuits.get(fct, None)
             fct.body = ZkpStatementTransformer(gen).visit(fct.body)
 
         # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
-        fcts_with_verification = [fct for fct in all_fcts if fct.requires_verification]
-        compute_transitive_circuit_io_sizes(fcts_with_verification, self.circuits)
-        transform_internal_calls(fcts_with_verification, self.circuits)
-        for f in fcts_with_verification:
+        compute_transitive_circuit_io_sizes(c.fcts_is_zkp, self.circuits)
+        transform_internal_calls(c.fcts_is_zkp, self.circuits)
+        for f in c.fcts_is_zkp:
             circuit = self.circuits[f]
             assert circuit.requires_verification()
             if circuit.requires_zk_data_struct():
@@ -726,16 +683,13 @@ class CloakTransformer(AstTransformerVisitor):
             self.create_zkp_internal_verification_wrapper(f)
 
         # Create external wrapper functions where necessary
-        for f, params in req_ext_fcts.items():
-            ext_f, int_f = self.split_zkp_into_external_and_internal_fct(f, params, global_owners)
+        for f, params in c.req_ext_zk_fcts.items():
+            ext_f, int_f = self.split_zkp_into_external_and_internal_fct(f, params, c.global_owners)
             if ext_f.is_function:
-                new_fcts.append(ext_f)
+                c.new_fcts.append(ext_f)
             else:
-                new_constr.append(ext_f)
-            new_fcts.append(int_f)
-
-        c.constructor_definitions = new_constr
-        c.function_definitions = new_fcts
+                c.new_constr.append(ext_f)
+            c.new_fcts.append(int_f)
 
         return c
 
@@ -857,7 +811,7 @@ class CloakTransformer(AstTransformerVisitor):
         new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.zk_out_name), storage_loc)
 
         if requires_proof:
-            new_f.add_param(AnnotatedTypeName.proof_type(), Identifier(cfg.zk_proof_param_name), storage_loc)
+            new_f.add_param(AnnotatedTypeName.zk_proof_type(), Identifier(cfg.zk_proof_param_name), storage_loc)
 
         return new_f, f
 
@@ -879,7 +833,7 @@ class CloakTransformer(AstTransformerVisitor):
             ext_circuit._require_public_key_for_label_at(None, Expression.me_expr())
         if cfg.is_symmetric_cipher():
             # Make sure msg.sender's key pair is available in the circuit
-            assert any(isinstance(k, MeExpr) for k in ext_circuit.requested_global_keys) \
+            assert any(isinstance(k, (MeExpr, TeeExpr)) for k in ext_circuit.requested_global_keys) \
                    or has_priv_args, "requires verification => both sender keys required"
             stmts += ext_circuit.request_private_key()
 
@@ -895,6 +849,7 @@ class CloakTransformer(AstTransformerVisitor):
             if isinstance(e, MeExpr):
                 glob_me_key_index = idx
                 break
+                
 
         # Request static public keys
         offset = 0

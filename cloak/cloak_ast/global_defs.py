@@ -41,12 +41,31 @@ class GlobalDefs:
     )
     set_parents(set_policy)
 
+    address: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('address'),
+        parameters=[Parameter([], annotated_type=AnnotatedTypeName.uint_all(), idf=Identifier('naddr'))],
+        modifiers=['internal'],
+        return_parameters=[Parameter([], annotated_type=AnnotatedTypeName.address_all(), idf=Identifier('addr'))],
+        body=Block([])   
+    )
+    address.idf.parent = address
+
+    uint256: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('uint256'),
+        parameters=[Parameter([], annotated_type=AnnotatedTypeName.address_all(), idf=Identifier('nuint'))],
+        modifiers=['internal'],
+        return_parameters=[Parameter([], annotated_type=AnnotatedTypeName.uint_all(), idf=Identifier('uint'))],
+        body=Block([])   
+    )
+    uint256.idf.parent = uint256
+
     address_struct: StructDefinition = StructDefinition(
         Identifier('<address>'), [
             VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('balance'))
         ]
     )
     set_parents(address_struct)
+
 
     address_payable_struct: StructDefinition = StructDefinition(
         Identifier('<address_payable>'), [
@@ -113,15 +132,3 @@ class GlobalVars:
         Identifier('now'), None
     )
     now.idf.parent = now
-
-    address: StateVariableDeclaration = StateVariableDeclaration(
-        AnnotatedTypeName.uint_all(), [],
-        Identifier('address'), None
-    )
-    address.idf.parent = address
-
-    uint256: StateVariableDeclaration = StateVariableDeclaration(
-        AnnotatedTypeName.uint_all(), [],
-        Identifier('uint256'), None
-    )
-    uint256.idf.parent = uint256
