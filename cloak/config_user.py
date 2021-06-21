@@ -1,10 +1,10 @@
 """
-This module defines the zkay options which are configurable by the user via command line arguments.
+This module defines the cloak options which are configurable by the user via command line arguments.
 
 The argument parser in :py:mod:`.__main__` uses the docstrings, type hints and _values for the help
  strings and the _values fields for autocompletion
 
-WARNING: This is one of the only zkay modules that is imported before argcomplete.autocomplete is called. \
+WARNING: This is one of the only cloak modules that is imported before argcomplete.autocomplete is called. \
 For performance reasons it should thus not have any import side-effects or perform any expensive operations during import.
 """
 from typing import Any, Union
@@ -43,8 +43,12 @@ class UserConfig:
         self._blockchain_backend: str = 'w3-eth-tester'
         self._blockchain_backend_values = ['w3-eth-tester', 'w3-ganache', 'w3-ipc', 'w3-websocket', 'w3-http', 'w3-custom']
 
+        self._cloak_network: str = 'w3-ccf'
+        self._cloak_network_values = ['w3-ccf']
+
         self._blockchain_node_uri: Union[Any, str, None] = 'http://localhost:7545'
         self._blockchain_pki_address: str = ''
+        self._blockchain_service_address: str = ''
         self._blockchain_crypto_lib_addresses: str = ''
         self._blockchain_default_account: Union[int, str, None] = 0
 
@@ -122,6 +126,24 @@ class UserConfig:
         self._blockchain_backend = val
 
     @property
+    def cloak_network(self) -> str:
+        """
+        Backend to use when interacting with the cloak TEE network.
+
+        Running unit tests is only supported with w3-ccf at the moment.
+        See https://web3py.readthedocs.io/en/stable/providers.html for more information.
+
+        Available Options: [w3-ccf]
+        """
+        return self._cloak_network
+
+    @cloak_network.setter
+    def cloak_network(self, val: str):
+        _check_is_one_of(val, self._cloak_network_values)
+        self._cloak_network = val
+
+
+    @property
     def blockchain_node_uri(self) -> Union[Any, str, None]:
         """
         Backend specific location of the ethereum node
@@ -144,7 +166,7 @@ class UserConfig:
         Address of the deployed pki contract.
 
         Must be specified for backends other than w3-eth-tester.
-        This library can be deployed using ``zkay deploy-pki``.
+        This library can be deployed using ``cloak deploy-pki``.
         """
         return self._blockchain_pki_address
 
@@ -154,13 +176,28 @@ class UserConfig:
         self._blockchain_pki_address = val
 
     @property
+    def blockchain_service_address(self) -> str:
+        """
+        Address of the deployed pki contract.
+
+        Must be specified for backends other than w3-eth-tester.
+        This library can be deployed using ``cloak deploy-service``.
+        """
+        return self._blockchain_service_address
+
+    @blockchain_service_address.setter
+    def blockchain_service_address(self, val: str):
+        _type_check(val, str)
+        self.blockchain_service_address = val
+
+    @property
     def blockchain_crypto_lib_addresses(self) -> str:
         """
         Comma separated list of the addresses of the deployed crypto library contracts required for the current proving_scheme.
         e.g. "0xAb31...,0xec32C..."
 
         Must be specified for backends other than w3-eth-tester.
-        The libraries can be deployed using ``zkay deploy-crypto-libs``.
+        The libraries can be deployed using ``cloak deploy-crypto-libs``.
         The addresses in the list must appear in the same order as the corresponding
         libraries were deployed by that command.
         """

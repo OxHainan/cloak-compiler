@@ -12,4 +12,5 @@ __pycache__
 *.egg-info
 dist
 
+o_*
 test

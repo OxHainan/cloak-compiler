@@ -11,7 +11,7 @@ class Manifest:
     """Static class, which holds the string keys of all supported zkay manifest keys """
     cloak_version = 'zkay-version'
     solc_version = 'solc-version'
-    zkay_options = 'zkay-options'
+    cloak_options = 'zkay-options'
 
     @staticmethod
     def load(project_dir):
@@ -30,7 +30,7 @@ class Manifest:
                     f'Compilation or integrity check with deployed bytecode might fail due to version differences')
 
         cfg.override_solc(manifest[Manifest.solc_version])
-        cfg.import_compiler_settings(manifest[Manifest.zkay_options])
+        cfg.import_compiler_settings(manifest[Manifest.cloak_options])
 
     @staticmethod
     @contextmanager

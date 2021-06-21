@@ -1,9 +1,8 @@
 // 版权所有 © 2020 牛津（海南）区块链研究院
 
-pragma solidity ^0.5.0;
-
 contract CloakService {
     enum WorkerStatus {NULL, ACTIVE, OFFLINE, DECOMMISSIONED, COMPROMISED}
+    address public teeAddr;
 
     struct Worker {
         uint256 status;
@@ -131,7 +130,7 @@ contract CloakService {
     }
 
     function verify(
-        uint256[] memory report,
+        uint256[4] memory report,
         uint256 codeHash,
         uint256 policyHash,
         uint256 funcHash,
@@ -154,18 +153,27 @@ contract CloakService {
         return false;
     }
 
-	function get_hash(uint[] memory preimage) public pure returns (uint256) {
-	    // start with just the first element
-	    bytes32 hash = bytes32(preimage[0]);
-    
-	    // add one value after the other to the hash
-	    for (uint i=1; i<preimage.length; i++) {
-	        bytes memory packed = abi.encode(hash, preimage[i]);
-	        hash = sha256(packed);
-	    }
-    
-	    uint hash_int = uint(hash);
-	    return hash_int;
-	}
+    function getHash(uint256[] memory preimage) public pure returns (uint256) {
+        // start with just the first element
+        bytes32 hash = bytes32(preimage[0]);
+
+        // add one value after the other to the hash
+        for (uint256 i = 1; i < preimage.length; i++) {
+            bytes memory packed = abi.encode(hash, preimage[i]);
+            hash = sha256(packed);
+        }
+
+        uint256 hash_int = uint256(hash);
+        return hash_int;
+    }
+
+    // TODO: add tee proof
+    function setTEEAddress() public {
+        teeAddr = msg.sender;
+    }
+
+    function getTEEAddress() public view returns (address) {
+        return teeAddr;
+    }
 
 }

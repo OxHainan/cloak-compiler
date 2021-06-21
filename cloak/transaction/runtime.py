@@ -1,7 +1,7 @@
 from cloak.config import cfg
 from cloak.transaction.crypto.ecdh_chaskey import EcdhChaskeyCrypto
-from cloak.transaction.interface import ZkayBlockchainInterface, ZkayCryptoInterface, ZkayKeystoreInterface, ZkayProverInterface
-from cloak.transaction.blockchain import Web3TesterBlockchain, Web3HttpGanacheBlockchain, Web3IpcBlockchain, Web3WebsocketBlockchain, Web3HttpBlockchain, Web3CustomBlockchain
+from cloak.transaction.interface import CloakBlockchainInterface, ZkayCryptoInterface, ZkayKeystoreInterface, ZkayProverInterface
+from cloak.transaction.blockchain import Web3TesterBlockchain, Web3HttpGanacheBlockchain, Web3IpcBlockchain, Web3WebsocketBlockchain, Web3HttpBlockchain, Web3CustomBlockchain, Web3CloakCCFNetwork
 from cloak.transaction.crypto.ecdh_aes import EcdhAesCrypto
 from cloak.transaction.crypto.dummy import DummyCrypto
 from cloak.transaction.crypto.rsa_pkcs15 import RSAPKCS15Crypto
@@ -27,7 +27,8 @@ _blockchain_classes = {
     'w3-ipc': Web3IpcBlockchain,
     'w3-websocket': Web3WebsocketBlockchain,
     'w3-http': Web3HttpBlockchain,
-    'w3-custom': Web3CustomBlockchain
+    'w3-custom': Web3CustomBlockchain,
+    'w3-ccf': Web3CloakCCFNetwork
 }
 
 
@@ -40,6 +41,7 @@ class Runtime:
     """
 
     __blockchain = None
+    __cloak_network = None
     __crypto = None
     __keystore = None
     __prover = None
@@ -52,18 +54,27 @@ class Runtime:
         When a new backend is selected in the configuration, it will only be loaded after a runtime reset.
         """
         Runtime.__blockchain = None
+        Runtime.__cloak_network = None
         Runtime.__crypto = None
         Runtime.__keystore = None
         Runtime.__prover = None
 
     @staticmethod
-    def blockchain() -> ZkayBlockchainInterface:
-        """Return singleton object which implements ZkayBlockchainInterface."""
+    def blockchain() -> CloakBlockchainInterface:
+        """Return singleton object which implements CloakBlockchainInterface."""
         if Runtime.__blockchain is None:
             Runtime.__blockchain = _blockchain_classes[cfg.blockchain_backend]()
             from cloak.transaction.types import AddressValue
             AddressValue.get_balance = Runtime.__blockchain.get_balance
+
         return Runtime.__blockchain
+
+    @staticmethod
+    def cloak_network() -> CloakBlockchainInterface:
+        """Return singleton object which implements CloakBlockchainInterface."""
+        if Runtime.__cloak_network is None:
+            Runtime.__cloak_network = _blockchain_classes[cfg.cloak_network]()
+        return Runtime.__cloak_network
 
     @staticmethod
     def keystore() -> ZkayKeystoreInterface:

@@ -15,7 +15,7 @@ from cloak.config import cfg, zk_print
 from cloak.utils.progress_printer import warn_print
 from cloak.cloak_ast.analysis.partition_state import PartitionState
 from cloak.cloak_ast.visitor.visitor import AstVisitor
-import cloak.type_check.privacy_policy as pp
+import cloak.policy.privacy_policy as pp
 
 T = TypeVar('T')
 
@@ -449,7 +449,7 @@ class FunctionCallExpr(Expression):
 
     @property
     def is_cast(self):
-        return isinstance(self.func, LocationExpr) and isinstance(self.func.target, (ContractDefinition, EnumDefinition))
+        return isinstance(self.func, LocationExpr) and isinstance(self.func.target, (ContractDefinition, EnumDefinition, Array))
 
     def process_children(self, f: Callable[[T], T]):
         self.func = f(self.func)

@@ -114,7 +114,6 @@ class PrivacyPolicyEncoder(json.JSONEncoder):
 
 
 class PrivacyPolicy(json.JSONEncoder):
-    
 
     def __init__(self, contract_name: str = ""):
         """

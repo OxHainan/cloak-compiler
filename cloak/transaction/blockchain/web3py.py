@@ -1,5 +1,8 @@
+from __future__ import with_statement
+from cloak.tests.utils.test_timer import sleep
 import json
 import os
+import ccf
 import tempfile
 from abc import abstractmethod
 from contextlib import contextmanager
@@ -14,16 +17,19 @@ from cloak.compiler.privacy import library_contracts
 from cloak.compiler.solidity.compiler import compile_solidity_json
 from cloak.config import cfg, zk_print, zk_print_banner
 from cloak.my_logging.log_context import log_context
-from cloak.transaction.interface import ZkayBlockchainInterface, IntegrityError, BlockChainError, \
+from cloak.transaction.interface import CloakBlockchainInterface, IntegrityError, BlockChainError, \
     TransactionFailedException
-from cloak.transaction.types import PublicKeyValue, AddressValue, MsgStruct, BlockStruct, TxStruct
+from cloak.transaction.types import PublicKeyValue, AddressValue, MsgStruct, BlockStruct, TxStruct, Value
+from cloak.transaction.blockchain.ccf_provider import CloakCCFProvider
+from cloak.transaction.blockchain import ccf_config
 from cloak.utils.helpers import get_contract_names, save_to_file
 from cloak.cloak_ast.process_ast import get_verification_contract_names
 
 max_gas_limit = 10000000
+count = 0
 
 
-class Web3Blockchain(ZkayBlockchainInterface):
+class Web3Blockchain(CloakBlockchainInterface):
     def __init__(self) -> None:
         super().__init__()
         self.w3 = self._create_w3_instance()
@@ -73,6 +79,13 @@ class Web3Blockchain(ZkayBlockchainInterface):
     def _announce_public_key(self, address: Union[bytes, str], pk: Tuple[int, ...]) -> Any:
         with log_context('transaction', f'announcePk'):
             return self._transact(self.pki_contract, address, 'announcePk', pk)
+
+    def _set_tee_address(self, address: Union[bytes, str]) -> Any:
+        with log_context('transaction', f'{cfg.tee_set_addr_function_name}'):
+            return self._transact(self.service_contract, address, f'{cfg.tee_set_addr_function_name}')
+
+    def _get_tee_address(self) -> Any:
+        return AddressValue(self._req_state_var(self.service_contract, f'{cfg.tee_get_addr_function_name}'))
 
     def _req_state_var(self, contract_handle, name: str, *indices) -> Any:
         try:
@@ -144,6 +157,7 @@ class Web3Blockchain(ZkayBlockchainInterface):
                 cout = self.compile_contract(filename, verifier_name, self.lib_addresses)
                 vf[verifier_name] = AddressValue(self._deploy_contract(sender, cout).address)
         vf[cfg.pki_contract_name] = AddressValue(self.pki_contract.address)
+        vf[cfg.service_contract_name] = AddressValue(self.service_contract.address)
         return vf
 
     def _connect_libraries(self):
@@ -161,6 +175,8 @@ class Web3Blockchain(ZkayBlockchainInterface):
             with tempfile.TemporaryDirectory() as tmpdir:
                 pki_sol = save_to_file(tmpdir, f'{cfg.pki_contract_name}.sol', library_contracts.get_pki_contract())
                 self._pki_contract = self._verify_contract_integrity(cfg.blockchain_pki_address, pki_sol, contract_name=cfg.pki_contract_name)
+                # service_sol = save_to_file(tmpdir, f'{cfg.service_contract_name}.sol', library_contracts.get_service_contract())
+                # self._service_contract = self._verify_contract_integrity(cfg.blockchain_service_address, service_sol, contract_name=cfg.service_contract_name)
 
                 verify_sol = save_to_file(tmpdir, 'verify_libs.sol', library_contracts.get_verify_libs_code())
                 self._lib_addresses = {}
@@ -169,7 +185,7 @@ class Web3Blockchain(ZkayBlockchainInterface):
                     self._lib_addresses[lib] = out.address
 
     def _connect(self, project_dir: str, contract: str, address: Union[bytes, str]) -> Any:
-        filename = os.path.join(project_dir, 'contract.sol')
+        filename = os.path.join(project_dir, 'public_contract.sol')
         cout = self.compile_contract(filename, contract)
         return self.w3.eth.contract(
             address=address, abi=cout['abi']
@@ -235,7 +251,7 @@ class Web3Blockchain(ZkayBlockchainInterface):
     @contextmanager
     def __hardcoded_external_contracts_ctx(self, contract_dir: str, pki_verifier_addresses):
         # Hardcode contract addresses
-        with open(os.path.join(contract_dir, 'contract.sol')) as f:
+        with open(os.path.join(contract_dir, 'public_contract.sol')) as f:
             c = f.read()
         for key, val in pki_verifier_addresses.items():
             c = c.replace(f'{key}(0)', f'{key}({self.w3.toChecksumAddress(val.val)})')
@@ -260,6 +276,74 @@ class Web3Blockchain(ZkayBlockchainInterface):
         return min(int(estimate * 1.2), limit)
 
 
+class Web3CloakCCFNetwork(Web3Blockchain):
+    def __init__(self) -> None:
+        super().__init__()
+        
+
+    def _create_w3_instance(self) -> Web3:
+        # config = ccf.clients.CCFClient(
+        #     ccf_config.host, 
+        #     ccf_config.port, 
+        #     ccf_config.ca, 
+        #     ccf_config.cert, 
+        #     ccf_config.key
+        # )
+        # w3 = Web3(CloakCCFProvider(config))
+        # return w3
+
+        # TODO: renqian - replace with CCF
+        genesis_overrides = {'gas_limit': int(max_gas_limit * 1.2)}
+        custom_genesis_params = PyEVMBackend._generate_genesis_params(overrides=genesis_overrides)
+        self.eth_tester = EthereumTester(backend=PyEVMBackend(genesis_parameters=custom_genesis_params))
+        w3 = Web3(Web3.EthereumTesterProvider(self.eth_tester))
+        return w3
+
+    def _deploy(self, project_dir: str, sender: Union[bytes, str], contract: str, *actual_args, wei_amount: Optional[int] = None) -> Any:
+        cout = self.compile_contract(os.path.join(project_dir, "private_contract.sol"), contract, cwd=project_dir)
+        handle = self._deploy_contract(sender, cout, *actual_args, wei_amount=wei_amount)
+        zk_print(f'Deployed private contract "{contract}" at address "{handle.address}"')
+        # TODO: renqian - bind privacy policy
+        zk_print(f'Bindded privacy policy and public contract address with the private contract')
+        return handle
+
+    def _transact(self, contract_handle, sender: Union[bytes, str], function: str, *actual_params, wei_amount: Optional[int] = None) -> Any:
+        if function == "compareToAverage":
+            sleep(2)
+            global count
+            if (count == 0):
+                zk_print("Waiting for manager to summit avgScore, examinator to submit point[msg.sender]...")
+                count += 1
+            elif (count == 1):
+                zk_print("Waiting for examinator to submit point[msg.sender]...")
+                count += 1
+            else:
+                zk_print("All variables have been known by TEE, waiting for execution result...")
+            actual_params = []
+        try:
+            fct = contract_handle.constructor if function == 'constructor' else contract_handle.functions[function]
+            tx = {'from': sender}
+            tx_hash = fct(*actual_params).transact(tx)
+            tx_receipt = self.w3.eth.waitForTransactionReceipt(tx_hash)
+        except Exception as e:
+            # raise BlockChainError(e.args)
+            return None
+
+        if tx_receipt['status'] == 0:
+            raise TransactionFailedException("Transaction failed")
+        if function == "compareToAverage" and count == 2:
+            zk_print(f"Get public return of {function}: {0}")
+        return tx_receipt
+
+    def transact(self, contract_handle, sender: AddressValue, function: str, actual_args: List, should_encrypt: List[bool], wei_amount: Optional[int] = None) -> Any:
+        assert contract_handle is not None
+        zk_print(f'Issuing transaction to cloak network for function "{function}" from account "{sender}"')
+        zk_print(Value.collection_to_string(actual_args), verbosity_level=2)
+        ret = self._transact(contract_handle, sender.val, function, *Value.unwrap_values(actual_args), wei_amount=wei_amount)
+        zk_print()
+        return ret
+
+
 class Web3TesterBlockchain(Web3Blockchain):
     def __init__(self) -> None:
         self.eth_tester = None
@@ -274,14 +358,17 @@ class Web3TesterBlockchain(Web3Blockchain):
         zk_print_banner(f'Deploying Libraries')
 
         sender = self.w3.eth.accounts[0]
-        # Since eth-tester is not persistent -> always automatically deploy libraries
+        # Since eth-tester is not persistent, always automatically deploy libraries
         with cfg.library_compilation_environment():
             with tempfile.TemporaryDirectory() as tmpdir:
                 with log_context('transaction', 'deploy_pki'):
                     pki_sol = save_to_file(tmpdir, f'{cfg.pki_contract_name}.sol', library_contracts.get_pki_contract())
                     self._pki_contract = self._deploy_contract(sender, self.compile_contract(pki_sol, cfg.pki_contract_name))
                     zk_print(f'Deployed pki contract at address "{self.pki_contract.address}"')
-
+                    service_sol = save_to_file(tmpdir, f'{cfg.service_contract_name}.sol', library_contracts.get_service_contract())
+                    self._service_contract = self._deploy_contract(sender, self.compile_contract(service_sol, cfg.service_contract_name))
+                    zk_print(f'Deployed sevice contract at address "{self.service_contract.address}"')
+                
                 with log_context('transaction', 'deploy_verify_libs'):
                     verify_sol = save_to_file(tmpdir, 'verify_libs.sol', library_contracts.get_verify_libs_code())
                     self._lib_addresses = {}

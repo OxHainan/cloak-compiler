@@ -31,7 +31,7 @@ from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
 from cloak.cloak_ast.process_ast import get_processed_ast, get_verification_contract_names
 from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
-from cloak.type_check.privacy_policy import PrivacyPolicyEncoder
+from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
 
 proving_scheme_classes: Dict[str, Type[ProvingScheme]] = {
@@ -106,6 +106,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # Contract transformation
     with print_step("Transforming cloak contract"):
         ast, circuits = transform_ast(deepcopy(cloak_ast))
+        ast.policy_path = os.path.join(output_dir, "policy.json")
 
     # Dump libraries
     with print_step("Write library contract files"):
@@ -115,6 +116,9 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
 
             # Write library contract
             _dump_to_output(library_contracts.get_verify_libs_code(), output_dir, ProvingScheme.verify_libs_contract_filename, dryrun_solc=True)
+
+            # Write cloak service contract
+            _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
 
     # Write public contract file
     with print_step('Write public solidity code'):
@@ -149,7 +153,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
             manifest = {
                 Manifest.cloak_version: cfg.cloak_version,
                 Manifest.solc_version: cfg.solc_version,
-                Manifest.zkay_options: cfg.export_compiler_settings(),
+                Manifest.cloak_options: cfg.export_compiler_settings(),
             }
             _dump_to_output(json.dumps(manifest), output_dir, 'manifest.json')
     elif not os.path.exists(os.path.join(output_dir, 'manifest.json')):
@@ -160,8 +164,8 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
 
     # Check that all verification contracts and the main contract compile
     main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
-    for f in main_solidity_files:
-        check_compilation(f, show_errors=False)
+    # for f in main_solidity_files:
+    #     check_compilation(f, show_errors=False)
 
     return cg, solidity_code_output
 

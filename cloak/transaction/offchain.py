@@ -1,4 +1,5 @@
 from __future__ import annotations
+from cloak.tests.utils.test_timer import sleep
 
 import inspect
 from contextlib import contextmanager, nullcontext
@@ -7,7 +8,7 @@ from typing import Dict, Union, Callable, Any, Optional, List, Tuple, ContextMan
 
 from cloak.compiler.privacy.library_contracts import bn128_scalar_field
 from cloak.compiler.privacy.manifest import Manifest
-from cloak.config import cfg, zk_print_banner
+from cloak.config import cfg, zk_print, zk_print_banner
 from cloak.my_logging.log_context import log_context
 from cloak.transaction.int_casts import __convert as int_cast
 from cloak.transaction.interface import BlockChainError
@@ -247,13 +248,26 @@ class ContractSimulator:
         :param count: # of accounts to create
         :return: if count == 1 -> returns a address, otherwise returns a tuple of count addresses
         """
+        ContractSimulator.initialize_tee_account()
         accounts = Runtime.blockchain().create_test_accounts(count)
         for account in accounts:
             ContractSimulator.initialize_keys_for(account)
+
         if len(accounts) == 1:
             return accounts[0]
         else:
             return accounts
+
+    @staticmethod
+    def initialize_tee_account():
+        """
+        Create tee dummy account for test (if supported by backend)
+        """
+        # initialize keys for TEE
+        account = Runtime.blockchain().create_test_accounts(1)[0]
+        ContractSimulator.initialize_keys_for(account)
+        address = AddressValue(account)
+        Runtime.blockchain().set_tee_address(address)
 
     @contextmanager
     def _function_ctx(self, trans_sec_size=-1, *, wei_amount: int = 0, name: str = '?'):
@@ -288,7 +302,8 @@ class ContractSimulator:
 class ApiWrapper:
     def __init__(self, project_dir, contract_name, user_addr) -> None:
         super().__init__()
-        self.__conn = Runtime.blockchain()
+        self.__blockchain = Runtime.blockchain()
+        self.__cloak_network = Runtime.cloak_network()
         self.__keystore = Runtime.keystore()
         self.__crypto = Runtime.crypto()
         self.__prover = Runtime.prover()
@@ -296,8 +311,12 @@ class ApiWrapper:
         self.__project_dir = project_dir
         self.__contract_name = contract_name
 
-        self.__contract_handle = None
-        """Handle which refers to the deployed contract, this is passed to the blockchain interface when e.g. issuing transactions."""
+        self.__verifier_contract_handle = None
+        """Handle which refers to the deployed verifier contract (V) on the blockchain, this is passed to the blockchain interface when e.g. issuing transactions."""
+
+        self.__private_contract_handle = None
+        """Handle which refers to the deployed private contract (F) on the cloak network, this is passed to the blockchain interface when e.g. issuing transactions."""
+
 
         self.__user_addr = user_addr
         """From address for all transactions which are issued by this ContractSimulator"""
@@ -330,8 +349,18 @@ class ApiWrapper:
         """
 
     @property
-    def address(self):
-        return self.__contract_handle.address
+    def verifier_contract_address(self):
+        """
+        The address of the verifier contract on the blockchain
+        """
+        return self.__verifier_contract_handle.address
+
+    @property
+    def private_contract_address(self):
+        """
+        The address of the private contract in the cloak network
+        """
+        return self.__private_contract_handle.address
 
     @property
     def user_address(self):
@@ -340,6 +369,10 @@ class ApiWrapper:
     @property
     def keystore(self):
         return self.__keystore
+
+    @property
+    def blockchain(self):
+        return self.__blockchain
 
     def get_my_sk(self) -> PrivateKeyValue:
         return self.__keystore.sk(self.user_address)
@@ -364,17 +397,31 @@ class ApiWrapper:
         return val
 
     def deploy(self, actual_args: List, should_encrypt: List[bool], wei_amount: Optional[int] = None):
-        self.__contract_handle = self.__conn.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
+        self.__verifier_contract_handle = self.__blockchain.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
+                                                    actual_args, should_encrypt, wei_amount=wei_amount)
+        self.__private_contract_handle = self.__cloak_network.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
                                                     actual_args, should_encrypt, wei_amount=wei_amount)
 
     def connect(self, address: AddressValue):
-        self.__contract_handle = self.__conn.connect(self.__project_dir, self.__contract_name, address, self.user_address)
+        self.__verifier_contract_handle = self.__blockchain.connect(self.__project_dir, self.__contract_name, address, self.user_address)
+
+    def tee_connect(self, address: AddressValue):
+        self.__private_contract_handle = self.__cloak_network.connect(self.__project_dir, self.__contract_name, address, self.user_address)
 
     def transact(self, fname: str, args: List, should_encrypt: List[bool], wei_amount: Optional[int] = None) -> Any:
-        return self.__conn.transact(self.__contract_handle, self.__user_addr, fname, args, should_encrypt, wei_amount=wei_amount)
+        """
+        Transact to the blockchain
+        """
+        return self.__blockchain.transact(self.__private_contract_handle, self.__user_addr, fname, args, should_encrypt, wei_amount=wei_amount)
+
+    def tee_transact(self, fname: str, args: List, should_encrypt: List[bool], wei_amount: Optional[int] = None) -> Any:
+        """
+        Transact to the cloak network
+        """
+        return self.__cloak_network.transact(self.__private_contract_handle, self.__user_addr, fname, args, should_encrypt, wei_amount=wei_amount)
 
     def call(self, fname: str, args: List, ret_val_constructors: List[Tuple[bool, Callable]]):
-        retvals = self.__conn.call(self.__contract_handle, self.__user_addr, fname, *args)
+        retvals = self.__blockchain.call(self.__verifier_contract_handle, self.__user_addr, fname, *args)
         if len(ret_val_constructors) == 1:
             return self.__get_decrypted_retval(retvals, *ret_val_constructors[0])
         else:
@@ -389,7 +436,7 @@ class ApiWrapper:
         return self.__current_msg, self.__current_block, self.__current_tx
 
     def update_special_variables(self, wei_amount: int):
-        self.__current_msg, self.__current_block, self.__current_tx = self.__conn.get_special_variables(self.__user_addr, wei_amount)
+        self.__current_msg, self.__current_block, self.__current_tx = self.__blockchain.get_special_variables(self.__user_addr, wei_amount)
 
     def clear_special_variables(self):
         self.__current_msg, self.__current_block, self.__current_tx = None, None, None
@@ -403,15 +450,33 @@ class ApiWrapper:
         return constr(res[0]), res[1]
 
     def _req_state_var(self, name: str, *indices, count=0) -> Any:
-        if self.__contract_handle is None:
+        if self.__verifier_contract_handle is None:
             # TODO check this statically in the type checker
             raise ValueError(f'Cannot read state variable {name} within constructor before it is assigned a value.')
 
         if count == 0:
-            val = self.__conn.req_state_var(self.__contract_handle, name, *indices)
+            val = self.__blockchain.req_state_var(self.__verifier_contract_handle, name, *indices)
         else:
-            val = [self.__conn.req_state_var(self.__contract_handle, name, *indices, i) for i in range(count)]
+            val = [self.__blockchain.req_state_var(self.__verifier_contract_handle, name, *indices, i) for i in range(count)]
         return val
+
+    def check_policy_consistency(self, params):
+        # TODO: check the correct and completeness of params according to policy in json
+        return True
+
+    def encode_private_params(self, params):
+        if not self.check_policy_consistency(params):
+            raise ValueError("Invalid transaction paramaters, please check the policy")
+        
+        # TODO: encode read and mutate of params
+        return ''
+
+    def get_encrypted_data(self, target_key: PublicKeyValue, params):
+        if not self.check_policy_consistency(params):
+            raise ValueError("Invalid transaction paramaters, please check the policy")
+        
+        # TODO: encode read and mutate of params
+        return 'this is for test'
 
     @staticmethod
     def __serialize_val(val: Any, bitwidth: int):
@@ -485,3 +550,4 @@ class ApiWrapper:
                 self.clear_special_variables()
 
             self.is_external = was_external
+

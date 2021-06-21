@@ -12,7 +12,7 @@ from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, If
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
 from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
-from cloak.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
+from cloak.policy.privacy_policy import FunctionPolicy, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
 
 
 def check_type(ast):
