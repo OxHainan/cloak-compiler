@@ -24,12 +24,14 @@ from cloak.compiler.privacy.proving_scheme.backends.gm17 import ProvingSchemeGm1
 from cloak.compiler.privacy.proving_scheme.backends.groth16 import ProvingSchemeGroth16
 from cloak.compiler.privacy.proving_scheme.proving_scheme import ProvingScheme
 from cloak.compiler.privacy.transformation.cloak_contract_transformer import transform_ast
+from cloak.compiler.privacy.transformation.private_contract_transformer import PrivateContractTransformer
 from cloak.compiler.solidity.compiler import check_compilation
 from cloak.config import cfg
 from cloak.utils.helpers import read_file, lines_of_code, without_extension
 from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
 from cloak.cloak_ast.process_ast import get_processed_ast, get_verification_contract_names
+from cloak.cloak_ast.build_ast import build_ast
 from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
@@ -128,7 +130,9 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # Write private contract file
     with print_step('Write private solidity code'):
         output_filename = 'private_contract.sol'
-        solidity_code_output = _dump_to_output(delete_cloak_annotation(code), output_dir, output_filename)
+        private_ast = build_ast(code)
+        PrivateContractTransformer(ast.privacy_policy).visit(private_ast)
+        solidity_code_output = _dump_to_output(delete_cloak_annotation(private_ast.code()), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())

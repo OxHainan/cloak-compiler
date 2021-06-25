@@ -17,7 +17,7 @@ from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTran
     TeeStatementTransformer
 from cloak.config import cfg
 from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFunctionDefinition, FunctionPrivacyType, IdentifierExpr, Mapping, TeeExpr, VariableDeclaration, \
-    AnnotatedTypeName, \
+    AnnotatedTypeName, UintTypeName, \
     StateVariableDeclaration, Identifier, ExpressionStatement, SourceUnit, ReturnStatement, AST, \
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
