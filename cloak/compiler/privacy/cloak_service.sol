@@ -130,22 +130,20 @@ contract CloakService {
     }
 
     function verify(
-        uint256[4] memory report,
+        uint256[3] memory report,
         uint256 codeHash,
         uint256 policyHash,
-        uint256 funcHash,
         uint256 oldStateHash
     ) public view onlyTEE(tx.origin) returns (bool) {
         // check tx.origin is TEE
-        if (report.length < 5) {
+        if (report.length < 3) {
             return false;
         }
 
         if (
             report[0] == codeHash &&
             report[1] == policyHash &&
-            report[2] == funcHash &&
-            report[3] == oldStateHash
+            report[2] == oldStateHash
         ) {
             return true;
         }

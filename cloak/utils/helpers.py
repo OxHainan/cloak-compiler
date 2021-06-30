@@ -1,8 +1,9 @@
 import os
 import re
 import hashlib
-from typing import Optional, List
+from typing import Optional, List, Any
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
+from cloak.cloak_ast.ast import Expression, NumberLiteralExpr, IdentifierExpr
 
 
 def save_to_file(output_directory: Optional[str], filename: str, code: str):
@@ -61,3 +62,22 @@ def lines_of_code(code: str):
     lines = code.split('\n')
     lines = [l for l in lines if not l.startswith('//')]
     return len(lines)
+
+
+def exp_m_op(op: str, *lst: List[Any]) -> Expression:
+    res = None
+    for x in lst:
+        if isinstance(x, str):
+            val = IdentifierExpr(x)
+        elif isinstance(x, Expression):
+            val = x
+        else:
+            val = NumberLiteralExpr(x)
+        if res:
+            res = res.binop(op, val)
+        else:
+            res = val
+    return res
+
+def m_plus(*lst: List[Any]) -> Expression:
+    return exp_m_op("+", *lst)

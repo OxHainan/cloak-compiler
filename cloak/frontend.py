@@ -131,7 +131,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     with print_step('Write private solidity code'):
         output_filename = 'private_contract.sol'
         private_ast = build_ast(code)
-        PrivateContractTransformer(ast.privacy_policy).visit(private_ast)
+        PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
         solidity_code_output = _dump_to_output(delete_cloak_annotation(private_ast.code()), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract

@@ -21,13 +21,14 @@ from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFuncti
     StateVariableDeclaration, Identifier, ExpressionStatement, SourceUnit, ReturnStatement, AST, \
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
-    Parameter, \
+    Parameter, ForStatement, IfStatement, \
     VariableDeclarationStatement, StatementList, CipherText, ArrayLiteralExpr, MeExpr
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.global_defs import GlobalDefs
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
+from cloak.utils.helpers import m_plus, exp_m_op
 
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
@@ -294,6 +295,10 @@ class CloakTransformer(AstTransformerVisitor):
             else:
                 c.new_constr.append(ext_f)
             c.new_fcts.append(int_f)
+
+        # append get_states and set_states
+        self.append_get_states(su, c)
+        self.append_set_states(su, c)
 
         return c
 
@@ -911,3 +916,153 @@ class CloakTransformer(AstTransformerVisitor):
                 [IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
 
         return Block(stmts)
+
+    def append_get_states(self, su: SourceUnit, c: ContractDefinition):
+        # TODO: Array
+        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
+        uint_type = AnnotatedTypeName(UintTypeName())
+        parameters = [
+                Parameter([], uint_type, Identifier("return_len"), "memory"),
+                Parameter([], uint256_array_type, Identifier("read"), "memory")]
+        returns = [Parameter([], uint256_array_type, Identifier("oldStates"), "memory")]
+        statements = [
+            ExpressionStatement(IdentifierExpr("require").call(
+                None, [IdentifierExpr("msg").dot("sender").binop("==", IdentifierExpr("tee"))])),
+            VariableDeclarationStatement(
+                VariableDeclaration([], uint256_array_type, Identifier("oldStates"), "memory"), 
+                NewExpr(uint256_array_type, [IdentifierExpr("return_len")]))
+        ]
+        os_exp = IdentifierExpr("oldStates", uint256_array_type)
+        idx = 0
+        for i in range(0, len(su.privacy_policy.policy["states"])):
+            state = su.privacy_policy.policy["states"][i]
+            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+            if state["type"].find("mapping") == -1:
+                statements.append(os_exp.index(idx).assign(NumberLiteralExpr(i)))
+                if state["owner"] != "all":
+                    statements += [
+                        os_exp.index(idx+1).assign(val_exp.index(0)),
+                        os_exp.index(idx+2).assign(val_exp.index(1)),
+                        os_exp.index(idx+3).assign(val_exp.index(2))
+                    ]
+                    idx += 4
+                else:
+                    statements.append(os_exp.index(idx+1).assign(IdentifierExpr(state["name"])))
+                    idx += 2
+
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("m_idx")), 
+                NumberLiteralExpr(0)))
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("o_idx")), 
+                NumberLiteralExpr(idx)))
+        read_exp = IdentifierExpr("read", uint256_array_type)
+        key_size_expr = read_exp.index(m_plus("m_idx", 1))
+        key_expr = read_exp.index(m_plus("m_idx", 2, "i"))
+        for state in su.privacy_policy.policy["states"]:
+            # TODO: better way to check type
+            if state["type"].find("mapping") != -1:
+                val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+                statements.append(os_exp.index(IdentifierExpr("o_idx")).assign(read_exp.index(IdentifierExpr("m_idx"))))
+                statements.append(os_exp.index(m_plus("o_idx", 1)).assign(read_exp.index(m_plus("m_idx", 1))))
+                factor = 2 if state["owner"] == "all" else 4
+                init = VariableDeclarationStatement(
+                        VariableDeclaration([], uint_type, Identifier("i")), 
+                        NumberLiteralExpr(0))
+                cond = IdentifierExpr("i").binop("<", key_size_expr)
+                update = IdentifierExpr("i").assign(m_plus("i", 1))
+                body_stmts = [os_exp.index(m_plus("o_idx", 2, exp_m_op("*", "i", factor))).assign(key_expr)]
+                if state["owner"] != "all":
+                    body_stmts += [
+                        os_exp.index(m_plus(idx, "o_idx", 3, exp_m_op("*", "i", factor))).assign(val_exp.index(0)),
+                        os_exp.index(m_plus(idx, "o_idx", 4, exp_m_op("*", "i", factor))).assign(val_exp.index(1)),
+                        os_exp.index(m_plus(idx, "o_idx", 5, exp_m_op("*", "i", factor))).assign(val_exp.index(2))
+                    ]
+                else:
+                    body_stmts.append(os_exp.index(m_plus(idx, "o_idx", 3, exp_m_op("*", "i", factor))).assign(val_exp))
+                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
+                statements += [
+                    IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, key_size_expr)),
+                    IdentifierExpr("o_idx").assign(m_plus("o_idx", 2, exp_m_op("*", key_size_expr, factor)))
+                ]
+
+        statements.pop()
+        statements.pop()
+        get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, [], returns, Block(statements))
+        c.new_fcts.append(get_states)
+
+    def append_set_states(self, su: SourceUnit, c: ContractDefinition):
+        # TODO: Array
+        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
+        uint_type = AnnotatedTypeName(UintTypeName())
+        parameters = [
+            Parameter([], uint256_array_type, Identifier("read"), "memory"),
+            Parameter([], uint256_array_type, Identifier("data"), "memory"),
+            Parameter([], AnnotatedTypeName(Array(uint_type, 3)), Identifier("proof"), "memory")
+        ]
+        statements = [
+            ExpressionStatement(IdentifierExpr("require").call(
+                None, [IdentifierExpr("msg").dot("sender").binop("==", IdentifierExpr("tee"))])),
+            VariableDeclarationStatement(
+                VariableDeclaration([], AnnotatedTypeName(UintTypeName("uint256")), Identifier("osHash")),
+                IdentifierExpr("uint256").call(
+                    None, [IdentifierExpr("keccak256").call(
+                        None, [IdentifierExpr("abi").dot("encode").call(
+                            None, [IdentifierExpr("get_states").call(
+                                None, [IdentifierExpr("read")])])])])),
+            IfStatement(
+                IdentifierExpr("CloakService_inst").dot("verify").call(None, 
+                    [IdentifierExpr("proof"), IdentifierExpr("teeCHash"), 
+                        IdentifierExpr("teePHash"), IdentifierExpr("osHash")]).unop("!"),
+                Block([ExpressionStatement(IdentifierExpr("revert").call(None, []))]),
+                None
+            )
+        ]
+        data_exp = IdentifierExpr("data", uint256_array_type)
+        idx = 0
+        for state in su.privacy_policy.policy["states"]:
+            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+            if state["type"].find("mapping") == -1:
+                if state["owner"] != "all":
+                    statements += [
+                        val_exp.index(0).assign(data_exp.index(idx+1)),
+                        val_exp.index(1).assign(data_exp.index(idx+2)),
+                        val_exp.index(2).assign(data_exp.index(idx+3))
+                    ]
+                    idx += 4
+                else:
+                    statements.append(IdentifierExpr(state["name"]).assign(data_exp.index(idx+1)))
+                    idx += 2
+
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("m_idx")), 
+                NumberLiteralExpr(idx)))
+        key_size_expr = data_exp.index(m_plus("m_idx", 1))
+        for state in su.privacy_policy.policy["states"]:
+            # TODO: better way to check type
+            if state["type"].find("mapping") != -1:
+                # TODO: fix the wrong type
+                val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint256_array_type)))
+                factor = 2 if state["owner"] == "all" else 4
+                init = VariableDeclarationStatement(
+                        VariableDeclaration([], uint_type, Identifier("i")), 
+                        NumberLiteralExpr(0))
+                cond = IdentifierExpr("i").binop("<", key_size_expr)
+                update = IdentifierExpr("i").assign(m_plus("i", 1))
+                imf_exp = exp_m_op("*", "i", factor)
+                key_expr = data_exp.index(m_plus("m_idx", 2, imf_exp))
+                if state["owner"] != "all":
+                    body_stmts = [
+                        val_exp.index(key_expr).index(0).assign(data_exp.index(m_plus("m_idx", 3, imf_exp))),
+                        val_exp.index(key_expr).index(1).assign(data_exp.index(m_plus("m_idx", 4, imf_exp))),
+                        val_exp.index(key_expr).index(2).assign(data_exp.index(m_plus("m_idx", 5, imf_exp)))
+                    ]
+                else:
+                    body_stmts = [val_exp.index(key_expr).assign(data_exp.index(m_plus("m_idx", 3, imf_exp)))]
+                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
+                statements.append(IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, exp_m_op("*", key_size_expr, factor))))
+
+        statements.pop()
+        set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, [], [], Block(statements))
+        c.new_fcts.append(set_states)
+

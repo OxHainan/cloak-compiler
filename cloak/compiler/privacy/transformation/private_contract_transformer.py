@@ -4,6 +4,7 @@ from cloak.cloak_ast import ast
 from cloak.cloak_ast.ast import *
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.policy.privacy_policy import PrivacyPolicy
+from cloak.utils.helpers import m_plus
 
 class PrivateContractTransformer(AstTransformerVisitor):
     """
@@ -50,7 +51,7 @@ class PrivateContractTransformer(AstTransformerVisitor):
                 VariableDeclaration([], UintTypeName("uint"), Identifier("m_idx")), 
                 NumberLiteralExpr(0)))
         key_size_expr = IndexExpr(IdentifierExpr("read"), IdentifierExpr("m_idx").binop("+", NumberLiteralExpr(1)))
-        key_expr = IndexExpr(IdentifierExpr("read"), self.m_plus("m_idx", 2, "i"))
+        key_expr = IndexExpr(IdentifierExpr("read"), m_plus("m_idx", 2, "i"))
         for state in self.pp.policy["states"]:
             if self.is_mamping(state["type"]):
                 init = VariableDeclarationStatement(
@@ -60,13 +61,16 @@ class PrivateContractTransformer(AstTransformerVisitor):
                 update = AssignmentStatement(IdentifierExpr("i"), IdentifierExpr("i").binop("+", NumberLiteralExpr(1)))
                 body_stmts = [
                     AssignmentStatement(
-                        IndexExpr(IdentifierExpr("oldStates"), self.m_plus(idx, "m_idx", 2, "i")),
+                        IndexExpr(IdentifierExpr("oldStates"), m_plus(idx, "m_idx", 2, "i", "i")),
+                        key_expr),
+                    AssignmentStatement(
+                        IndexExpr(IdentifierExpr("oldStates"), m_plus(idx, "m_idx", 3, "i", "i")),
                         IndexExpr(IdentifierExpr(state["name"]), key_expr))
                 ]
                 statements.append(ForStatement(init, cond, update, Block(body_stmts)))
                 statements.append(AssignmentStatement(
                     IdentifierExpr("m_idx"),
-                    self.m_plus("m_idx", 2, key_size_expr)))
+                    m_plus("m_idx", 2, key_size_expr)))
 
         statements.pop()
         get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, [], returns, Block(statements))
@@ -88,17 +92,16 @@ class PrivateContractTransformer(AstTransformerVisitor):
         statements.append(VariableDeclarationStatement(
                 VariableDeclaration([], UintTypeName("uint"), Identifier("m_idx")), 
                 NumberLiteralExpr(idx)))
-        key_size_expr = IndexExpr(IdentifierExpr("read"), self.m_plus("m_idx", 1))
-        im2_exp = IdentifierExpr("i").binop("*", NumberLiteralExpr(2))
-        key_expr = IndexExpr(IdentifierExpr("read"), self.m_plus("m_idx", 2, im2_exp))
-        val_expr = IndexExpr(IdentifierExpr("read"), self.m_plus("m_idx", 3, im2_exp))
+        key_size_expr = IndexExpr(IdentifierExpr("read"), m_plus("m_idx", 1))
+        key_expr = IndexExpr(IdentifierExpr("read"), m_plus("m_idx", 2, "i", "i"))
+        val_expr = IndexExpr(IdentifierExpr("read"), m_plus("m_idx", 3, "i", "i"))
         for state in self.pp.policy["states"]:
             if self.is_mamping(state["type"]):
                 init = VariableDeclarationStatement(
                         VariableDeclaration([], UintTypeName("uint"), Identifier("i")), 
                         NumberLiteralExpr(0))
                 cond = IdentifierExpr("i").binop("<", key_size_expr)
-                update = AssignmentStatement(IdentifierExpr("i"), self.m_plus("i", 1))
+                update = AssignmentStatement(IdentifierExpr("i"), m_plus("i", 1))
                 body_stmts = [
                     AssignmentStatement(
                         IndexExpr(IdentifierExpr(state["name"]), key_expr),
@@ -107,26 +110,11 @@ class PrivateContractTransformer(AstTransformerVisitor):
                 statements.append(ForStatement(init, cond, update, Block(body_stmts)))
                 statements.append(AssignmentStatement(
                     IdentifierExpr("m_idx"), 
-                    self.m_plus("m_idx", 2, key_size_expr.binop("*", NumberLiteralExpr(2)))))
+                    m_plus("m_idx", 2, key_size_expr.binop("*", NumberLiteralExpr(2)))))
 
         statements.pop()
         set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, [], [], Block(statements))
         c.function_definitions.append(set_states)
-
-    def m_plus(self, *lst: List[Any]) -> Expression:
-        res = None
-        for x in lst:
-            if isinstance(x, str):
-                val = IdentifierExpr(x)
-            elif isinstance(x, Expression):
-                val = x
-            else:
-                val = NumberLiteralExpr(x)
-            if res:
-                res = res.binop("+", val)
-            else:
-                res = val
-        return res
 
     def is_mamping(self, name: str) -> bool:
         return name.find("mapping") != -1
