@@ -151,6 +151,11 @@ def parse_arguments():
                                         help='Manually deploy global pki contract compatible with a particular crypto backend to a blockchain')
     add_config_args(dpki_parser, {'crypto_backend', 'blockchain_backend', 'blockchain_node_uri'})
 
+    # 'deploy-service' parser
+    ds_parser = subparsers.add_parser('deploy-service', parents=[deploy_libs_parser],
+                                        help='Manually deploy global cloak service contract')
+    add_config_args(ds_parser, {'crypto_backend', 'blockchain_backend', 'blockchain_node_uri'})
+
     # 'deploy-crypto-libs' parser
     dclibs_parser = subparsers.add_parser('deploy-crypto-libs', parents=[deploy_libs_parser],
                                           help='Manually deploy proving-scheme specific crypto libraries (if any needed) to a blockchain')
@@ -390,6 +395,8 @@ def main():
                                 print('()')
                             exit(11)
                     except Exception as e:
+                        import traceback
+                        traceback.print_exc()
                         with fail_print():
                             print(f'ERROR: failed to deploy contract\n{e}')
                             exit(12)

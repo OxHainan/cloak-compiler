@@ -16,6 +16,9 @@ class PrivateContractTransformer(AstTransformerVisitor):
         self.pp = pp
         super().__init__(log)
 
+    def visitSourceUnit(self, c: SourceUnit):
+        c.pragma_directive = "pragma solidity ^0.6.0;";
+
     def visitContractDefinition(self, c: ast.ContractDefinition):
         """
         add get_states/set_states function for tee
@@ -28,8 +31,9 @@ class PrivateContractTransformer(AstTransformerVisitor):
         # TODO: Array
         uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
         parameters = [
-                Parameter([], UintTypeName("uint"), Identifier("return_len"), "memory"),
-                Parameter([], uint256_array_type, Identifier("read"), "memory")]
+            Parameter([], uint256_array_type, Identifier("read"), "memory"),
+            Parameter([], UintTypeName("uint"), Identifier("return_len"))
+        ]
         returns = [Parameter([], uint256_array_type, Identifier("oldStates"), "memory")]
         old_states_var = VariableDeclarationStatement(
                 VariableDeclaration([], uint256_array_type, Identifier("oldStates"), "memory"), 
@@ -73,7 +77,7 @@ class PrivateContractTransformer(AstTransformerVisitor):
                     m_plus("m_idx", 2, key_size_expr)))
 
         statements.pop()
-        get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, [], returns, Block(statements))
+        get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, ["public"], returns, Block(statements))
         c.function_definitions.append(get_states)
 
     def append_set_states(self, c: ContractDefinition):
@@ -113,7 +117,7 @@ class PrivateContractTransformer(AstTransformerVisitor):
                     m_plus("m_idx", 2, key_size_expr.binop("*", NumberLiteralExpr(2)))))
 
         statements.pop()
-        set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, [], [], Block(statements))
+        set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, ["public"], [], Block(statements))
         c.function_definitions.append(set_states)
 
     def is_mamping(self, name: str) -> bool:

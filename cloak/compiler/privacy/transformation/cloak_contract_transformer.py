@@ -290,11 +290,11 @@ class CloakTransformer(AstTransformerVisitor):
         for fct, params in c.req_ext_tee_fcts.items():
             ext_f, int_f = self.split_tee_into_external_and_internal_fct(
                 fct, params, c.global_owners)
-            if ext_f.is_function:
-                c.new_fcts.append(ext_f)
-            else:
-                c.new_constr.append(ext_f)
-            c.new_fcts.append(int_f)
+            # if ext_f.is_function:
+            #     c.new_fcts.append(ext_f)
+            # else:
+            #     c.new_constr.append(ext_f)
+            # c.new_fcts.append(int_f)
 
         # append get_states and set_states
         self.append_get_states(su, c)
@@ -922,12 +922,11 @@ class CloakTransformer(AstTransformerVisitor):
         uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
         uint_type = AnnotatedTypeName(UintTypeName())
         parameters = [
-                Parameter([], uint_type, Identifier("return_len"), "memory"),
-                Parameter([], uint256_array_type, Identifier("read"), "memory")]
+            Parameter([], uint256_array_type, Identifier("read"), "memory"),
+            Parameter([], uint_type, Identifier("return_len"))
+        ]
         returns = [Parameter([], uint256_array_type, Identifier("oldStates"), "memory")]
         statements = [
-            ExpressionStatement(IdentifierExpr("require").call(
-                None, [IdentifierExpr("msg").dot("sender").binop("==", IdentifierExpr("tee"))])),
             VariableDeclarationStatement(
                 VariableDeclaration([], uint256_array_type, Identifier("oldStates"), "memory"), 
                 NewExpr(uint256_array_type, [IdentifierExpr("return_len")]))
@@ -988,7 +987,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         statements.pop()
         statements.pop()
-        get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, [], returns, Block(statements))
+        get_states = ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, ["public"], returns, Block(statements))
         c.new_fcts.append(get_states)
 
     def append_set_states(self, su: SourceUnit, c: ContractDefinition):
@@ -997,6 +996,7 @@ class CloakTransformer(AstTransformerVisitor):
         uint_type = AnnotatedTypeName(UintTypeName())
         parameters = [
             Parameter([], uint256_array_type, Identifier("read"), "memory"),
+            Parameter([], uint_type, Identifier("old_states_len")),
             Parameter([], uint256_array_type, Identifier("data"), "memory"),
             Parameter([], AnnotatedTypeName(Array(uint_type, 3)), Identifier("proof"), "memory")
         ]
@@ -1009,7 +1009,7 @@ class CloakTransformer(AstTransformerVisitor):
                     None, [IdentifierExpr("keccak256").call(
                         None, [IdentifierExpr("abi").dot("encode").call(
                             None, [IdentifierExpr("get_states").call(
-                                None, [IdentifierExpr("read")])])])])),
+                                None, [IdentifierExpr("read"), IdentifierExpr("old_states_len")])])])])),
             IfStatement(
                 IdentifierExpr("CloakService_inst").dot("verify").call(None, 
                     [IdentifierExpr("proof"), IdentifierExpr("teeCHash"), 
@@ -1063,6 +1063,6 @@ class CloakTransformer(AstTransformerVisitor):
                 statements.append(IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, exp_m_op("*", key_size_expr, factor))))
 
         statements.pop()
-        set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, [], [], Block(statements))
+        set_states = ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, ["public"], [], Block(statements))
         c.new_fcts.append(set_states)
 

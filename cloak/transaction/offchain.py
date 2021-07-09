@@ -399,8 +399,8 @@ class ApiWrapper:
     def deploy(self, actual_args: List, should_encrypt: List[bool], wei_amount: Optional[int] = None):
         self.__verifier_contract_handle = self.__blockchain.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
                                                     actual_args, should_encrypt, wei_amount=wei_amount)
-        self.__private_contract_handle = self.__cloak_network.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
-                                                    actual_args, should_encrypt, wei_amount=wei_amount)
+        # self.__private_contract_handle = self.__cloak_network.deploy(self.__project_dir, self.__user_addr, self.__contract_name,
+        #                                             actual_args, should_encrypt, wei_amount=wei_amount)
 
     def connect(self, address: AddressValue):
         self.__verifier_contract_handle = self.__blockchain.connect(self.__project_dir, self.__contract_name, address, self.user_address)

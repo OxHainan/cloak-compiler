@@ -18,6 +18,7 @@ def set_type(ast):
     fv.visit(ast)
 
 def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType, actual_type=None, expect_type=None, ast=None):
+    privacy_type = FunctionPrivacyType.MPC
     if FunctionTypeVisitor.is_prior_to(privacy_type, _func.privacy_type):
         _func.privacy_type = privacy_type
         if privacy_type == FunctionPrivacyType.PUB:

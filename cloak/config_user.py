@@ -188,7 +188,7 @@ class UserConfig:
     @blockchain_service_address.setter
     def blockchain_service_address(self, val: str):
         _type_check(val, str)
-        self.blockchain_service_address = val
+        self._blockchain_service_address = val
 
     @property
     def blockchain_crypto_lib_addresses(self) -> str:

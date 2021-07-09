@@ -53,9 +53,13 @@ def get_pki_contract() -> str:
             hasAnnounced[msg.sender] = true;
         }}
 
-        function getPk(address a) public view returns(uint[{cfg.key_len}] memory) {{
-            require(hasAnnounced[a]);
-            return pks[a];
+        function getPk(address[] memory addrs) public view returns(uint[{cfg.key_len}][] memory) {{
+            uint[{cfg.key_len}][] memory res = new uint[{cfg.key_len}][](addrs.length);
+            for (uint i = 0; i < addrs.length; i++) {{
+                require(hasAnnounced[addrs[i]]);
+                res[i] = pks[addrs[i]];
+            }}
+            return res;
         }}
     }}
     ''')

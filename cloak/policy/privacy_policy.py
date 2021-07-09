@@ -180,6 +180,10 @@ class PrivacyPolicy(json.JSONEncoder):
 
         return top_idx, target_idx, map_key
 
+    def sort_states(self):
+        self.policy["states"].sort(key=lambda x: x["type"].find("mapping"))
+
+
 if __name__ == "__main__":
     pp = PrivacyPolicy("newContract")
     print(json.dumps(pp, cls=PrivacyPolicyEncoder))

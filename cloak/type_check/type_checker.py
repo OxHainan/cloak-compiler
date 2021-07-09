@@ -24,6 +24,7 @@ def check_type(ast):
     # generate privacy policy
     ptv = PrivacyTypeVisitor()
     ptv.visit(ast)
+    ast.privacy_policy.sort_states()
 
 class TypeCheckVisitor(AstVisitor):
 

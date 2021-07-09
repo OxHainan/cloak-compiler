@@ -175,8 +175,8 @@ class Web3Blockchain(CloakBlockchainInterface):
             with tempfile.TemporaryDirectory() as tmpdir:
                 pki_sol = save_to_file(tmpdir, f'{cfg.pki_contract_name}.sol', library_contracts.get_pki_contract())
                 self._pki_contract = self._verify_contract_integrity(cfg.blockchain_pki_address, pki_sol, contract_name=cfg.pki_contract_name)
-                # service_sol = save_to_file(tmpdir, f'{cfg.service_contract_name}.sol', library_contracts.get_service_contract())
-                # self._service_contract = self._verify_contract_integrity(cfg.blockchain_service_address, service_sol, contract_name=cfg.service_contract_name)
+                service_sol = save_to_file(tmpdir, f'{cfg.service_contract_name}.sol', library_contracts.get_service_contract())
+                self._service_contract = self._verify_contract_integrity(cfg.blockchain_service_address, service_sol, contract_name=cfg.service_contract_name)
 
                 verify_sol = save_to_file(tmpdir, 'verify_libs.sol', library_contracts.get_verify_libs_code())
                 self._lib_addresses = {}
