@@ -130,7 +130,7 @@ contract CloakService {
     }
 
     function verify(
-        uint256[3] memory report,
+        uint256[] memory report,
         uint256 codeHash,
         uint256 policyHash,
         uint256 oldStateHash

@@ -40,23 +40,18 @@ def get_pki_contract() -> str:
     pragma solidity {cfg.cloak_solc_version_compatibility.expression};
 
     contract {cfg.pki_contract_name} {{
-        mapping(address => uint[{cfg.key_len}]) pks;
+        mapping(address => string) pks;
         mapping(address => bool) hasAnnounced;
 
-        function announcePk(uint[{cfg.key_len}] calldata pk) external {{
-            bool all_zero = true;
-            for (uint i = 0; i < {cfg.key_len}; ++i) {{
-                all_zero = all_zero && (pk[i] == 0);
-            }}
-            require(!all_zero, "ERROR: 0 is not a valid public key.");
+        function announcePk(string calldata pk) external {{
             pks[msg.sender] = pk;
             hasAnnounced[msg.sender] = true;
         }}
 
-        function getPk(address[] memory addrs) public view returns(uint[{cfg.key_len}][] memory) {{
-            uint[{cfg.key_len}][] memory res = new uint[{cfg.key_len}][](addrs.length);
+        function getPk(address[] memory addrs) public view returns(string[] memory) {{
+            string[] memory res = new string[](addrs.length);
             for (uint i = 0; i < addrs.length; i++) {{
-                require(hasAnnounced[addrs[i]]);
+                require(hasAnnounced[addrs[i]], string(abi.encode(addrs[i])));
                 res[i] = pks[addrs[i]];
             }}
             return res;

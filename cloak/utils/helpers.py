@@ -3,7 +3,8 @@ import re
 import hashlib
 from typing import Optional, List, Any
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
-from cloak.cloak_ast.ast import Expression, NumberLiteralExpr, IdentifierExpr
+from cloak.cloak_ast.ast import Expression, NumberLiteralExpr, IdentifierExpr, PrimitiveCastExpr, \
+        AddressTypeName, UintTypeName, ContractDefinition, TypeName
 
 
 def save_to_file(output_directory: Optional[str], filename: str, code: str):
@@ -81,3 +82,16 @@ def exp_m_op(op: str, *lst: List[Any]) -> Expression:
 
 def m_plus(*lst: List[Any]) -> Expression:
     return exp_m_op("+", *lst)
+
+def to_uint(expr: Expression, source_type: TypeName) -> PrimitiveCastExpr:
+    if source_type.is_address():
+        return PrimitiveCastExpr(UintTypeName(), PrimitiveCastExpr(UintTypeName("uint160"), expr))
+    else:
+        return PrimitiveCastExpr(UintTypeName(), expr)
+
+def uint_to(expr: Expression, target_type: TypeName) -> Expression:
+    if target_type.is_address():
+        return PrimitiveCastExpr(AddressTypeName(), PrimitiveCastExpr(UintTypeName("uint160"), expr))
+    else:
+        return expr
+

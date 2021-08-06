@@ -384,15 +384,15 @@ class TypeCheckVisitor(AstVisitor):
         else:
             raise TypeException('Indexing into non-mapping', ast)
 
-    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        for t in ast.parameter_types:
-            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-                raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
+    # def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+    #     for t in ast.parameter_types:
+    #         if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+    #             raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
 
-        if ast.can_be_external:
-            for t in ast.return_type:
-                if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-                    raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
+    #     if ast.can_be_external:
+    #         for t in ast.return_type:
+    #             if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+    #                 raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
 
     def visitEnumDefinition(self, ast: EnumDefinition):
         ast.annotated_type = AnnotatedTypeName(EnumTypeName(ast.qualified_name).override(target=ast))

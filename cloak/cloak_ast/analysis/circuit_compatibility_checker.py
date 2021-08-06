@@ -146,7 +146,7 @@ class CircuitComplianceChecker(FunctionVisitor):
 
     def visitIfStatement(self, ast: IfStatement):
         old_in_privif_stmt = self.inside_privif_stmt
-        if ast.statement.function.is_zkp():
+        if ast.function.is_zkp():
             if ast.condition.annotated_type.is_private():
                 mod_vals = set(ast.then_branch.modified_values.keys())
                 if ast.else_branch is not None:

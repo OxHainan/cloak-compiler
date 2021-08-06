@@ -141,9 +141,13 @@ class PrivacyPolicy(json.JSONEncoder):
             n_elem["name"] = var.idf.name
         n_elem["type"] = type_pure.delete_cloak_annotation(
             self.__ppv.visit(var.annotated_type.type_name))
+        # n_elem["structural_type"] = var.annotated_type.type_name
         # TODO: renqian - handle array
         if isinstance(var.annotated_type.type_name, ast.Mapping):
-            n_elem["owner"] = self.__ppv.visit(var.annotated_type.type_name)
+            if var.annotated_type.type_name.key_label:
+                n_elem["owner"] = self.__ppv.visit(var.annotated_type.type_name)
+            else:
+                n_elem["owner"] = "all"
         elif isinstance(var.annotated_type.type_name, ast.Array):
             n_elem["owner"] = self.__ppv.visit(var.annotated_type)
         else:

@@ -132,8 +132,12 @@ class TeeStatementTransformer(AstTransformerVisitor):
                     )
             new_stmts += new_read_stmts + new_assign_stmts
         else:
-            target_idx = IdentifierExpr(var.idf.clone(), var.annotated_type)
-            read_prim_args = self.get_type_transform_stmt(target_idx.idf,
+            if isinstance(var, StateVariableDeclaration):
+                target_idx = IdentifierExpr(var.idf.clone(), var.annotated_type)
+            else:
+                target_idx = var
+            # target_idx = IdentifierExpr(var.idf.clone(), var.annotated_type)
+            read_prim_args = self.get_type_transform_stmt(target_idx,
                                                            var.annotated_type.type_name,
                                                            old_state_arr_idx.annotated_type.type_name.get_type())
             

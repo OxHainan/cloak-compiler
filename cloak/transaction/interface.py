@@ -487,10 +487,10 @@ class ZkayKeystoreInterface(metaclass=ABCMeta):
         """
         self.local_key_pairs[address] = key_pair
         # Announce if not yet in pki
-        try:
-            self.conn.req_public_key(address)
-        except BlockChainError:
-            self.conn.announce_public_key(address, key_pair.pk)
+        # try:
+        #     self.conn.req_public_key(address)
+        # except BlockChainError:
+        #     self.conn.announce_public_key(address, key_pair.pk)
 
     def has_initialized_keys_for(self, address: AddressValue) -> bool:
         """Return true if keys for address are already in the store."""

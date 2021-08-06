@@ -105,6 +105,15 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     with print_step("Generate privacy policy"):
         _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')
 
+    # Write private contract file
+    with print_step('Write private solidity code'):
+        output_filename = 'private_contract.sol'
+        private_ast = build_ast(code)
+        PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
+        # for code Hash
+        cloak_ast.private_contract_code = delete_cloak_annotation(private_ast.code())
+        solidity_code_output = _dump_to_output(cloak_ast.private_contract_code, output_dir, output_filename)
+
     # Contract transformation
     with print_step("Transforming cloak contract"):
         ast, circuits = transform_ast(deepcopy(cloak_ast))
@@ -126,13 +135,6 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     with print_step('Write public solidity code'):
         output_filename = 'public_contract.sol'
         solidity_code_output = _dump_to_output(to_solidity(ast), output_dir, output_filename)
-
-    # Write private contract file
-    with print_step('Write private solidity code'):
-        output_filename = 'private_contract.sol'
-        private_ast = build_ast(code)
-        PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
-        solidity_code_output = _dump_to_output(delete_cloak_annotation(private_ast.code()), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())
