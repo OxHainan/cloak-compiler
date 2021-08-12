@@ -3,7 +3,7 @@ version: 2.1
 # Use a package of configuration called an orb.
 jobs:
   build:
-      - image: plytools/circleci-cloak-tee:v0.2.0
+      - image: plytools/circleci-compiler:v0.2.0
     working_directory: ~/compiler
     steps:
       - setup_remote_docker:
