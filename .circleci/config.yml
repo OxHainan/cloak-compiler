@@ -3,11 +3,10 @@ version: 2.1
 # Use a package of configuration called an orb.
 jobs:
   build:
-      - image: plytools/circleci-cloak-tee:v0.2.0
+    docker:
+      - image: plytools/circleci-compiler:v0.2.0
     working_directory: ~/compiler
     steps:
-      - setup_remote_docker:
-          docker_layer_caching: true
       - checkout
       - run:
           name: Install Development 
@@ -15,4 +14,3 @@ jobs:
       - run:
           name: Compiler Test
           command: python3 -m unittest discover --verbose cloak
-
