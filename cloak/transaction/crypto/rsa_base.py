@@ -5,7 +5,7 @@ from abc import ABCMeta
 from Crypto.PublicKey import RSA
 
 from cloak.config import cfg
-from cloak.transaction.interface import PrivateKeyValue, PublicKeyValue, KeyPair, ZkayBlockchainInterface
+from cloak.transaction.interface import PrivateKeyValue, PublicKeyValue, KeyPair, CloakBlockchainInterface
 from cloak.transaction.interface import ZkayCryptoInterface
 
 

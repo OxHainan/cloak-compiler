@@ -173,7 +173,7 @@ class BuildASTVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#NumberLiteralExpr.
     def visitNumberLiteralExpr(self, ctx: SolidityParser.NumberLiteralExprContext):
         v = int(ctx.getText().replace('_', ''), 0)
-        return NumberLiteralExpr(v, ctx.getText().startswith(('0x', '0X')))
+        return NumberLiteralExpr(v, ctx.getText().startswith(('0x', '0X')), ctx.getText())
 
     # Visit a parse tree produced by SolidityParser#BooleanLiteralExpr.
     def visitBooleanLiteralExpr(self, ctx: SolidityParser.BooleanLiteralExprContext):

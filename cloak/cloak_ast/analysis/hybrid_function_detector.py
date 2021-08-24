@@ -47,7 +47,7 @@ class DirectHybridFunctionDetectionVisitor(FunctionVisitor):
         self.visit(ast.body)
 
         if ast.can_be_external:
-            if ast.requires_verification:
+            if ast.is_zkp() or ast.is_tee():
                 ast.requires_verification_when_external = True
             else:
                 for param in ast.parameters:
@@ -62,7 +62,6 @@ class IndirectHybridFunctionDetectionVisitor(FunctionVisitor):
             for fct in ast.called_functions:
                 if not fct.is_pub():
                     update_function_privacy_type(ast, fct.privacy_type)
-                    # renqian TODO: adapt requires_verification_when_external to TEE
                     if ast.can_be_external:
                         ast.requires_verification_when_external = True
                     if ast.is_tee():

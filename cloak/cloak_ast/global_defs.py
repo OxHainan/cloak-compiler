@@ -1,6 +1,7 @@
 # BUILTIN SPECIAL TYPE DEFINITIONS
 from cloak.cloak_ast.ast import AnnotatedTypeName, AssignmentStatement, FunctionTypeName, IdentifierDeclaration, Parameter, Identifier, RequireStatement, StructDefinition, \
-    VariableDeclaration, TypeName, StateVariableDeclaration, IdentifierExpr, StructTypeName, Block, ConstructorOrFunctionDefinition
+    VariableDeclaration, TypeName, StateVariableDeclaration, IdentifierExpr, StructTypeName, Block, ConstructorOrFunctionDefinition, \
+    Array, UintTypeName, ElementaryTypeName
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.config import cfg
 array_length_member = VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('length'))
@@ -107,6 +108,48 @@ class GlobalDefs:
     )
     set_parents(tx_struct)
 
+    # TODO: add other functions and add variable length parameters
+    abi_struct: StructDefinition = StructDefinition(
+        Identifier('<abi>'), [
+            ConstructorOrFunctionDefinition(
+                Identifier('encode'),
+                [Parameter([], AnnotatedTypeName(Array(AnnotatedTypeName(UintTypeName()))), Identifier("dummy"))],
+                ['public'],
+                [Parameter([], AnnotatedTypeName(ElementaryTypeName("bytes32")), Identifier('dummy'))],
+                Block([])
+            ),
+        ]
+    )
+    set_parents(abi_struct)
+
+    keccak256: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('keccak256'),
+        parameters=[Parameter([], AnnotatedTypeName(ElementaryTypeName("bytes")), idf=Identifier('dummy'))],
+        modifiers=['public'],
+        return_parameters=[Parameter([], AnnotatedTypeName(ElementaryTypeName("bytes32")), idf=Identifier('dummy'))],
+        body=Block([])
+    )
+    keccak256.idf.parent = keccak256
+
+    # TODO: add revert function that has parameter
+    revert: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('revert'),
+        parameters=[],
+        modifiers=['public'],
+        return_parameters=[],
+        body=Block([])
+    )
+    revert.idf.parent = revert
+
+    require: ConstructorOrFunctionDefinition = ConstructorOrFunctionDefinition(
+        idf=Identifier('require'),
+        parameters=[Parameter([], AnnotatedTypeName(TypeName.bool_type()), idf=Identifier('condition'))],
+        modifiers=['public'],
+        return_parameters=[],
+        body=Block([])
+    )
+    require.idf.parent = require
+
 
 class GlobalVars:
     msg: StateVariableDeclaration = StateVariableDeclaration(
@@ -132,3 +175,9 @@ class GlobalVars:
         Identifier('now'), None
     )
     now.idf.parent = now
+
+    abi: StateVariableDeclaration = StateVariableDeclaration(
+        AnnotatedTypeName.all(StructTypeName([GlobalDefs.abi_struct.idf], GlobalDefs.abi_struct)), [],
+        Identifier('abi'), None
+    )
+    abi.idf.parent = abi

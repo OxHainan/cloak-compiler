@@ -1,6 +1,6 @@
 from typing import Tuple, Dict, Union
 
-from cloak.cloak_ast.ast import AST, SourceUnit, ContractDefinition, VariableDeclaration, \
+from cloak.cloak_ast.ast import AST, FunctionCallExpr, SourceUnit, ContractDefinition, VariableDeclaration, \
     SimpleStatement, IdentifierExpr, Block, Mapping, Identifier, Comment, MemberAccessExpr, IndexExpr, LocationExpr, \
     StructDefinition, UserDefinedTypeName, StatementList, Array, ConstructorOrFunctionDefinition, EnumDefinition, \
     EnumValue, NamespaceDefinition, TargetDefinition, VariableDeclarationStatement, ForStatement, IdentifierDeclaration

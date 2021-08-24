@@ -7,6 +7,13 @@ from textwrap import dedent
 from cloak.config import cfg
 from cloak.utils.helpers import read_file
 
+def get_service_contract() -> str:
+    """Return all verification contract libraries combined into single string"""
+    code = ''
+    code += read_file(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cloak_service.sol'))
+            
+    return f'pragma solidity {cfg.cloak_solc_version_compatibility.expression};\n\n{code}'
+
 
 def get_verify_libs_code() -> str:
     """Return all verification contract libraries combined into single string"""
@@ -33,22 +40,21 @@ def get_pki_contract() -> str:
     pragma solidity {cfg.cloak_solc_version_compatibility.expression};
 
     contract {cfg.pki_contract_name} {{
-        mapping(address => uint[{cfg.key_len}]) pks;
+        mapping(address => string) pks;
         mapping(address => bool) hasAnnounced;
 
-        function announcePk(uint[{cfg.key_len}] calldata pk) external {{
-            bool all_zero = true;
-            for (uint i = 0; i < {cfg.key_len}; ++i) {{
-                all_zero = all_zero && (pk[i] == 0);
-            }}
-            require(!all_zero, "ERROR: 0 is not a valid public key.");
+        function announcePk(string calldata pk) external {{
             pks[msg.sender] = pk;
             hasAnnounced[msg.sender] = true;
         }}
 
-        function getPk(address a) public view returns(uint[{cfg.key_len}] memory) {{
-            require(hasAnnounced[a]);
-            return pks[a];
+        function getPk(address[] memory addrs) public view returns(string[] memory) {{
+            string[] memory res = new string[](addrs.length);
+            for (uint i = 0; i < addrs.length; i++) {{
+                require(hasAnnounced[addrs[i]], string(abi.encode(addrs[i])));
+                res[i] = pks[addrs[i]];
+            }}
+            return res;
         }}
     }}
     ''')

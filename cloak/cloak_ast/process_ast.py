@@ -40,6 +40,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
                 check_for_cloak_solc_errors(code, fake_code)
             except SolcException as e:
                 raise CloakCompilerError(f'{e}')
+    ast.cloak_source = code
     return ast, fake_code
 
 
@@ -95,6 +96,6 @@ def get_verification_contract_names(code_or_ast) -> List[str]:
     vc_names = []
     for contract in ast.contracts:
         cname = contract.idf.name
-        fcts = [fct for fct in contract.function_definitions + contract.constructor_definitions if fct.requires_verification_when_external and fct.has_side_effects]
+        fcts = [fct for fct in contract.function_definitions + contract.constructor_definitions if fct.is_zkp() and fct.requires_verification_when_external and fct.has_side_effects]
         vc_names += [cfg.get_zk_verification_contract_name(cname, fct.name) for fct in fcts]
     return vc_names

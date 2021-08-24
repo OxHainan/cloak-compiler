@@ -18,6 +18,7 @@ def set_type(ast):
     fv.visit(ast)
 
 def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy_type: FunctionPrivacyType, actual_type=None, expect_type=None, ast=None):
+    privacy_type = FunctionPrivacyType.MPC
     if FunctionTypeVisitor.is_prior_to(privacy_type, _func.privacy_type):
         _func.privacy_type = privacy_type
         if privacy_type == FunctionPrivacyType.PUB:
@@ -25,25 +26,25 @@ def update_function_privacy_type(_func: ConstructorOrFunctionDefinition, privacy
         elif privacy_type == FunctionPrivacyType.ZKP:
             if actual_type and expect_type:
                 print(
-                    f'function {_func.name} is setted to \'ZKP\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {ast}')
+                    f'function {_func.name} is setted to \'CT\', because actual {str(actual_type)} is a instance of expected {str(expect_type)} in statement: {ast}')
             else:
-                print(f'function {_func.name} is setted to \'ZKP\'')
+                print(f'function {_func.name} is setted to \'CT\'')
         elif privacy_type == FunctionPrivacyType.TEE:
             _func.get_related_contract().is_tee_related = True
             if actual_type and ast:
                 print(
-                    f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is a instance of Tee in statement: {ast}')
+                    f'function {_func.name} is setted to \'MPT\', because actual {str(actual_type)} is a instance of Tee in statement: {ast}')
             else:
-                print(f'function {_func.name} is setted to \'TEE\'')
+                print(f'function {_func.name} is setted to \'MPT\'')
         elif privacy_type == FunctionPrivacyType.MPC:
             # renqian TODO: temperoly replace MPC with TEE, restore it in the future.
             # print(f'function {_func.name} is setted to \'MPC\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}')
             _func.privacy_type = FunctionPrivacyType.TEE
             _func.get_related_contract().is_tee_related = True
             if actual_type and expect_type and ast:
-                print(f'function {_func.name} is setted to \'TEE\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}, thus being marked as MPT')
+                print(f'function {_func.name} is setted to \'MPT\', because actual {str(actual_type)} is incompatibale with expected {str(expect_type)} in statement: {ast}, thus being marked as MPT')
             else:
-                print(f'function {_func.name} is setted to \'TEE\'')
+                print(f'function {_func.name} is setted to \'MPT\'')
         else:
             TypeException(
                 f"Unknown function privacy type: {privacy_type}")

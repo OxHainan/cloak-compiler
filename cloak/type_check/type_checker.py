@@ -12,7 +12,7 @@ from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, If
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
 from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
-from cloak.type_check.privacy_policy import FunctionPolicy, PrivacyPolicyEncoder, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
+from cloak.policy.privacy_policy import FunctionPolicy, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
 
 
 def check_type(ast):
@@ -24,6 +24,7 @@ def check_type(ast):
     # generate privacy policy
     ptv = PrivacyTypeVisitor()
     ptv.visit(ast)
+    ast.privacy_policy.sort_states()
 
 class TypeCheckVisitor(AstVisitor):
 
@@ -383,15 +384,15 @@ class TypeCheckVisitor(AstVisitor):
         else:
             raise TypeException('Indexing into non-mapping', ast)
 
-    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        for t in ast.parameter_types:
-            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-                raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
+    # def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+    #     for t in ast.parameter_types:
+    #         if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+    #             raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
 
-        if ast.can_be_external:
-            for t in ast.return_type:
-                if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-                    raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
+    #     if ast.can_be_external:
+    #         for t in ast.return_type:
+    #             if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+    #                 raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
 
     def visitEnumDefinition(self, ast: EnumDefinition):
         ast.annotated_type = AnnotatedTypeName(EnumTypeName(ast.qualified_name).override(target=ast))

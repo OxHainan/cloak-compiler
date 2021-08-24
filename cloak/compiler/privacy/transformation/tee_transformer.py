@@ -14,13 +14,10 @@ from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
 from cloak.config import cfg
 from cloak.cloak_ast.analysis.contains_private_checker import contains_private_expr
-from cloak.cloak_ast.ast import CipherText, ExpressionStatement, ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
-    IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, \
-    VariableDeclarationStatement, ReturnStatement, LocationExpr, AST, Array, AssignmentStatement, Block, \
-    Comment, LiteralExpr, Statement, SimpleStatement, IndexExpr, FunctionCallExpr, BuiltinFunction, TupleExpr, \
-    NumberLiteralExpr, \
-    MemberAccessExpr, WhileStatement, BreakStatement, ContinueStatement, ForStatement, DoWhileStatement, \
-    TypeName
+from cloak.cloak_ast.ast import CipherText, ExpressionStatement, Identifier, ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
+    IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, TypeName, \
+    RequireStatement, Array, AssignmentStatement, Block, Comment, LiteralExpr, IndexExpr, FunctionCallExpr, BuiltinFunction, TupleExpr, \
+    NumberLiteralExpr, MemberAccessExpr, WhileStatement, BreakStatement, ContinueStatement, ForStatement, DoWhileStatement
 from cloak.cloak_ast.visitor.deep_copy import replace_expr
 
 
@@ -92,11 +89,14 @@ class TeeStatementTransformer(AstTransformerVisitor):
 
         return origin_expr
 
-    def read_and_mutate_value(self, var, is_cipher=False, is_mutate=False, mutate_index=None):
+    def read_and_mutate_value(self, var, old_state_index, is_cipher=False, is_mutate=False, mutate_index=None, is_map=False):
         old_state_arr_idx = IdentifierExpr(f'{cfg.tee_old_state_name}').as_type(
             Array(AnnotatedTypeName.uint_all()))
         mutate_arr_idx = IdentifierExpr(f'{cfg.tee_mutate_name}').as_type(
             Array(AnnotatedTypeName.uint_all()))
+        v_simple_idx = IdentifierExpr('i').as_type(
+            AnnotatedTypeName(TypeName.uint_type()))
+        old_state_start_idx = IdentifierExpr(f'{cfg.tee_old_state_name}_start_idx')
 
         new_stmts = []
 
@@ -106,18 +106,23 @@ class TeeStatementTransformer(AstTransformerVisitor):
 
         if is_cipher:
             if isinstance(var, StateVariableDeclaration):
-                idx = IdentifierExpr(var.idf).as_type(Array(
+                idx = IdentifierExpr(var.idf.clone()).as_type(Array(
                     AnnotatedTypeName.uint_all(), NumberLiteralExpr(3)))
             else:
                 idx = var
             new_read_stmts, new_assign_stmts = [], []
             for i in range(cfg.cipher_len):
                 target_idx = idx.index(NumberLiteralExpr(i))
-                read_prim_args = [self.get_type_transform_stmt(target_idx,
-                                                               var.annotated_type.type_name,
-                                                               old_state_arr_idx.annotated_type.type_name.get_type())]
-                # new_read_stmts.append(ExpressionStatement(
-                #     old_state_arr_idx.call('push', read_prim_args)))
+                read_prim_args = self.get_type_transform_stmt(target_idx,
+                                                              var.annotated_type.type_name,
+                                                              old_state_arr_idx.annotated_type.type_name.get_type())
+                if not is_map:
+                    new_read_stmts.append(AssignmentStatement(old_state_arr_idx.index(
+                        NumberLiteralExpr(old_state_index).binop('+', NumberLiteralExpr(i))), read_prim_args))
+                else:
+                    new_read_stmts.append(AssignmentStatement(old_state_arr_idx.index(
+                        old_state_start_idx.binop("+", v_simple_idx.binop("*", NumberLiteralExpr(cfg.cipher_len))).binop('+', NumberLiteralExpr(i))), read_prim_args))
+                
                 if is_mutate:
                     new_assign_stmts.append(AssignmentStatement(
                         target_idx,
@@ -127,12 +132,22 @@ class TeeStatementTransformer(AstTransformerVisitor):
                     )
             new_stmts += new_read_stmts + new_assign_stmts
         else:
-            target_idx = IdentifierExpr(var.idf, var.annotated_type)
-            read_prim_args = [self.get_type_transform_stmt(target_idx.idf,
+            if isinstance(var, StateVariableDeclaration):
+                target_idx = IdentifierExpr(var.idf.clone(), var.annotated_type)
+            else:
+                target_idx = var
+            # target_idx = IdentifierExpr(var.idf.clone(), var.annotated_type)
+            read_prim_args = self.get_type_transform_stmt(target_idx,
                                                            var.annotated_type.type_name,
-                                                           old_state_arr_idx.annotated_type.type_name.get_type())]
-            # new_stmts.append(ExpressionStatement(
-            #     old_state_arr_idx.call('push', read_prim_args)))
+                                                           old_state_arr_idx.annotated_type.type_name.get_type())
+            
+            if not is_map:
+                new_stmts.append(AssignmentStatement(old_state_arr_idx.index(
+                    NumberLiteralExpr(old_state_index)), read_prim_args))
+            else:
+                new_stmts.append(AssignmentStatement(old_state_arr_idx.index(
+                    old_state_start_idx.binop("+", v_simple_idx).binop('+', NumberLiteralExpr(i))), read_prim_args))
+            
             if is_mutate:
                 new_stmts.append(AssignmentStatement(
                     target_idx,
@@ -140,7 +155,7 @@ class TeeStatementTransformer(AstTransformerVisitor):
                 )
         return new_stmts
 
-    def read_and_mutate_map(self, map: Union(Mapping, Array), is_mutate=False):
+    def read_and_mutate_map(self, map: Union(Mapping, Array), old_state_index, is_mutate=False):
         v_simple_idx = IdentifierExpr('i').as_type(
             AnnotatedTypeName(TypeName.uint_type()))
         v_simple_stmt = v_simple_idx.idf.decl_var(
@@ -149,25 +164,29 @@ class TeeStatementTransformer(AstTransformerVisitor):
         read_start_idx = IdentifierExpr(f'{cfg.tee_read_name}_start_idx')
         read_arr_idx = IdentifierExpr(f'{cfg.tee_read_name}').as_type(
             Array(AnnotatedTypeName.uint_all()))
-        v_update_expr = AssignmentStatement(
-            v_simple_idx, v_simple_idx.binop('+', NumberLiteralExpr(1)))
+        mutate_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx')
+        mutate_arr_idx = IdentifierExpr(f'{cfg.tee_mutate_name}').as_type(
+            Array(AnnotatedTypeName.uint_all()))
+        old_state_start_idx = IdentifierExpr(f'{cfg.tee_old_state_name}_start_idx')
 
         map_depth = map.annotated_type.type_name.get_map_depth()
-        target_map_idx = IdentifierExpr(map.idf, map.annotated_type)
+        target_map_idx = IdentifierExpr(map.idf.clone(), map.annotated_type)
         if is_mutate:
             key_arr = IdentifierExpr(f'{cfg.tee_mutate_name}').as_type(
                 Array(AnnotatedTypeName.uint_all()))
+            key_index_arr = mutate_start_idx
         else:
             key_arr = IdentifierExpr(f'{cfg.tee_read_name}').as_type(
                 Array(AnnotatedTypeName.uint_all()))
+            key_index_arr = read_start_idx
 
         n_target_type = map.annotated_type.type_name
         for i in range(map_depth):
             target_map_idx = target_map_idx.index(
                 self.get_type_transform_stmt(
-                    key_arr.index(read_start_idx.binop(
+                    key_arr.index(key_index_arr.binop(
                         '+', NumberLiteralExpr(i+1)).binop('+', v_simple_idx)) if map_depth == 1
-                    else key_arr.index(read_start_idx.binop(
+                    else key_arr.index(key_index_arr.binop(
                         '+', NumberLiteralExpr(i+1)).binop('+', v_simple_idx.binop('*', NumberLiteralExpr(map_depth+(1 if is_mutate else 0))))),
                     key_arr.annotated_type.type_name.get_type(),
                     n_target_type.key_type
@@ -176,47 +195,48 @@ class TeeStatementTransformer(AstTransformerVisitor):
             if i+1 < map_depth:
                 n_target_type = n_target_type.value_type.type_name
 
-        mutate_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx')
-        mutate_arr_idx = IdentifierExpr(f'{cfg.tee_mutate_name}').as_type(
-            Array(AnnotatedTypeName.uint_all()))
-
         new_body_stmts = []
         if is_mutate:
             v_cond_expr = v_simple_idx.binop(
                 '<', mutate_arr_idx.index(mutate_start_idx))
 
             if map.annotated_type.type_name.get_type().is_primitive_type():
-                new_body_stmts += self.read_and_mutate_value(target_map_idx, False, True,
+                new_body_stmts += self.read_and_mutate_value(target_map_idx, old_state_index, False, True,
                                                              mutate_start_idx.binop('+', NumberLiteralExpr(
-                                                                 map_depth)).binop('+', v_simple_idx.binop('*', NumberLiteralExpr(map_depth+1))))
-
+                                                                 map_depth)).binop('+', v_simple_idx.binop('*', NumberLiteralExpr(map_depth+1))), is_map=True)
                 var_step = map_depth+1
             else:
-                new_body_stmts += self.read_and_mutate_value(target_map_idx, True, True,
+                new_body_stmts += self.read_and_mutate_value(target_map_idx, old_state_index, True, True,
                                                              mutate_start_idx.binop('+', NumberLiteralExpr(
-                                                                 map_depth)).binop('+', v_simple_idx.binop('*', NumberLiteralExpr(map_depth+cfg.cipher_len))))
-
+                                                                 map_depth)).binop('+', v_simple_idx.binop('*', NumberLiteralExpr(map_depth+cfg.cipher_len))), is_map=True)
                 var_step = map_depth+cfg.cipher_len
             # Update mutate_start_idx
             start_index_update = AssignmentStatement(mutate_start_idx, mutate_start_idx.binop(
+                '+', NumberLiteralExpr(var_step).binop('*', mutate_arr_idx.index(mutate_start_idx))))
+            old_state_index_update = AssignmentStatement(old_state_start_idx, old_state_start_idx.binop(
                 '+', NumberLiteralExpr(var_step).binop('*', mutate_arr_idx.index(mutate_start_idx))))
         else:
             v_cond_expr = v_simple_idx.binop(
                 '<', read_arr_idx.index(read_start_idx))
 
             if map.annotated_type.type_name.get_type().is_primitive_type():
-                new_body_stmts += self.read_and_mutate_value(target_map_idx)
+                new_body_stmts += self.read_and_mutate_value(
+                    target_map_idx, old_state_index, is_map=True)
             else:
                 new_body_stmts += self.read_and_mutate_value(
-                    target_map_idx, True)
+                    target_map_idx, old_state_index, True, is_map=True)
 
             start_index_update = AssignmentStatement(
                 read_start_idx, read_start_idx.binop('+', NumberLiteralExpr(map_depth).binop('*', read_arr_idx.index(read_start_idx))))
+            old_state_index_update = AssignmentStatement(
+                old_state_start_idx, old_state_start_idx.binop('+', NumberLiteralExpr(map_depth).binop('*', read_arr_idx.index(read_start_idx))))
 
+        v_update_expr = AssignmentStatement(
+            v_simple_idx, v_simple_idx.binop('+', NumberLiteralExpr(1)))
         v_for = ForStatement(
             v_simple_stmt, v_cond_expr, v_update_expr, Block(new_body_stmts))
 
-        return [v_for, start_index_update]
+        return [v_for, start_index_update, old_state_index_update]
 
     def visitStatementList(self, ast: StatementList):
         """
@@ -233,21 +253,38 @@ class TeeStatementTransformer(AstTransformerVisitor):
 
         new_statements = []
 
+        new_statements += [RequireStatement(IdentifierExpr('msg').dot('sender').as_type(
+            AnnotatedTypeName.address_all()).binop("==", IdentifierExpr('tee')))]
+
+        # Initialize old state
+        old_state_start_idx = IdentifierExpr(f'{cfg.tee_old_state_name}_start_idx')
+        old_state_start_var = old_state_start_idx.idf.decl_var(
+                TypeName.uint_type(), NumberLiteralExpr(0))
+        new_statements.append(old_state_start_var)
+
         # Record old states to read in old state array
         supp = ast.get_related_sourceuint().privacy_policy
         ffp = supp.get_function_policy(ast.function.idf.name)
         assert ffp
+        old_state_index = 0
         read_prim_index = 0
         for i, v in enumerate(ffp.read_values):
             read_prim_index = i
             if v.annotated_type.type_name.is_primitive_type():
-                new_statements += self.read_and_mutate_value(v)
+                new_statements += self.read_and_mutate_value(v, old_state_index)
+                old_state_index += 1
                 read_prim_index += 1
             elif isinstance(v.annotated_type.type_name, CipherText):
-                new_statements += self.read_and_mutate_value(v, True)
+                new_statements += self.read_and_mutate_value(
+                    v, old_state_index, True)
+                old_state_index += cfg.cipher_len
                 read_prim_index += 1
             else:
                 break
+            
+        # Update old_state_start_idx for primitive value
+        new_statements.append(AssignmentStatement(old_state_start_idx, old_state_start_idx.binop(
+            '+', NumberLiteralExpr(old_state_index))))
 
         for _, v in enumerate(ffp.read_values[read_prim_index:]):
             assert isinstance(v.annotated_type.type_name, (Mapping, Array))
@@ -255,7 +292,7 @@ class TeeStatementTransformer(AstTransformerVisitor):
             new_statements.append(
                 Comment(f'record read old state: {v.idf}'))
 
-            new_statements += self.read_and_mutate_map(v)
+            new_statements += self.read_and_mutate_map(v, old_state_index)
 
         new_statements.append(Comment())
 
@@ -267,12 +304,12 @@ class TeeStatementTransformer(AstTransformerVisitor):
             mutate_prim_index = i
             if v.annotated_type.type_name.is_primitive_type():
                 mutate_stmts += self.read_and_mutate_value(
-                    v, False, True, NumberLiteralExpr(mutate_start_index))
+                    v, old_state_index, False, True, NumberLiteralExpr(mutate_start_index))
                 mutate_start_index += 1
                 mutate_prim_index += 1
             elif isinstance(v.annotated_type.type_name, CipherText):
                 mutate_stmts += self.read_and_mutate_value(
-                    v, True, True, NumberLiteralExpr(mutate_start_index))
+                    v, old_state_index, True, True, NumberLiteralExpr(mutate_start_index))
 
                 mutate_start_index += cfg.cipher_len
                 mutate_prim_index += 1
@@ -284,6 +321,8 @@ class TeeStatementTransformer(AstTransformerVisitor):
         # Update mutate_start_idx for primitive value
         new_statements.append(AssignmentStatement(mutate_start_idx, mutate_start_idx.binop(
             '+', NumberLiteralExpr(mutate_start_index))))
+        new_statements.append(AssignmentStatement(old_state_start_idx, old_state_start_idx.binop(
+            '+', NumberLiteralExpr(mutate_start_index))))
 
         for _, v in enumerate(ffp.mutate_values[mutate_prim_index:]):
             assert isinstance(v.annotated_type.type_name, (Mapping, Array))
@@ -291,7 +330,7 @@ class TeeStatementTransformer(AstTransformerVisitor):
             new_statements.append(
                 Comment(f'record mutate old state and update: {v.idf}'))
 
-            new_statements += self.read_and_mutate_map(v, True)
+            new_statements += self.read_and_mutate_map(v, old_state_index, True)
 
         ast.statements = new_statements
         return ast

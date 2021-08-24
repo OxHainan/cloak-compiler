@@ -42,6 +42,8 @@ class PythonCodeVisitor(CodeVisitor):
         raise NotImplementedError("This needs to be implemented in child class")
 
     def handle_function_params(self, ast: ConstructorOrFunctionDefinition, params: List[Parameter]):
+        if ast.is_tee():
+            return 'self, priv_params'
         params = self.visit_list(params, ", ")
         if params:
             return f'self, {params}'
@@ -260,8 +262,8 @@ class PythonCodeVisitor(CodeVisitor):
             raise ValueError("Type annotations are not supported for python generation")
         return self.visit(ast.type_name)
 
-    def visitMeExpr(self, _: MeExpr):
-        raise ValueError("Me expressions are not supported for python generation")
+    # def visitMeExpr(self, _: MeExpr):
+    #     raise ValueError("Me expressions are not supported for python generation")
 
     def visitAllExpr(self, _: AllExpr):
         raise ValueError("All expressions are not supported for python generation")

@@ -1,5 +1,5 @@
 FROM debian:10
-ARG INSTALL_ZKAY=0
+ARG INSTALL_CLOAK=0
 
 #############
 # LIBSNARK #
@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
 		libssl-dev \
 		libboost-dev \
 		libboost-program-options-dev \
+		wget \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ########
@@ -34,11 +35,11 @@ RUN apt-get update && apt-get install -y \
 
 
 ###################
-# ZKAY (OPTIONAL) #
+# CLOAK (OPTIONAL) #
 ###################
-RUN if [ "$INSTALL_ZKAY" = "1" ]; then \
-		git clone https://github.com/eth-sri/zkay.git && \
-			cd zkay && \
+RUN if [ "$INSTALL_CLOAK" = "1" ]; then \
+		git clone https://github.com/OxHainan/cloak-compiler.git && \
+			cd cloak && \
 			python3 setup.py sdist && \
-			pip3 install --no-binary zkay dist/zkay-*.tar.gz; \
+			pip3 install --no-binary cloak dist/cloak-*.tar.gz; \
 	fi

@@ -24,14 +24,16 @@ from cloak.compiler.privacy.proving_scheme.backends.gm17 import ProvingSchemeGm1
 from cloak.compiler.privacy.proving_scheme.backends.groth16 import ProvingSchemeGroth16
 from cloak.compiler.privacy.proving_scheme.proving_scheme import ProvingScheme
 from cloak.compiler.privacy.transformation.cloak_contract_transformer import transform_ast
+from cloak.compiler.privacy.transformation.private_contract_transformer import PrivateContractTransformer
 from cloak.compiler.solidity.compiler import check_compilation
 from cloak.config import cfg
 from cloak.utils.helpers import read_file, lines_of_code, without_extension
 from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
 from cloak.cloak_ast.process_ast import get_processed_ast, get_verification_contract_names
+from cloak.cloak_ast.build_ast import build_ast
 from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
-from cloak.type_check.privacy_policy import PrivacyPolicyEncoder
+from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
 
 proving_scheme_classes: Dict[str, Type[ProvingScheme]] = {
@@ -103,9 +105,19 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     with print_step("Generate privacy policy"):
         _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')
 
+    # Write private contract file
+    with print_step('Write private solidity code'):
+        output_filename = 'private_contract.sol'
+        private_ast = build_ast(code)
+        PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
+        # for code Hash
+        cloak_ast.private_contract_code = delete_cloak_annotation(private_ast.code())
+        solidity_code_output = _dump_to_output(cloak_ast.private_contract_code, output_dir, output_filename)
+
     # Contract transformation
     with print_step("Transforming cloak contract"):
         ast, circuits = transform_ast(deepcopy(cloak_ast))
+        ast.policy_path = os.path.join(output_dir, "policy.json")
 
     # Dump libraries
     with print_step("Write library contract files"):
@@ -116,15 +128,13 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
             # Write library contract
             _dump_to_output(library_contracts.get_verify_libs_code(), output_dir, ProvingScheme.verify_libs_contract_filename, dryrun_solc=True)
 
+            # Write cloak service contract
+            _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
+
     # Write public contract file
     with print_step('Write public solidity code'):
         output_filename = 'public_contract.sol'
         solidity_code_output = _dump_to_output(to_solidity(ast), output_dir, output_filename)
-
-    # Write private contract file
-    with print_step('Write private solidity code'):
-        output_filename = 'private_contract.sol'
-        solidity_code_output = _dump_to_output(delete_cloak_annotation(code), output_dir, output_filename)
 
     # Get all circuit helpers for the transformed contract
     circuits: List[CircuitHelper] = list(circuits.values())
@@ -149,7 +159,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
             manifest = {
                 Manifest.cloak_version: cfg.cloak_version,
                 Manifest.solc_version: cfg.solc_version,
-                Manifest.zkay_options: cfg.export_compiler_settings(),
+                Manifest.cloak_options: cfg.export_compiler_settings(),
             }
             _dump_to_output(json.dumps(manifest), output_dir, 'manifest.json')
     elif not os.path.exists(os.path.join(output_dir, 'manifest.json')):
@@ -160,8 +170,8 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
 
     # Check that all verification contracts and the main contract compile
     main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
-    for f in main_solidity_files:
-        check_compilation(f, show_errors=False)
+    # for f in main_solidity_files:
+    #     check_compilation(f, show_errors=False)
 
     return cg, solidity_code_output
 

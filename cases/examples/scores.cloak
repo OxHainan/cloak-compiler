@@ -1,0 +1,59 @@
+pragma solidity ^0.6.0;
+
+// Description: Record and grade exam answers
+// Domain: Teaching
+contract Scores {
+    // A exam with functions in different privacy type
+
+    final address manager;
+    final address examinator;
+    uint passPoints;
+    uint@manager avgScore;
+    uint@tee totalPoints;
+    uint@tee totalExaminees;
+
+    mapping (uint => uint@examinator) solutions;
+    mapping (address => mapping (uint => uint@examinator)) answers;
+    mapping (address => uint@examinator) points;
+    mapping (address!x => bool@x) passed;
+	
+	// PUB
+    constructor(
+		uint pass,
+		uint point,
+        address new_manager
+	) public {
+        examinator = me;
+        passPoints = pass;
+        manager = new_manager;
+    }
+
+    // MPT
+    function compareToAverage() public returns (uint) {
+        return points[me] - avgScore;
+    }
+
+    // MPT
+    function setSolution(
+		uint task, 
+		uint@tee sol
+	) public {
+        require(examinator == me);
+        solutions[task] = sol;
+    }
+
+	// MPT
+    function rateAnswer(
+		uint task, 
+		address examinee
+	) public {
+        require(examinator == me);
+        uint@me p;
+        p = answers[examinee][task] == solutions[task] ? 1 : 0;
+        points[examinee] = points[examinee] + p;
+        passed[examinee] = points[examinee] > passPoints;
+        totalPoints = totalPoints + p;
+        totalExaminees = totalExaminees + 1;
+    }
+
+}

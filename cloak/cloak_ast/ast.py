@@ -15,7 +15,7 @@ from cloak.config import cfg, zk_print
 from cloak.utils.progress_printer import warn_print
 from cloak.cloak_ast.analysis.partition_state import PartitionState
 from cloak.cloak_ast.visitor.visitor import AstVisitor
-import cloak.type_check.privacy_policy as pp
+import cloak.policy.privacy_policy as pp
 
 T = TypeVar('T')
 
@@ -449,7 +449,7 @@ class FunctionCallExpr(Expression):
 
     @property
     def is_cast(self):
-        return isinstance(self.func, LocationExpr) and isinstance(self.func.target, (ContractDefinition, EnumDefinition))
+        return isinstance(self.func, LocationExpr) and isinstance(self.func.target, (ContractDefinition, EnumDefinition, Array))
 
     def process_children(self, f: Callable[[T], T]):
         self.func = f(self.func)
@@ -493,11 +493,12 @@ class BooleanLiteralExpr(LiteralExpr):
 
 class NumberLiteralExpr(LiteralExpr):
 
-    def __init__(self, value: int, was_hex: bool = False):
+    def __init__(self, value: int, was_hex: bool = False, source_text: Optional[str] = None):
         super().__init__()
         self.value = value
         self.annotated_type = AnnotatedTypeName(NumberLiteralType(self.value))
         self.was_hex = was_hex
+        self.source_text = source_text
 
 
 class StringLiteralExpr(LiteralExpr):
@@ -1049,6 +1050,10 @@ class TypeName(AST):
     @property
     def is_signed_numeric(self) -> bool:
         return self.is_numeric and self.signed
+
+    @property
+    def is_mapping(self) -> bool:
+        return isinstance(self, Mapping)
 
     def can_be_private(self) -> bool:
         return self.is_primitive_type() and not (self.is_signed_numeric and self.elem_bitwidth == 256)
@@ -1955,6 +1960,11 @@ class ContractDefinition(NamespaceDefinition):
             d_identifier = self.names[key]
             return d_identifier.parent
 
+    def states_types(self) -> Dict[str, TypeName]:
+        res = {}
+        for v in self.state_variable_declarations:
+            res[v.idf.name] = v.annotated_type.type_name
+        return res
 
 class SourceUnit(AST):
 
@@ -2197,7 +2207,10 @@ class CodeVisitor(AstVisitor):
         return str(ast.value).lower()
 
     def visitNumberLiteralExpr(self, ast: NumberLiteralExpr):
-        return hex(ast.value) if ast.was_hex else str(ast.value)
+        if ast.source_text is not None:
+            return ast.source_text
+        else:
+            return hex(ast.value) if ast.was_hex else str(ast.value)
 
     def visitStringLiteralExpr(self, ast: StringLiteralExpr):
         return f'\'{ast.value}\''
@@ -2234,17 +2247,17 @@ class CodeVisitor(AstVisitor):
     def visitIfStatement(self, ast: IfStatement):
         c = self.visit(ast.condition)
         t = self.visit_single_or_list(ast.then_branch)
-        if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
-            # TODO: delete redundant table before statements
-            ret = f'{t[1:-1]}' if t else ''
-            if ast.else_branch:
-                e = self.visit_single_or_list(ast.else_branch)
-                ret += f'{e[1:-1]}' if e else ''
-        else:
-            ret = f'if ({c}) {t}'
-            if ast.else_branch:
-                e = self.visit_single_or_list(ast.else_branch)
-                ret += f'\n else {e}'
+        # if ast.get_related_function().privacy_type == FunctionPrivacyType.TEE:
+        #     # TODO: delete redundant table before statements
+        #     ret = f'{t[1:-1]}' if t else ''
+        #     if ast.else_branch:
+        #         e = self.visit_single_or_list(ast.else_branch)
+        #         ret += f'{e[1:-1]}' if e else ''
+        # else:
+        ret = f'if ({c}) {t}'
+        if ast.else_branch:
+            e = self.visit_single_or_list(ast.else_branch)
+            ret += f'\n else {e}'
 
         return ret
 

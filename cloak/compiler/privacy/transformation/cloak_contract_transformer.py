@@ -4,6 +4,7 @@ This module provides functionality to transform a zkay AST into an equivalent pu
 
 import web3
 import json
+import base64
 from typing import Dict, Optional, List, Tuple
 
 from cloak.compiler.privacy.circuit_generation.circuit_helper import CircuitHelper
@@ -15,18 +16,20 @@ from cloak.compiler.privacy.transformation.zkp_transformer import ZkpVarDeclTran
 from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer, TeeExpressionTransformer, \
     TeeStatementTransformer
 from cloak.config import cfg
-from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFunctionDefinition, IdentifierExpr, Mapping, TeeExpr, VariableDeclaration, \
-    AnnotatedTypeName, \
+from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFunctionDefinition, FunctionPrivacyType, IdentifierExpr, Mapping, TeeExpr, VariableDeclaration, \
+    AnnotatedTypeName, UintTypeName, \
     StateVariableDeclaration, Identifier, ExpressionStatement, SourceUnit, ReturnStatement, AST, \
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
-    Parameter, \
-    VariableDeclarationStatement, StatementList, CipherText, ArrayLiteralExpr, MeExpr
+    Parameter, ForStatement, IfStatement, \
+    VariableDeclarationStatement, StatementList, CipherText, ArrayLiteralExpr, MeExpr, StringLiteralExpr
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.global_defs import GlobalDefs
-from cloak.type_check.privacy_policy import PrivacyPolicyEncoder
+from cloak.policy.privacy_policy import PrivacyPolicyEncoder
+from cloak.utils.helpers import m_plus, exp_m_op, to_uint, uint_to
+
 
 def transform_ast(ast: AST) -> Tuple[AST, Dict[ConstructorOrFunctionDefinition, CircuitHelper]]:
     """
@@ -57,91 +60,10 @@ class CloakTransformer(AstTransformerVisitor):
               real address upon deployment.
     * Transform state variable declarations with owner != @all (replace type by cipher type)
     * For every function and constructor, the parameters and the body are transformed using the transformers defined in zkp_transformer.py
-
-    To support verification, the functions themselves also need additional transformations:
-
-    In the original zkay paper, all the circuit out parameters + the proof are added as additional parameters for all functions which
-    require verification.
-    This makes it impossible to simply call another function, since every function expects its out arguments + a proof.
-
-    Zkay 2.0 uses an improved design, with the goal of supporting function calls in an elegant way.
-    It is based on the following observations:
-
-    1) zk proof verification is only possible in functions which are called externally via a transaction,
-       as it requires offchain simulation to generate a valid zero knowledge proof.
-    2) public functions can be called externally (transaction) as well as internally (called from other function)
-    3) private and internal functions can only be called internally
-    4) public functions which have private arguments, but don't contain any private expressions in their body (e.g. because they only
-       contain assignments, which are public operations as long as the owner does not change), only need verification if they are called
-       externally (since then the parameters are user supplied and thus their encryption needs to be verified)
-    5) The difference between an external and an internal function can be reduced to argument encryption verification +
-       proof verification via verification contract invocation
-
-    From 1) follows, that the externally called function must also handle the verification of all transitively called functions
-    Observations 2), 4) and 5) suggest, that it is sensible to split each public function into two different parts:
-
-     a) An internal function which has the original function body and arguments
-     b) An external function which does argument verification, calls the internal function and finally and invokes the verification contract
-        (=> "External Wrapper function")
-
-    This way, calling a public function from within another function works exactly the same as calling a private/internal function,
-    zkay simply has to reroute the call to the internal function.
-    It also means, that no resources are wasted when calling a function such as mentioned in 4) from another function, since in that case
-    the internal function does not require verification.
-
-    What's left is how to deal with 1). Zkay 2.0 uses the following solution:
-
-    * | If a function is purely public (no private arguments, no private expressions in itself or any transitively called functions)
-      | => No change in signature and no additional transformations
-    * If an internal function requires verification (+), 4 additional arguments are added to its signature:
-
-          1) a variable length array where public circuit inputs generated by this function should be stored
-          2) a start index which determines at which index this function should start storing circuit inputs into the in array
-          3) a variable length array containing public circuit outputs required in this function
-          4) a start index which determines where in the uint array the out values for the current function call are located
-
-      * A struct definition is added to the contract definition, which includes entries for every circuit and input variable with correct types.
-      * At the beginning of the internal function, a variable of that struct type is declared and all circuit output variables from the out array \
-        parameter are deserialized into the struct.
-      * Within the function body, all circuit inputs are stored into the struct and outputs are read from the struct.
-      * At the end of the internal function, all circuit input variables in the struct are serialized into the in array parameter.
-
-      When a function calls another function which requires verification, the start indices for in and out array are advanced such that
-      they point to the correct sections and the in/out arrays + new start indices are added to the arguments of the call.
-      If the called function does not require verification, it is simply called without any additional arguments.
-
-      | (+) An internal function requires verification if it contains private expressions.
-      |     *Note*: a function body can contain private variables (!= @all) without containing private expressions, \
-                  since assignment of encrypted variables with the same owner is a public operation.
-
-    * If a function is an external wrapper, 2 additional arguments are added to its signature:
-
-          1) a variable length array containing public circuit outputs for the function itself and all transitively called functions
-             If we have a call hierarchy like this::
-
-                func f():
-                    calls g(x) which calls h(x)
-                    calls h(x)
-
-             then the layout in the output array (same for the input array defined below) will be: f outs | g outs | h outs | h outs
-             (i.e. the current functions circuit outputs come first, followed by those of the called functions in the function call order
-             (according to AST traversal order))
-          2) a zero knowledge proof
-
-      * At the beginning of the external wrapper function a dynamic array is allocated which is large enough to store all circuit inputs
-        from all transitively called functions.
-      * Next all encrypted arguments are stored in the in array (since the circuit will verify the encryption)
-      * Then the wrapper requests all statically known public keys (key for me or for a final address state variable), required by any
-        of the transitively called functions, and also stores them in the in array.
-      * The corresponding internal function is then called.
-        If it requires verification, the newly allocated in array + the out array parameter + initial start indices
-        (0 for out array, after last key for in array) are added as additional arguments.
-      * Finally the verification contract is invoked to verify the proof (the in array was populated by the called functions themselves).
     """
 
     def __init__(self):
         super().__init__()
-
 
     @staticmethod
     def import_contract(cname: str, su: SourceUnit, corresponding_circuit: Optional[CircuitHelper] = None):
@@ -157,7 +79,8 @@ class CloakTransformer(AstTransformerVisitor):
 
         if corresponding_circuit is not None:
             c_type = ContractTypeName([Identifier(cname)])
-            corresponding_circuit.register_verification_contract_metadata(c_type, import_filename)
+            corresponding_circuit.register_verification_contract_metadata(
+                c_type, import_filename)
 
     @staticmethod
     def create_contract_variable(cname: str) -> StateVariableDeclaration:
@@ -166,7 +89,8 @@ class CloakTransformer(AstTransformerVisitor):
         c_type = ContractTypeName([Identifier(cname)])
 
         cast_0_to_c = PrimitiveCastExpr(c_type, NumberLiteralExpr(0))
-        var_decl = StateVariableDeclaration(AnnotatedTypeName(c_type), ['public', 'constant'], inst_idf.clone(), cast_0_to_c)
+        var_decl = StateVariableDeclaration(AnnotatedTypeName(
+            c_type), ['public', 'constant'], inst_idf.clone(), cast_0_to_c)
         return var_decl
 
     def include_verification_contracts(self, su: SourceUnit, c: ContractDefinition) -> List[StateVariableDeclaration]:
@@ -177,14 +101,18 @@ class CloakTransformer(AstTransformerVisitor):
         :param c: contract for which verification contracts should be imported
         :return: list of all constant state variable declarations for the pki contract + all the verification contracts
         """
-        c.contract_var_decls = [self.create_contract_variable(cfg.pki_contract_name)]
-        c.contract_var_decls.append(self.create_contract_variable(cfg.tee_service_contract_name))
-        
+        c.contract_var_decls = [
+            self.create_contract_variable(cfg.pki_contract_name)]
+        c.contract_var_decls.append(
+            self.create_contract_variable(cfg.service_contract_name))
+
         for f in c.fcts_is_zkp:
             if f.requires_verification_when_external and f.has_side_effects:
-                name = cfg.get_zk_verification_contract_name(c.idf.name, f.name)
+                name = cfg.get_zk_verification_contract_name(
+                    c.idf.name, f.name)
                 self.import_contract(name, su, self.circuits[f])
-                c.contract_var_decls.append(self.create_contract_variable(name))
+                c.contract_var_decls.append(
+                    self.create_contract_variable(name))
 
         return c.contract_var_decls
 
@@ -204,7 +132,7 @@ class CloakTransformer(AstTransformerVisitor):
 
     def visitSourceUnit(self, ast: SourceUnit):
         self.import_contract(cfg.pki_contract_name, ast)
-        self.import_contract(cfg.tee_service_contract_name, ast)
+        self.import_contract(cfg.service_contract_name, ast)
 
         for c in ast.contracts:
             self.transform_contract(ast, c)
@@ -239,42 +167,79 @@ class CloakTransformer(AstTransformerVisitor):
         # Backup untransformed function bodies
         c.all_fcts = c.constructor_definitions + c.function_definitions
         for fct in c.all_fcts:
-            fct.original_body = deep_copy(fct.body, with_types=True, with_analysis=True)
-        
+            fct.original_body = deep_copy(
+                fct.body, with_types=True, with_analysis=True)
+
         c.fcts_is_zkp = [fct for fct in c.all_fcts if fct.is_zkp()]
         c.fcts_is_tee = [fct for fct in c.all_fcts if fct.is_tee()]
 
         # Split into functions which require verification and those which don't need a circuit helper
-        self.circuits: Dict[ConstructorOrFunctionDefinition, CircuitHelper] = {}
+        self.circuits: Dict[ConstructorOrFunctionDefinition,
+                            CircuitHelper] = {}
         """Abstract circuits for all functions which require verification"""
         c.req_ext_zk_fcts, c.req_ext_tee_fcts = {}, {}
         c.new_fcts, c.new_constr = [], []
         for fct in c.all_fcts:
             assert isinstance(fct, ConstructorOrFunctionDefinition)
             if fct.requires_verification or fct.requires_verification_when_external:
-                self.circuits[fct] = self.create_circuit_helper(fct, c.global_owners)
+                self.circuits[fct] = self.create_circuit_helper(
+                    fct, c.global_owners)
 
             if fct.requires_verification_when_external and fct.is_zkp():
                 c.req_ext_zk_fcts[fct] = fct.parameters[:]
-            elif fct.requires_verification_when_external and fct.is_tee():
-                c.req_ext_tee_fcts[fct] = fct.parameters[:]
+            # elif fct.requires_verification_when_external and fct.is_tee():
+            #     c.req_ext_tee_fcts[fct] = fct.parameters[:]
             elif fct.is_constructor:
                 c.new_constr.append(fct)
-            else:
-                c.new_fcts.append(fct)
+            # else:
+            #     c.new_fcts.append(fct)
 
         self.include_verification_contracts(su, c)
-
-        c.state_variable_declarations = [StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public', 'constant'],
-                                            Identifier(TeeExpr().name), TeeExpr())] \
-                                    + c.state_variable_declarations
 
         c = self.transform_zkp_functions(su, c)
         c = self.transform_tee_functions(su, c)
 
+        c.state_variable_declarations = [Comment('User state variables')]\
+            + c.state_variable_declarations
+
+        if c.fcts_is_tee:
+            # Add constant state variables for tee external contracts
+            code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
+            print(code_hash_hb.hex())
+            code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                      Identifier(
+                                                          cfg.tee_code_hash_name),
+                                                      NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
+            policy_hash_hb = web3.Web3.keccak(json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode())
+            print(policy_hash_hb.hex())
+            policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                        Identifier(
+                                                            cfg.tee_policy_hash_name),
+                                                        NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
+            tee_addr_var = StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public'], Identifier('tee'),
+                                                    IdentifierExpr(f'{cfg.service_contract_name}_inst').call(cfg.tee_get_addr_function_name, []))
+            c.state_variable_declarations = [Comment('TEE helper variables'), code_hash_decl, policy_hash_decl, tee_addr_var, Comment()]\
+                + c.state_variable_declarations
+
+        if c.fcts_is_zkp:
+            # Add constant state variables for zkp external contracts and field prime
+            field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                        Identifier(
+                                                            cfg.zk_field_prime_var_name),
+                                                        NumberLiteralExpr(bn128_scalar_field))
+
+            c.state_variable_declarations = [Comment('ZKP helper variables'), field_prime_decl, Comment()]\
+                + c.state_variable_declarations
+
+        # Add helper contracts
+        c.state_variable_declarations = [Comment()]\
+            + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
+            + c.state_variable_declarations
+
         # new_fcts = [GlobalDefs.set_code_hash, GlobalDefs.set_policy] + new_fcts
         c.constructor_definitions = c.new_constr
-        c.function_definitions = [fct for fct in c.new_fcts if fct.body.statements]
+        c.function_definitions = [
+            fct for fct in c.new_fcts if fct.body.statements]
 
         return c
 
@@ -296,59 +261,43 @@ class CloakTransformer(AstTransformerVisitor):
         :return: The contract itself
         """
 
-
         var_decl_trafo = TeeVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
 
         # Transform types of normal state variables
-        c.state_variable_declarations = var_decl_trafo.visit_list(c.state_variable_declarations)
-
-
-        # Add constant state variables for external contracts
-        code_hash_hb = web3.Web3.solidityKeccak(['bytes'], [c.code().encode()])
-        print(code_hash_hb.hex())
-        code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(cfg.tee_code_hash_name),
-                                                    NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
-        policy_hash_hb = web3.Web3.solidityKeccak(['bytes'], [json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode()])
-        print(policy_hash_hb.hex())
-        policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(cfg.tee_policy_hash_name),
-                                                    NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
-
-        c.state_variable_declarations = [code_hash_decl, policy_hash_decl, Comment()]\
-                                        + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
-                                        + [Comment('User state variables')]\
-                                        + c.state_variable_declarations
+        c.state_variable_declarations = var_decl_trafo.visit_list(
+            c.state_variable_declarations)
 
         # Transform function signatures
-        for fct in c.fcts_is_tee:
-            fct.parameters = var_decl_trafo.visit_list(fct.parameters)
-        for fct in c.fcts_is_tee:
-            fct.return_parameters = var_decl_trafo.visit_list(fct.return_parameters)
-            fct.return_var_decls = var_decl_trafo.visit_list(fct.return_var_decls)
+        # for fct in c.fcts_is_tee:
+        #     fct.parameters = var_decl_trafo.visit_list(fct.parameters)
+        # for fct in c.fcts_is_tee:
+        #     fct.return_parameters = var_decl_trafo.visit_list(
+        #         fct.return_parameters)
+        #     fct.return_var_decls = var_decl_trafo.visit_list(
+        #         fct.return_var_decls)
 
         # Transform bodies
-        for fct in c.fcts_is_tee:
-            # gen = self.circuits.get(fct, None)
-            fct.body = TeeStatementTransformer().visit(fct.body)
+        # for fct in c.fcts_is_tee:
+        #     fct.body = TeeStatementTransformer().visit(fct.body)
 
-        # Transform (internal) functions which require verification (add the necessary additional parameters and boilerplate code)
-
-        # renqian TODO: delete internal calls
-        # transform_internal_calls(c.fcts_is_tee, self.circuits)
-        for fct in c.fcts_is_tee:
-            self.create_tee_internal_verification_wrapper(fct)
+        # for fct in c.fcts_is_tee:
+        #     self.create_tee_internal_verification_wrapper(fct)
 
         # Create external wrapper functions where necessary
-        for f, params in c.req_ext_tee_fcts.items():
-            ext_f, int_f = self.split_tee_into_external_and_internal_fct(f, params, c.global_owners)
-            if ext_f.is_function:
-                c.new_fcts.append(ext_f)
-            else:
-                c.new_constr.append(ext_f)
-            c.new_fcts.append(int_f)
-            
+        # for fct, params in c.req_ext_tee_fcts.items():
+        #     ext_f, int_f = self.split_tee_into_external_and_internal_fct(
+        #         fct, params, c.global_owners)
+        #     if ext_f.is_function:
+        #         c.new_fcts.append(ext_f)
+        #     else:
+        #         c.new_constr.append(ext_f)
+        #     c.new_fcts.append(int_f)
+
+        # append get_states and set_states
+        self.append_get_states(su, c)
+        self.append_set_states(su, c)
+
         return c
 
     def create_tee_internal_verification_wrapper(self, ast: ConstructorOrFunctionDefinition):
@@ -361,63 +310,31 @@ class CloakTransformer(AstTransformerVisitor):
 
         if cfg.is_symmetric_cipher() and 'pure' in ast.modifiers:
             # Symmetric trafo requires msg.sender access -> change from pure to view
-            ast.modifiers = ['view' if mod == 'pure' else mod for mod in ast.modifiers]
+            ast.modifiers = ['view' if mod ==
+                             'pure' else mod for mod in ast.modifiers]
 
         # Add additional params
-        # renqian TODO: delete original paramaters
-        # ast.parameters = []
-        ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_old_state_name)
+        ast.add_param(Array(AnnotatedTypeName.uint_all()),
+                      cfg.tee_old_state_name)
         ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_read_name)
-        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.tee_read_name}_start_idx')
+        ast.add_param(AnnotatedTypeName.uint_all(),
+                      f'{cfg.tee_read_name}_start_idx')
         ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.tee_mutate_name)
-        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.tee_mutate_name}_start_idx')
-
-        # # Verify that in/out parameters have correct size
-        # out_start_idx, in_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx'), IdentifierExpr(f'{cfg.tee_read_name}_start_idx')
-        # out_var, in_var = IdentifierExpr(cfg.tee_mutate_name), IdentifierExpr(cfg.tee_read_name).as_type(Array(AnnotatedTypeName.uint_all()))
-        # stmts.append(RequireStatement(out_start_idx.binop('+', NumberLiteralExpr(circuit.out_size_trans)).binop('<=', out_var.dot('length'))))
-        # stmts.append(RequireStatement(in_start_idx.binop('+', NumberLiteralExpr(circuit.in_size_trans)).binop('<=', in_var.dot('length'))))
+        ast.add_param(AnnotatedTypeName.uint_all(),
+                      f'{cfg.tee_mutate_name}_start_idx')
 
         # Declare return variable if necessary
         if ast.return_parameters:
-            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(vd) for vd in ast.return_var_decls])
-
-        # # Deserialize out array (if any)
-        # deserialize_stmts = []
-        # offset = 0
-        # for s in circuit.output_idfs:
-        #     deserialize_stmts.append(s.deserialize(cfg.tee_mutate_name, out_start_idx, offset))
-        #     if isinstance(s.t, CipherText) and cfg.is_symmetric_cipher():
-        #         # Assign sender field to user-encrypted values if necessary
-        #         sender_key = in_var.index(0)
-        #         deserialize_stmts.append(s.get_loc_expr().index(cfg.cipher_payload_len).assign(sender_key))
-        #     offset += s.t.size_in_uints
-        # if deserialize_stmts:
-        #     stmts.append(StatementList(Comment.comment_wrap_block("Deserialize output values", deserialize_stmts), excluded_from_simulation=True))
+            stmts += Comment.comment_list("Declare return variables", [
+                                          VariableDeclarationStatement(vd) for vd in ast.return_var_decls])
 
         # Include original transformed function body
         stmts += ast.body.statements
-
-        # # Serialize in parameters to in array (if any)
-        # serialize_stmts = []
-        # offset = 0
-        # for s in circuit.input_idfs:
-        #     serialize_stmts += [s.serialize(cfg.tee_read_name, in_start_idx, offset)]
-        #     offset += s.t.size_in_uints
-        # if offset:
-        #     stmts.append(Comment())
-        #     stmts += Comment.comment_wrap_block('Serialize input values', serialize_stmts)
-
-        # # Add return statement at the end if necessary
-        # # (was previously replaced by assignment to return_var by ZkpStatementTransformer)
-        # if circuit.has_return_var:
-        #     stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()).override(target=vd) for vd in ast.return_var_decls])))
-
         ast.body.statements[:] = stmts
 
     def split_tee_into_external_and_internal_fct(self, f: ConstructorOrFunctionDefinition, original_params: List[Parameter],
-                                             global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
-                                                                                             ConstructorOrFunctionDefinition]:
+                                                 global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
+                                                                                                 ConstructorOrFunctionDefinition]:
         """
         Take public function f and split it into an internal function and an external wrapper function.
 
@@ -431,7 +348,8 @@ class CloakTransformer(AstTransformerVisitor):
         # Create new empty function with same parameters as original -> external wrapper
         if f.is_function:
             new_modifiers = ['external']
-            original_params = [deep_copy(p, with_types=True).with_changed_storage('memory', 'calldata') for p in original_params]
+            original_params = [deep_copy(p, with_types=True).with_changed_storage(
+                'memory', 'calldata') for p in original_params]
         else:
             new_modifiers = ['public']
         if f.is_payable:
@@ -441,39 +359,39 @@ class CloakTransformer(AstTransformerVisitor):
         if not f.has_side_effects:
             requires_proof = False
             new_modifiers.append('view')
-        new_f = ConstructorOrFunctionDefinition(f.idf, [], new_modifiers, f.return_parameters, Block([]))
+        new_f = ConstructorOrFunctionDefinition(
+            f.idf, [], new_modifiers, f.return_parameters, Block([]))
 
         # Make original function internal
         f.idf = Identifier(cfg.get_tee_internal_name(f))
-        f.modifiers = ['internal' if mod == 'public' else mod for mod in f.modifiers if mod != 'payable']
+        f.modifiers = ['internal' if mod ==
+                       'public' else mod for mod in f.modifiers if mod != 'payable']
         f.requires_verification_when_external = False
 
-        # # Create new circuit for external function
-        # circuit = self.create_circuit_helper(new_f, global_owners, self.circuits[f])
-        # if not f.requires_verification:
-        #     del self.circuits[f]
-        # self.circuits[new_f] = circuit
-
         # Set meta attributes and populate body
-        new_f.requires_verification = True
+        new_f.privacy_type = FunctionPrivacyType.TEE
         new_f.requires_verification_when_external = True
         new_f.called_functions = f.called_functions
         new_f.called_functions[f] = None
-        new_f.body = self.create_tee_external_wrapper_body(f, original_params, requires_proof)
+        new_f.body = self.create_tee_external_wrapper_body(
+            f, original_params, requires_proof)
 
         # Add out and proof parameter to external wrapper
         storage_loc = 'calldata' if new_f.is_function else 'memory'
-        new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.tee_read_name), storage_loc)
-        new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.tee_mutate_name), storage_loc)
+        new_f.add_param(Array(AnnotatedTypeName.uint_all()),
+                        Identifier(cfg.tee_read_name), storage_loc)
+        new_f.add_param(Array(AnnotatedTypeName.uint_all()),
+                        Identifier(cfg.tee_mutate_name), storage_loc)
 
         if requires_proof:
-            new_f.add_param(AnnotatedTypeName.tee_proof_type(), Identifier(cfg.tee_proof_param_name), storage_loc)
+            new_f.add_param(AnnotatedTypeName.tee_proof_type(),
+                            Identifier(cfg.tee_proof_param_name), storage_loc)
 
         return new_f, f
 
     @staticmethod
     def create_tee_external_wrapper_body(int_fct: ConstructorOrFunctionDefinition, original_params: List[Parameter],
-                                        requires_proof: bool) -> Block:
+                                         requires_proof: bool) -> Block:
         """
         Return Block with external wrapper function body.
 
@@ -483,110 +401,55 @@ class CloakTransformer(AstTransformerVisitor):
         """
         stmts = []
 
-        # # Verify that out parameter has correct size
-        # stmts += [RequireStatement(IdentifierExpr(cfg.tee_mutate_name).dot('length').binop('==', NumberLiteralExpr(ext_circuit.out_size_trans)))]
-
         # IdentifierExpr for array var holding serialized public circuit inputs
-        read_arr_var = IdentifierExpr(cfg.tee_read_name).as_type(Array(AnnotatedTypeName.uint_all()))
-        mutate_arr_var = IdentifierExpr(cfg.tee_mutate_name).as_type(Array(AnnotatedTypeName.uint_all()))
-
-        # # Find index of me's public key in requested_global_keys
-        # glob_me_key_index = -1
-        # for idx, e in enumerate(ext_circuit.requested_global_keys):
-        #     if isinstance(e, MeExpr):
-        #         glob_me_key_index = idx
-        #         break
-
-        # # Request static public keys
-        # offset = 0
-        # key_req_stmts = []
-        # if ext_circuit.requested_global_keys:
-        #     # Ensure that me public key is stored starting at in[0]
-        #     keys = [key for key in ext_circuit.requested_global_keys]
-        #     if glob_me_key_index != -1:
-        #         (keys[0], keys[glob_me_key_index]) = (keys[glob_me_key_index], keys[0])
-
-        #     tmp_key_var = Identifier('_tmp_key')
-        #     key_req_stmts.append(tmp_key_var.decl_var(AnnotatedTypeName.key_type()))
-        #     for key_owner in keys:
-        #         idf, assignment = ext_circuit.request_public_key(key_owner, ext_circuit.get_glob_key_name(key_owner))
-        #         assignment.lhs = IdentifierExpr(tmp_key_var.clone())
-        #         key_req_stmts.append(assignment)
-
-        #         # Manually add to circuit inputs
-        #         key_req_stmts.append(in_arr_var.slice(offset, cfg.key_len).assign(IdentifierExpr(tmp_key_var.clone()).slice(0, cfg.key_len)))
-        #         offset += cfg.key_len
-        #         assert offset == ext_circuit.in_size
-
-        # # Check encrypted parameters
-        # param_stmts = []
-        # for p in original_params:
-        #     """ * of T_e rule 8 """
-        #     if p.annotated_type.is_cipher():
-        #         assign_stmt = in_arr_var.slice(offset, cfg.cipher_payload_len).assign(IdentifierExpr(p.idf.clone()).slice(0, cfg.cipher_payload_len))
-        #         ext_circuit.ensure_parameter_encryption(assign_stmt, p)
-
-        #         # Manually add to circuit inputs
-        #         param_stmts.append(assign_stmt)
-        #         offset += cfg.cipher_payload_len
-
-        # if cfg.is_symmetric_cipher():
-        #     # Populate sender field of encrypted parameters
-        #     copy_stmts = []
-        #     for p in original_params:
-        #         if p.annotated_type.is_cipher():
-        #             sender_key = in_arr_var.index(0)
-        #             idf = IdentifierExpr(p.idf.clone()).as_type(p.annotated_type.clone())
-        #             lit = ArrayLiteralExpr([idf.clone().index(i) for i in range(cfg.cipher_payload_len)] + [sender_key])
-        #             copy_stmts.append(VariableDeclarationStatement(VariableDeclaration([], p.annotated_type.clone(), p.idf.clone(), 'memory'), lit))
-        #     if copy_stmts:
-        #         param_stmts += [Comment(), Comment('Copy from calldata to memory and set sender field')] + copy_stmts
-
-        #     assert glob_me_key_index != -1, "Symmetric cipher but did not request me key"
-
-        # # Declare in array
-        # new_in_array_expr = NewExpr(AnnotatedTypeName(TypeName.dyn_uint_array()), [NumberLiteralExpr(5)])
-        # in_var_decl = in_arr_var.idf.decl_var(TypeName.dyn_uint_array(), new_in_array_expr)
-        # stmts.append(in_var_decl)
-        # stmts.append(Comment())
+        read_arr_var = IdentifierExpr(cfg.tee_read_name).as_type(
+            Array(AnnotatedTypeName.uint_all()))
+        mutate_arr_var = IdentifierExpr(cfg.tee_mutate_name).as_type(
+            Array(AnnotatedTypeName.uint_all()))
 
         stmts.append(Comment("Constant function hash"))
-        func_hash_var = IdentifierExpr(cfg.tee_func_hash_name).as_type(AnnotatedTypeName(TypeName.uint_type()))
-        func_hash_var_decl = func_hash_var.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4))
+        func_hash_var = IdentifierExpr(cfg.tee_func_hash_name).as_type(
+            AnnotatedTypeName(TypeName.uint_type()))
+        func_hash_var_decl = func_hash_var.idf.decl_var(TypeName.uint_type(
+        ), NumberLiteralExpr(0x5B38Da6a701c568545dCfcB03FcB875f56beddC4))
         stmts.append(func_hash_var_decl)
 
-        old_state_arr_var = IdentifierExpr(cfg.tee_old_state_name).as_type(Array(AnnotatedTypeName.uint_all()))
-        old_state_var_decl = old_state_arr_var.idf.decl_var(TypeName.dyn_uint_array(), None)
+        old_state_arr_var = IdentifierExpr(cfg.tee_old_state_name).as_type(
+            Array(AnnotatedTypeName.uint_all()))
+        old_state_var_decl = old_state_arr_var.idf.decl_var(
+            TypeName.dyn_uint_array(), None)
         stmts.append(old_state_var_decl)
         stmts.append(Comment())
 
         # Initialize index of read, mutate and old state
-        stmts.append(Comment("Initialize start index of read, mutate and old state"))
-        read_start_idx = IdentifierExpr(f'{cfg.tee_read_name}_start_idx').as_type(AnnotatedTypeName(TypeName.uint_type()))
-        read_start_idx_var_decl = read_start_idx.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0))
+        stmts.append(
+            Comment("Initialize start index of read, mutate and old state"))
+        read_start_idx = IdentifierExpr(f'{cfg.tee_read_name}_start_idx').as_type(
+            AnnotatedTypeName(TypeName.uint_type()))
+        read_start_idx_var_decl = read_start_idx.idf.decl_var(
+            TypeName.uint_type(), NumberLiteralExpr(0))
         stmts.append(read_start_idx_var_decl)
 
-        mutate_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx').as_type(AnnotatedTypeName(TypeName.uint_type()))
-        mutate_start_idx_var_decl = mutate_start_idx.idf.decl_var(TypeName.uint_type(), NumberLiteralExpr(0))
+        mutate_start_idx = IdentifierExpr(f'{cfg.tee_mutate_name}_start_idx').as_type(
+            AnnotatedTypeName(TypeName.uint_type()))
+        mutate_start_idx_var_decl = mutate_start_idx.idf.decl_var(
+            TypeName.uint_type(), NumberLiteralExpr(0))
         stmts.append(mutate_start_idx_var_decl)
         stmts.append(Comment())
 
-        # stmts += Comment.comment_wrap_block('Request static public keys', key_req_stmts)
-        # stmts += Comment.comment_wrap_block('Backup private arguments for verification', param_stmts)
-
         # Call internal function
-        # args = [IdentifierExpr(param.idf.clone()) for param in original_params]
         args = []
         args += [old_state_arr_var, read_arr_var.clone(), read_start_idx,
-                    mutate_arr_var, mutate_start_idx]
+                 mutate_arr_var, mutate_start_idx]
 
-        internal_call = FunctionCallExpr(IdentifierExpr(int_fct.idf.clone()).override(target=int_fct), args)
-        # internal_call.sec_start_offset = 0
-
+        internal_call = FunctionCallExpr(IdentifierExpr(
+            int_fct.idf.clone()).override(target=int_fct), args)
 
         if int_fct.return_parameters:
-            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(deep_copy(vd)) for vd in int_fct.return_var_decls])
-            in_call = TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls]).assign(internal_call)
+            stmts += Comment.comment_list("Declare return variables", [
+                                          VariableDeclarationStatement(deep_copy(vd)) for vd in int_fct.return_var_decls])
+            in_call = TupleExpr([IdentifierExpr(vd.idf.clone())
+                                for vd in int_fct.return_var_decls]).assign(internal_call)
         else:
             in_call = ExpressionStatement(internal_call)
         stmts.append(Comment("Call internal function"))
@@ -595,37 +458,110 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Call verifier
         if requires_proof:
-            verifier = IdentifierExpr(f'{cfg.tee_service_contract_name}_inst')
+            verifier = IdentifierExpr(f'{cfg.service_contract_name}_inst')
 
             get_hash_args = [old_state_arr_var]
-            old_state_hash_var = IdentifierExpr(cfg.tee_old_state_hash_name).as_type(AnnotatedTypeName(TypeName.uint_type()))
-            old_state_var_decl = old_state_hash_var.idf.decl_var(TypeName.uint_type(), verifier.call(cfg.tee_get_hash_function_name, get_hash_args))
+            old_state_hash_var = IdentifierExpr(cfg.tee_old_state_hash_name).as_type(
+                AnnotatedTypeName(TypeName.uint_type()))
+            old_state_var_decl = old_state_hash_var.idf.decl_var(TypeName.uint_type(
+            ), verifier.call(cfg.tee_get_hash_function_name, get_hash_args))
             stmts.append(old_state_var_decl)
 
-            verify_args = [IdentifierExpr(cfg.tee_proof_param_name), IdentifierExpr(cfg.tee_code_hash_name), IdentifierExpr(cfg.tee_policy_hash_name), IdentifierExpr(cfg.tee_func_hash_name), IdentifierExpr(cfg.tee_old_state_hash_name)]
-            verify = RequireStatement(verifier.call(cfg.tee_verification_function_name, verify_args))
-            stmts.append(StatementList([Comment('Verify tee proof of execution'), verify], excluded_from_simulation=True))
+            verify_args = [IdentifierExpr(cfg.tee_proof_param_name), IdentifierExpr(cfg.tee_code_hash_name), IdentifierExpr(
+                cfg.tee_policy_hash_name), IdentifierExpr(cfg.tee_func_hash_name), IdentifierExpr(cfg.tee_old_state_hash_name)]
+            verify = RequireStatement(verifier.call(
+                cfg.tee_verification_function_name, verify_args))
+            stmts.append(StatementList(
+                [Comment('Verify tee proof of execution'), verify], excluded_from_simulation=True))
 
         # Add return statement at the end if necessary
         if int_fct.return_parameters:
-            stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
+            stmts.append(ReturnStatement(TupleExpr(
+                [IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
 
         return Block(stmts)
-
-
-
-
-
-
-
-
-
 
     def transform_zkp_functions(self, su: SourceUnit, c: ContractDefinition):
         """
         Transform the ZKP funtions into public functions and corresponding circuits
 
-        This:
+        In the original zkay paper, all the circuit out parameters + the proof are added as additional parameters for all functions which
+        require verification.
+        This makes it impossible to simply call another function, since every function expects its out arguments + a proof.
+
+        Zkay 2.0 uses an improved design, with the goal of supporting function calls in an elegant way.
+        It is based on the following observations:
+
+        1) zk proof verification is only possible in functions which are called externally via a transaction,
+        as it requires offchain simulation to generate a valid zero knowledge proof.
+        2) public functions can be called externally (transaction) as well as internally (called from other function)
+        3) private and internal functions can only be called internally
+        4) public functions which have private arguments, but don't contain any private expressions in their body (e.g. because they only
+        contain assignments, which are public operations as long as the owner does not change), only need verification if they are called
+        externally (since then the parameters are user supplied and thus their encryption needs to be verified)
+        5) The difference between an external and an internal function can be reduced to argument encryption verification +
+        proof verification via verification contract invocation
+
+        From 1) follows, that the externally called function must also handle the verification of all transitively called functions
+        Observations 2), 4) and 5) suggest, that it is sensible to split each public function into two different parts:
+
+        a) An internal function which has the original function body and arguments
+        b) An external function which does argument verification, calls the internal function and finally and invokes the verification contract
+            (=> "External Wrapper function")
+
+        This way, calling a public function from within another function works exactly the same as calling a private/internal function,
+        zkay simply has to reroute the call to the internal function.
+        It also means, that no resources are wasted when calling a function such as mentioned in 4) from another function, since in that case
+        the internal function does not require verification.
+
+        What's left is how to deal with 1). Zkay 2.0 uses the following solution:
+
+        * | If a function is purely public (no private arguments, no private expressions in itself or any transitively called functions)
+        | => No change in signature and no additional transformations
+        * If an internal function requires verification (+), 4 additional arguments are added to its signature:
+
+            1) a variable length array where public circuit inputs generated by this function should be stored
+            2) a start index which determines at which index this function should start storing circuit inputs into the in array
+            3) a variable length array containing public circuit outputs required in this function
+            4) a start index which determines where in the uint array the out values for the current function call are located
+
+        * A struct definition is added to the contract definition, which includes entries for every circuit and input variable with correct types.
+        * At the beginning of the internal function, a variable of that struct type is declared and all circuit output variables from the out array \
+            parameter are deserialized into the struct.
+        * Within the function body, all circuit inputs are stored into the struct and outputs are read from the struct.
+        * At the end of the internal function, all circuit input variables in the struct are serialized into the in array parameter.
+
+        When a function calls another function which requires verification, the start indices for in and out array are advanced such that
+        they point to the correct sections and the in/out arrays + new start indices are added to the arguments of the call.
+        If the called function does not require verification, it is simply called without any additional arguments.
+
+        | (+) An internal function requires verification if it contains private expressions.
+        |     *Note*: a function body can contain private variables (!= @all) without containing private expressions, \
+                    since assignment of encrypted variables with the same owner is a public operation.
+
+        * If a function is an external wrapper, 2 additional arguments are added to its signature:
+
+            1) a variable length array containing public circuit outputs for the function itself and all transitively called functions
+                If we have a call hierarchy like this::
+
+                    func f():
+                        calls g(x) which calls h(x)
+                        calls h(x)
+
+                then the layout in the output array (same for the input array defined below) will be: f outs | g outs | h outs | h outs
+                (i.e. the current functions circuit outputs come first, followed by those of the called functions in the function call order
+                (according to AST traversal order))
+            2) a zero knowledge proof
+
+        * At the beginning of the external wrapper function a dynamic array is allocated which is large enough to store all circuit inputs
+            from all transitively called functions.
+        * Next all encrypted arguments are stored in the in array (since the circuit will verify the encryption)
+        * Then the wrapper requests all statically known public keys (key for me or for a final address state variable), required by any
+            of the transitively called functions, and also stores them in the in array.
+        * The corresponding internal function is then called.
+            If it requires verification, the newly allocated in array + the out array parameter + initial start indices
+            (0 for out array, after last key for in array) are added as additional arguments.
+        * Finally the verification contract is invoked to verify the proof (the in array was populated by the called functions themselves).
 
         * transforms state variables, function bodies and signatures
         * import verification contracts
@@ -643,23 +579,15 @@ class CloakTransformer(AstTransformerVisitor):
         """Transformer for state variable declarations and parameters"""
 
         # Transform types of normal state variables
-        c.state_variable_declarations = var_decl_trafo.visit_list(c.state_variable_declarations)
-
-        # Add constant state variables for external contracts and field prime
-        field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(cfg.zk_field_prime_var_name),
-                                                    NumberLiteralExpr(bn128_scalar_field))
-
-        c.state_variable_declarations = [field_prime_decl, Comment()]\
-                                        + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
-                                        + [Comment('User state variables')]\
-                                        + c.state_variable_declarations
+        c.state_variable_declarations = var_decl_trafo.visit_list(
+            c.state_variable_declarations)
 
         # Transform signatures
         for f in c.fcts_is_zkp:
             f.parameters = var_decl_trafo.visit_list(f.parameters)
         for f in c.function_definitions:
-            f.return_parameters = var_decl_trafo.visit_list(f.return_parameters)
+            f.return_parameters = var_decl_trafo.visit_list(
+                f.return_parameters)
             f.return_var_decls = var_decl_trafo.visit_list(f.return_var_decls)
 
         # Transform bodies
@@ -676,7 +604,8 @@ class CloakTransformer(AstTransformerVisitor):
             if circuit.requires_zk_data_struct():
                 # Add zk data struct for f to contract
                 zk_data_struct = StructDefinition(Identifier(circuit.zk_data_struct_name), [
-                    VariableDeclaration([], AnnotatedTypeName(idf.t), idf.clone(), '')
+                    VariableDeclaration(
+                        [], AnnotatedTypeName(idf.t), idf.clone(), '')
                     for idf in circuit.output_idfs + circuit.input_idfs
                 ])
                 c.struct_definitions.append(zk_data_struct)
@@ -684,7 +613,8 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Create external wrapper functions where necessary
         for f, params in c.req_ext_zk_fcts.items():
-            ext_f, int_f = self.split_zkp_into_external_and_internal_fct(f, params, c.global_owners)
+            ext_f, int_f = self.split_zkp_into_external_and_internal_fct(
+                f, params, c.global_owners)
             if ext_f.is_function:
                 c.new_fcts.append(ext_f)
             else:
@@ -704,41 +634,54 @@ class CloakTransformer(AstTransformerVisitor):
 
         if cfg.is_symmetric_cipher() and 'pure' in ast.modifiers:
             # Symmetric trafo requires msg.sender access -> change from pure to view
-            ast.modifiers = ['view' if mod == 'pure' else mod for mod in ast.modifiers]
+            ast.modifiers = ['view' if mod ==
+                             'pure' else mod for mod in ast.modifiers]
 
         # Add additional params
         ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.zk_in_name)
-        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.zk_in_name}_start_idx')
+        ast.add_param(AnnotatedTypeName.uint_all(),
+                      f'{cfg.zk_in_name}_start_idx')
         ast.add_param(Array(AnnotatedTypeName.uint_all()), cfg.zk_out_name)
-        ast.add_param(AnnotatedTypeName.uint_all(), f'{cfg.zk_out_name}_start_idx')
+        ast.add_param(AnnotatedTypeName.uint_all(),
+                      f'{cfg.zk_out_name}_start_idx')
 
         # Verify that in/out parameters have correct size
-        out_start_idx, in_start_idx = IdentifierExpr(f'{cfg.zk_out_name}_start_idx'), IdentifierExpr(f'{cfg.zk_in_name}_start_idx')
-        out_var, in_var = IdentifierExpr(cfg.zk_out_name), IdentifierExpr(cfg.zk_in_name).as_type(Array(AnnotatedTypeName.uint_all()))
-        stmts.append(RequireStatement(out_start_idx.binop('+', NumberLiteralExpr(circuit.out_size_trans)).binop('<=', out_var.dot('length'))))
-        stmts.append(RequireStatement(in_start_idx.binop('+', NumberLiteralExpr(circuit.in_size_trans)).binop('<=', in_var.dot('length'))))
+        out_start_idx, in_start_idx = IdentifierExpr(
+            f'{cfg.zk_out_name}_start_idx'), IdentifierExpr(f'{cfg.zk_in_name}_start_idx')
+        out_var, in_var = IdentifierExpr(cfg.zk_out_name), IdentifierExpr(
+            cfg.zk_in_name).as_type(Array(AnnotatedTypeName.uint_all()))
+        stmts.append(RequireStatement(out_start_idx.binop(
+            '+', NumberLiteralExpr(circuit.out_size_trans)).binop('<=', out_var.dot('length'))))
+        stmts.append(RequireStatement(in_start_idx.binop(
+            '+', NumberLiteralExpr(circuit.in_size_trans)).binop('<=', in_var.dot('length'))))
 
         # Declare zk_data struct var (if needed)
         if circuit.requires_zk_data_struct():
-            zk_struct_type = StructTypeName([Identifier(circuit.zk_data_struct_name)])
-            stmts += [Identifier(cfg.zk_data_var_name).decl_var(zk_struct_type), BlankLine()]
+            zk_struct_type = StructTypeName(
+                [Identifier(circuit.zk_data_struct_name)])
+            stmts += [Identifier(cfg.zk_data_var_name)
+                      .decl_var(zk_struct_type), BlankLine()]
 
         # Declare return variable if necessary
         if ast.return_parameters:
-            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(vd) for vd in ast.return_var_decls])
+            stmts += Comment.comment_list("Declare return variables", [
+                                          VariableDeclarationStatement(vd) for vd in ast.return_var_decls])
 
         # Deserialize out array (if any)
         deserialize_stmts = []
         offset = 0
         for s in circuit.output_idfs:
-            deserialize_stmts.append(s.deserialize(cfg.zk_out_name, out_start_idx, offset))
+            deserialize_stmts.append(s.deserialize(
+                cfg.zk_out_name, out_start_idx, offset))
             if isinstance(s.t, CipherText) and cfg.is_symmetric_cipher():
                 # Assign sender field to user-encrypted values if necessary
                 sender_key = in_var.index(0)
-                deserialize_stmts.append(s.get_loc_expr().index(cfg.cipher_payload_len).assign(sender_key))
+                deserialize_stmts.append(s.get_loc_expr().index(
+                    cfg.cipher_payload_len).assign(sender_key))
             offset += s.t.size_in_uints
         if deserialize_stmts:
-            stmts.append(StatementList(Comment.comment_wrap_block("Deserialize output values", deserialize_stmts), excluded_from_simulation=True))
+            stmts.append(StatementList(Comment.comment_wrap_block(
+                "Deserialize output values", deserialize_stmts), excluded_from_simulation=True))
 
         # Include original transformed function body
         stmts += ast.body.statements
@@ -747,22 +690,25 @@ class CloakTransformer(AstTransformerVisitor):
         serialize_stmts = []
         offset = 0
         for s in circuit.input_idfs:
-            serialize_stmts += [s.serialize(cfg.zk_in_name, in_start_idx, offset)]
+            serialize_stmts += [s.serialize(cfg.zk_in_name,
+                                            in_start_idx, offset)]
             offset += s.t.size_in_uints
         if offset:
             stmts.append(Comment())
-            stmts += Comment.comment_wrap_block('Serialize input values', serialize_stmts)
+            stmts += Comment.comment_wrap_block(
+                'Serialize input values', serialize_stmts)
 
         # Add return statement at the end if necessary
         # (was previously replaced by assignment to return_var by ZkpStatementTransformer)
         if circuit.has_return_var:
-            stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()).override(target=vd) for vd in ast.return_var_decls])))
+            stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(
+                vd.idf.clone()).override(target=vd) for vd in ast.return_var_decls])))
 
         ast.body.statements[:] = stmts
 
     def split_zkp_into_external_and_internal_fct(self, f: ConstructorOrFunctionDefinition, original_params: List[Parameter],
-                                             global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
-                                                                                             ConstructorOrFunctionDefinition]:
+                                                 global_owners: List[PrivacyLabelExpr]) -> Tuple[ConstructorOrFunctionDefinition,
+                                                                                                 ConstructorOrFunctionDefinition]:
         """
         Take public function f and split it into an internal function and an external wrapper function.
 
@@ -776,7 +722,8 @@ class CloakTransformer(AstTransformerVisitor):
         # Create new empty function with same parameters as original -> external wrapper
         if f.is_function:
             new_modifiers = ['external']
-            original_params = [deep_copy(p, with_types=True).with_changed_storage('memory', 'calldata') for p in original_params]
+            original_params = [deep_copy(p, with_types=True).with_changed_storage(
+                'memory', 'calldata') for p in original_params]
         else:
             new_modifiers = ['public']
         if f.is_payable:
@@ -786,15 +733,18 @@ class CloakTransformer(AstTransformerVisitor):
         if not f.has_side_effects:
             requires_proof = False
             new_modifiers.append('view')
-        new_f = ConstructorOrFunctionDefinition(f.idf, original_params, new_modifiers, f.return_parameters, Block([]))
+        new_f = ConstructorOrFunctionDefinition(
+            f.idf, original_params, new_modifiers, f.return_parameters, Block([]))
 
         # Make original function internal
         f.idf = Identifier(cfg.get_zk_internal_name(f))
-        f.modifiers = ['internal' if mod == 'public' else mod for mod in f.modifiers if mod != 'payable']
+        f.modifiers = ['internal' if mod ==
+                       'public' else mod for mod in f.modifiers if mod != 'payable']
         f.requires_verification_when_external = False
 
         # Create new circuit for external function
-        circuit = self.create_circuit_helper(new_f, global_owners, self.circuits[f])
+        circuit = self.create_circuit_helper(
+            new_f, global_owners, self.circuits[f])
         if not f.requires_verification:
             del self.circuits[f]
         self.circuits[new_f] = circuit
@@ -804,20 +754,23 @@ class CloakTransformer(AstTransformerVisitor):
         new_f.requires_verification_when_external = True
         new_f.called_functions = f.called_functions
         new_f.called_functions[f] = None
-        new_f.body = self.create_zkp_external_wrapper_body(f, circuit, original_params, requires_proof)
+        new_f.body = self.create_zkp_external_wrapper_body(
+            f, circuit, original_params, requires_proof)
 
         # Add out and proof parameter to external wrapper
         storage_loc = 'calldata' if new_f.is_function else 'memory'
-        new_f.add_param(Array(AnnotatedTypeName.uint_all()), Identifier(cfg.zk_out_name), storage_loc)
+        new_f.add_param(Array(AnnotatedTypeName.uint_all()),
+                        Identifier(cfg.zk_out_name), storage_loc)
 
         if requires_proof:
-            new_f.add_param(AnnotatedTypeName.zk_proof_type(), Identifier(cfg.zk_proof_param_name), storage_loc)
+            new_f.add_param(AnnotatedTypeName.zk_proof_type(),
+                            Identifier(cfg.zk_proof_param_name), storage_loc)
 
         return new_f, f
 
     @staticmethod
     def create_zkp_external_wrapper_body(int_fct: ConstructorOrFunctionDefinition, ext_circuit: CircuitHelper,
-                                     original_params: List[Parameter], requires_proof: bool) -> Block:
+                                         original_params: List[Parameter], requires_proof: bool) -> Block:
         """
         Return Block with external wrapper function body.
 
@@ -826,22 +779,26 @@ class CloakTransformer(AstTransformerVisitor):
         :param original_params: list of transformed function parameters without additional parameters added due to transformation
         :return: body with wrapper code
         """
-        has_priv_args = any([p.annotated_type.is_cipher() for p in original_params])
+        has_priv_args = any([p.annotated_type.is_cipher()
+                            for p in original_params])
         stmts = []
 
         if has_priv_args:
-            ext_circuit._require_public_key_for_label_at(None, Expression.me_expr())
+            ext_circuit._require_public_key_for_label_at(
+                None, Expression.me_expr())
         if cfg.is_symmetric_cipher():
             # Make sure msg.sender's key pair is available in the circuit
             assert any(isinstance(k, (MeExpr, TeeExpr)) for k in ext_circuit.requested_global_keys) \
-                   or has_priv_args, "requires verification => both sender keys required"
+                or has_priv_args, "requires verification => both sender keys required"
             stmts += ext_circuit.request_private_key()
 
         # Verify that out parameter has correct size
-        stmts += [RequireStatement(IdentifierExpr(cfg.zk_out_name).dot('length').binop('==', NumberLiteralExpr(ext_circuit.out_size_trans)))]
+        stmts += [RequireStatement(IdentifierExpr(cfg.zk_out_name).dot(
+            'length').binop('==', NumberLiteralExpr(ext_circuit.out_size_trans)))]
 
         # IdentifierExpr for array var holding serialized public circuit inputs
-        in_arr_var = IdentifierExpr(cfg.zk_in_name).as_type(Array(AnnotatedTypeName.uint_all()))
+        in_arr_var = IdentifierExpr(cfg.zk_in_name).as_type(
+            Array(AnnotatedTypeName.uint_all()))
 
         # Find index of me's public key in requested_global_keys
         glob_me_key_index = -1
@@ -849,7 +806,6 @@ class CloakTransformer(AstTransformerVisitor):
             if isinstance(e, MeExpr):
                 glob_me_key_index = idx
                 break
-                
 
         # Request static public keys
         offset = 0
@@ -858,17 +814,21 @@ class CloakTransformer(AstTransformerVisitor):
             # Ensure that me public key is stored starting at in[0]
             keys = [key for key in ext_circuit.requested_global_keys]
             if glob_me_key_index != -1:
-                (keys[0], keys[glob_me_key_index]) = (keys[glob_me_key_index], keys[0])
+                (keys[0], keys[glob_me_key_index]) = (
+                    keys[glob_me_key_index], keys[0])
 
             tmp_key_var = Identifier('_tmp_key')
-            key_req_stmts.append(tmp_key_var.decl_var(AnnotatedTypeName.key_type()))
+            key_req_stmts.append(tmp_key_var.decl_var(
+                AnnotatedTypeName.key_type()))
             for key_owner in keys:
-                idf, assignment = ext_circuit.request_public_key(key_owner, ext_circuit.get_glob_key_name(key_owner))
+                idf, assignment = ext_circuit.request_public_key(
+                    key_owner, ext_circuit.get_glob_key_name(key_owner))
                 assignment.lhs = IdentifierExpr(tmp_key_var.clone())
                 key_req_stmts.append(assignment)
 
                 # Manually add to circuit inputs
-                key_req_stmts.append(in_arr_var.slice(offset, cfg.key_len).assign(IdentifierExpr(tmp_key_var.clone()).slice(0, cfg.key_len)))
+                key_req_stmts.append(in_arr_var.slice(offset, cfg.key_len).assign(
+                    IdentifierExpr(tmp_key_var.clone()).slice(0, cfg.key_len)))
                 offset += cfg.key_len
                 assert offset == ext_circuit.in_size
 
@@ -877,7 +837,8 @@ class CloakTransformer(AstTransformerVisitor):
         for p in original_params:
             """ * of T_e rule 8 """
             if p.annotated_type.is_cipher():
-                assign_stmt = in_arr_var.slice(offset, cfg.cipher_payload_len).assign(IdentifierExpr(p.idf.clone()).slice(0, cfg.cipher_payload_len))
+                assign_stmt = in_arr_var.slice(offset, cfg.cipher_payload_len).assign(
+                    IdentifierExpr(p.idf.clone()).slice(0, cfg.cipher_payload_len))
                 ext_circuit.ensure_parameter_encryption(assign_stmt, p)
 
                 # Manually add to circuit inputs
@@ -890,25 +851,34 @@ class CloakTransformer(AstTransformerVisitor):
             for p in original_params:
                 if p.annotated_type.is_cipher():
                     sender_key = in_arr_var.index(0)
-                    idf = IdentifierExpr(p.idf.clone()).as_type(p.annotated_type.clone())
-                    lit = ArrayLiteralExpr([idf.clone().index(i) for i in range(cfg.cipher_payload_len)] + [sender_key])
-                    copy_stmts.append(VariableDeclarationStatement(VariableDeclaration([], p.annotated_type.clone(), p.idf.clone(), 'memory'), lit))
+                    idf = IdentifierExpr(p.idf.clone()).as_type(
+                        p.annotated_type.clone())
+                    lit = ArrayLiteralExpr([idf.clone().index(i) for i in range(
+                        cfg.cipher_payload_len)] + [sender_key])
+                    copy_stmts.append(VariableDeclarationStatement(VariableDeclaration(
+                        [], p.annotated_type.clone(), p.idf.clone(), 'memory'), lit))
             if copy_stmts:
-                param_stmts += [Comment(), Comment('Copy from calldata to memory and set sender field')] + copy_stmts
+                param_stmts += [Comment(), Comment(
+                    'Copy from calldata to memory and set sender field')] + copy_stmts
 
             assert glob_me_key_index != -1, "Symmetric cipher but did not request me key"
 
         # Declare in array
-        new_in_array_expr = NewExpr(AnnotatedTypeName(TypeName.dyn_uint_array()), [NumberLiteralExpr(ext_circuit.in_size_trans)])
-        in_var_decl = in_arr_var.idf.decl_var(TypeName.dyn_uint_array(), new_in_array_expr)
+        new_in_array_expr = NewExpr(AnnotatedTypeName(TypeName.dyn_uint_array()), [
+                                    NumberLiteralExpr(ext_circuit.in_size_trans)])
+        in_var_decl = in_arr_var.idf.decl_var(
+            TypeName.dyn_uint_array(), new_in_array_expr)
         stmts.append(in_var_decl)
         stmts.append(Comment())
-        stmts += Comment.comment_wrap_block('Request static public keys', key_req_stmts)
-        stmts += Comment.comment_wrap_block('Backup private arguments for verification', param_stmts)
+        stmts += Comment.comment_wrap_block(
+            'Request static public keys', key_req_stmts)
+        stmts += Comment.comment_wrap_block(
+            'Backup private arguments for verification', param_stmts)
 
         # Call internal function
         args = [IdentifierExpr(param.idf.clone()) for param in original_params]
-        internal_call = FunctionCallExpr(IdentifierExpr(int_fct.idf.clone()).override(target=int_fct), args)
+        internal_call = FunctionCallExpr(IdentifierExpr(
+            int_fct.idf.clone()).override(target=int_fct), args)
         internal_call.sec_start_offset = ext_circuit.priv_in_size
 
         if int_fct.requires_verification:
@@ -917,8 +887,10 @@ class CloakTransformer(AstTransformerVisitor):
                      IdentifierExpr(cfg.zk_out_name), NumberLiteralExpr(ext_circuit.out_size)]
 
         if int_fct.return_parameters:
-            stmts += Comment.comment_list("Declare return variables", [VariableDeclarationStatement(deep_copy(vd)) for vd in int_fct.return_var_decls])
-            in_call = TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls]).assign(internal_call)
+            stmts += Comment.comment_list("Declare return variables", [
+                                          VariableDeclarationStatement(deep_copy(vd)) for vd in int_fct.return_var_decls])
+            in_call = TupleExpr([IdentifierExpr(vd.idf.clone())
+                                for vd in int_fct.return_var_decls]).assign(internal_call)
         else:
             in_call = ExpressionStatement(internal_call)
         stmts.append(Comment("Call internal function"))
@@ -927,13 +899,187 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Call verifier
         if requires_proof:
-            verifier = IdentifierExpr(cfg.get_contract_var_name(ext_circuit.verifier_contract_type.code()))
-            verifier_args = [IdentifierExpr(cfg.zk_proof_param_name), IdentifierExpr(cfg.zk_in_name), IdentifierExpr(cfg.zk_out_name)]
-            verify = ExpressionStatement(verifier.call(cfg.zk_verification_function_name, verifier_args))
-            stmts.append(StatementList([Comment('Verify zk proof of execution'), verify], excluded_from_simulation=True))
+            verifier = IdentifierExpr(cfg.get_contract_var_name(
+                ext_circuit.verifier_contract_type.code()))
+            verifier_args = [IdentifierExpr(cfg.zk_proof_param_name), IdentifierExpr(
+                cfg.zk_in_name), IdentifierExpr(cfg.zk_out_name)]
+            verify = ExpressionStatement(verifier.call(
+                cfg.zk_verification_function_name, verifier_args))
+            stmts.append(StatementList(
+                [Comment('Verify zk proof of execution'), verify], excluded_from_simulation=True))
 
         # Add return statement at the end if necessary
         if int_fct.return_parameters:
-            stmts.append(ReturnStatement(TupleExpr([IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
+            stmts.append(ReturnStatement(TupleExpr(
+                [IdentifierExpr(vd.idf.clone()) for vd in int_fct.return_var_decls])))
 
         return Block(stmts)
+
+    @staticmethod
+    def get_states(su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
+        # TODO: Array
+        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
+        uint_type = AnnotatedTypeName(UintTypeName())
+        states_types = c.states_types()
+        parameters = [
+            Parameter([], uint256_array_type, Identifier("read"), "memory"),
+            Parameter([], uint_type, Identifier("return_len"))
+        ]
+        returns = [Parameter([], uint256_array_type, Identifier(""), "memory")]
+        statements = [
+            VariableDeclarationStatement(
+                VariableDeclaration([], uint256_array_type, Identifier("oldStates"), "memory"), 
+                NewExpr(uint256_array_type, [IdentifierExpr("return_len")]))
+        ]
+        os_exp = IdentifierExpr("oldStates", uint256_array_type)
+        idx = 0
+        for i, state in enumerate(su.privacy_policy.policy["states"]):
+            state_type = states_types[state["name"]]
+            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+            if not state_type.is_mapping:
+                statements.append(os_exp.index(idx).assign(NumberLiteralExpr(i)))
+                if state["owner"] != "all" and is_cipher:
+                    statements += [
+                        os_exp.index(idx+1).assign(val_exp.index(0)),
+                        os_exp.index(idx+2).assign(val_exp.index(1)),
+                        os_exp.index(idx+3).assign(val_exp.index(2))
+                    ]
+                    idx += 4
+                else:
+                    statements.append(os_exp.index(idx+1).assign(to_uint(IdentifierExpr(state["name"]), state_type)))
+                    idx += 2
+
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("m_idx")), 
+                NumberLiteralExpr(0)))
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("o_idx")), 
+                NumberLiteralExpr(idx)))
+        read_exp = IdentifierExpr("read", uint256_array_type)
+        key_size_expr = read_exp.index(m_plus("m_idx", 1))
+        key_expr = read_exp.index(m_plus("m_idx", 2, "i"))
+        for state in su.privacy_policy.policy["states"]:
+            state_type = states_types[state["name"]]
+            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+            if state_type.is_mapping:
+                statements.append(os_exp.index(IdentifierExpr("o_idx")).assign(read_exp.index(IdentifierExpr("m_idx"))))
+                statements.append(os_exp.index(m_plus("o_idx", 1)).assign(read_exp.index(m_plus("m_idx", 1))))
+                init = VariableDeclarationStatement(
+                        VariableDeclaration([], uint_type, Identifier("i")), 
+                        NumberLiteralExpr(0))
+                cond = IdentifierExpr("i").binop("<", key_size_expr)
+                update = IdentifierExpr("i").assign(m_plus("i", 1))
+                factor = 4 if state["owner"] != "all" and is_cipher else 2
+                body_stmts = [os_exp.index(m_plus("o_idx", 2, exp_m_op("*", "i", factor))).assign(key_expr)]
+                if state["owner"] != "all" and is_cipher:
+                    for i in range(0, 3):
+                        lhs = os_exp.index(m_plus("o_idx", i+3, exp_m_op("*", "i", factor)))
+                        rhs = val_exp.index(uint_to(key_expr, state_type.key_type)).as_type(Array(uint_type, 3)).index(i)
+                        body_stmts.append(lhs.assign(rhs))
+                else:
+                    lhs = os_exp.index(m_plus("o_idx", 3, exp_m_op("*", "i", 2)))
+                    rhs = to_uint(val_exp.index(uint_to(key_expr, state_type.key_type)), state_type.value_type)
+                    body_stmts.append(lhs.assign(rhs))
+                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
+                statements += [
+                    IdentifierExpr("o_idx").assign(m_plus("o_idx", 2, exp_m_op("*", key_size_expr, factor))),
+                    IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, key_size_expr))
+                ]
+
+        statements.pop()
+        statements.pop()
+        statements.append(ReturnStatement(IdentifierExpr("oldStates")))
+        return ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, ["public"], returns, Block(statements))
+
+    @staticmethod
+    def set_states(su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
+        # TODO: Array
+        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
+        uint_type = AnnotatedTypeName(UintTypeName())
+        states_types = c.states_types()
+        if is_cipher:
+            parameters = [
+                Parameter([], uint256_array_type, Identifier("read"), "memory"),
+                Parameter([], uint_type, Identifier("old_states_len")),
+                Parameter([], uint256_array_type, Identifier("data"), "memory"),
+                Parameter([], AnnotatedTypeName(Array(uint_type)), Identifier("proof"), "memory")
+            ]
+        else:
+            parameters = [Parameter([], uint256_array_type, Identifier("data"), "memory")]
+
+        statements = []
+        if is_cipher:
+            statements = [
+                ExpressionStatement(IdentifierExpr("require").call(
+                    None, [IdentifierExpr("msg").dot("sender").binop("==", IdentifierExpr("tee")), 
+                        StringLiteralExpr("msg.sender is not tee")])),
+                VariableDeclarationStatement(
+                    VariableDeclaration([], AnnotatedTypeName(UintTypeName("uint256")), Identifier("osHash")),
+                    IdentifierExpr("uint256").call(
+                        None, [IdentifierExpr("keccak256").call(
+                            None, [IdentifierExpr("abi").dot("encode").call(
+                                None, [IdentifierExpr("get_states").call(
+                                    None, [IdentifierExpr("read"), IdentifierExpr("old_states_len")])])])])),
+                IfStatement(
+                    IdentifierExpr("CloakService_inst").dot("verify").call(None, 
+                        [IdentifierExpr("proof"), IdentifierExpr("teeCHash"), 
+                            IdentifierExpr("teePHash"), IdentifierExpr("osHash")]).unop("!"),
+                    Block([ExpressionStatement(IdentifierExpr("revert").call(None, [StringLiteralExpr("hash error")]))]),
+                    None
+                )
+            ]
+        data_exp = IdentifierExpr("data", uint256_array_type)
+        idx = 0
+        for state in su.privacy_policy.policy["states"]:
+            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+            state_type = states_types[state["name"]]
+            if not state_type.is_mapping:
+                if state["owner"] != "all" and is_cipher:
+                    statements += [
+                        val_exp.index(0).assign(data_exp.index(idx+1)),
+                        val_exp.index(1).assign(data_exp.index(idx+2)),
+                        val_exp.index(2).assign(data_exp.index(idx+3)),
+                    ]
+                    idx += 4
+                else:
+                    statements.append(IdentifierExpr(state["name"]).assign(uint_to(data_exp.index(idx+1), state_type)))
+                    idx += 2
+
+        statements.append(VariableDeclarationStatement(
+                VariableDeclaration([], uint_type, Identifier("m_idx")), 
+                NumberLiteralExpr(idx)))
+        key_size_expr = data_exp.index(m_plus("m_idx", 1))
+        for state in su.privacy_policy.policy["states"]:
+            state_type = states_types[state["name"]]
+            if state_type.is_mapping:
+                # TODO: fix the wrong type
+                val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint256_array_type)))
+                factor = 4 if state["owner"] != "all" and is_cipher else 2
+                init = VariableDeclarationStatement(
+                        VariableDeclaration([], uint_type, Identifier("i")), 
+                        NumberLiteralExpr(0))
+                cond = IdentifierExpr("i").binop("<", key_size_expr)
+                update = IdentifierExpr("i").assign(m_plus("i", 1))
+                imf_exp = exp_m_op("*", "i", factor)
+                key_expr = data_exp.index(m_plus("m_idx", 2, imf_exp))
+                if state["owner"] != "all" and is_cipher:
+                    body_stmts = []
+                    for i in range(0, 3):
+                        lhs = val_exp.index(uint_to(key_expr, state_type.key_type)).index(i)
+                        rhs = data_exp.index(m_plus("m_idx", 3 + i, imf_exp))
+                        body_stmts.append(lhs.assign(rhs))
+                else:
+                    lhs = val_exp.index(uint_to(key_expr, state_type.key_type))
+                    rhs = uint_to(data_exp.index(m_plus("m_idx", 3, imf_exp)), state_type.value_type)
+                    body_stmts = [lhs.assign(rhs)]
+                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
+                statements.append(IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, exp_m_op("*", key_size_expr, factor))))
+
+        statements.pop()
+        return ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, ["public"], [], Block(statements))
+
+    def append_get_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
+        c.new_fcts.append(self.get_states(su, c))
+
+    def append_set_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
+        c.new_fcts.append(self.set_states(su, c))

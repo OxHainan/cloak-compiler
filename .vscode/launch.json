@@ -12,6 +12,14 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Python: deploy-pki",
+            "type": "python",
+            "request": "launch",
+            "program": "cloak/__main__.py",
+            "args": ["deploy-pki", "0x5B38Da6a701c568545dCfcB03FcB875f56beddC4"],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python: scores-check",
             "type": "python",
             "request": "launch",

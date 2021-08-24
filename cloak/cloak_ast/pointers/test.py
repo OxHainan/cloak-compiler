@@ -1,5 +1,5 @@
-from cloak.cloak_ast.ast import AST, Expression, FunctionCallExpr, StateVariableDeclaration, Statement, ConstructorOrFunctionDefinition, SourceUnit, NamespaceDefinition, Identifier
-from cloak.cloak_ast.visitor.visitor import AstVisitor
+from zkay.zkay_ast.ast import AST, Expression, Statement, ConstructorOrFunctionDefinition, SourceUnit, NamespaceDefinition, Identifier
+from zkay.zkay_ast.visitor.visitor import AstVisitor
 
 
 class ParentSetterVisitor(AstVisitor):

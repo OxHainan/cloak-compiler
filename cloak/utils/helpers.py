@@ -1,8 +1,10 @@
 import os
 import re
 import hashlib
-from typing import Optional, List
+from typing import Optional, List, Any
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
+from cloak.cloak_ast.ast import Expression, NumberLiteralExpr, IdentifierExpr, PrimitiveCastExpr, \
+        AddressTypeName, UintTypeName, ContractDefinition, TypeName
 
 
 def save_to_file(output_directory: Optional[str], filename: str, code: str):
@@ -61,3 +63,35 @@ def lines_of_code(code: str):
     lines = code.split('\n')
     lines = [l for l in lines if not l.startswith('//')]
     return len(lines)
+
+
+def exp_m_op(op: str, *lst: List[Any]) -> Expression:
+    res = None
+    for x in lst:
+        if isinstance(x, str):
+            val = IdentifierExpr(x)
+        elif isinstance(x, Expression):
+            val = x
+        else:
+            val = NumberLiteralExpr(x)
+        if res:
+            res = res.binop(op, val)
+        else:
+            res = val
+    return res
+
+def m_plus(*lst: List[Any]) -> Expression:
+    return exp_m_op("+", *lst)
+
+def to_uint(expr: Expression, source_type: TypeName) -> PrimitiveCastExpr:
+    if source_type.is_address():
+        return PrimitiveCastExpr(UintTypeName(), PrimitiveCastExpr(UintTypeName("uint160"), expr))
+    else:
+        return PrimitiveCastExpr(UintTypeName(), expr)
+
+def uint_to(expr: Expression, target_type: TypeName) -> Expression:
+    if target_type.is_address():
+        return PrimitiveCastExpr(AddressTypeName(), PrimitiveCastExpr(UintTypeName("uint160"), expr))
+    else:
+        return expr
+
