@@ -187,12 +187,12 @@ class CloakTransformer(AstTransformerVisitor):
 
             if fct.requires_verification_when_external and fct.is_zkp():
                 c.req_ext_zk_fcts[fct] = fct.parameters[:]
-            elif fct.requires_verification_when_external and fct.is_tee():
-                c.req_ext_tee_fcts[fct] = fct.parameters[:]
+            # elif fct.requires_verification_when_external and fct.is_tee():
+            #     c.req_ext_tee_fcts[fct] = fct.parameters[:]
             elif fct.is_constructor:
                 c.new_constr.append(fct)
-            else:
-                c.new_fcts.append(fct)
+            # else:
+            #     c.new_fcts.append(fct)
 
         self.include_verification_contracts(su, c)
 
@@ -288,11 +288,11 @@ class CloakTransformer(AstTransformerVisitor):
         # for fct, params in c.req_ext_tee_fcts.items():
         #     ext_f, int_f = self.split_tee_into_external_and_internal_fct(
         #         fct, params, c.global_owners)
-            # if ext_f.is_function:
-            #     c.new_fcts.append(ext_f)
-            # else:
-            #     c.new_constr.append(ext_f)
-            # c.new_fcts.append(int_f)
+        #     if ext_f.is_function:
+        #         c.new_fcts.append(ext_f)
+        #     else:
+        #         c.new_constr.append(ext_f)
+        #     c.new_fcts.append(int_f)
 
         # append get_states and set_states
         self.append_get_states(su, c)
@@ -964,26 +964,26 @@ class CloakTransformer(AstTransformerVisitor):
             if state_type.is_mapping:
                 statements.append(os_exp.index(IdentifierExpr("o_idx")).assign(read_exp.index(IdentifierExpr("m_idx"))))
                 statements.append(os_exp.index(m_plus("o_idx", 1)).assign(read_exp.index(m_plus("m_idx", 1))))
-                factor = 2 if state["owner"] == "all" else 4
                 init = VariableDeclarationStatement(
                         VariableDeclaration([], uint_type, Identifier("i")), 
                         NumberLiteralExpr(0))
                 cond = IdentifierExpr("i").binop("<", key_size_expr)
                 update = IdentifierExpr("i").assign(m_plus("i", 1))
+                factor = 4 if state["owner"] != "all" and is_cipher else 2
                 body_stmts = [os_exp.index(m_plus("o_idx", 2, exp_m_op("*", "i", factor))).assign(key_expr)]
                 if state["owner"] != "all" and is_cipher:
                     for i in range(0, 3):
-                        lhs = os_exp.index(m_plus(idx, "o_idx", i+3, exp_m_op("*", "i", factor)))
-                        rhs = val_exp.index(uint_to(read_exp.index(m_plus("m_idx", i)), state_type.key_type))
+                        lhs = os_exp.index(m_plus("o_idx", i+3, exp_m_op("*", "i", factor)))
+                        rhs = val_exp.index(uint_to(key_expr, state_type.key_type)).as_type(Array(uint_type, 3)).index(i)
                         body_stmts.append(lhs.assign(rhs))
                 else:
-                    lhs = os_exp.index(m_plus(idx, "o_idx", 3, exp_m_op("*", "i", factor)))
-                    rhs = to_uint(val_exp.index(uint_to(read_exp.index(m_plus("m_idx", i)), state_type.key_type)), state_type.value_type)
+                    lhs = os_exp.index(m_plus("o_idx", 3, exp_m_op("*", "i", 2)))
+                    rhs = to_uint(val_exp.index(uint_to(key_expr, state_type.key_type)), state_type.value_type)
                     body_stmts.append(lhs.assign(rhs))
                 statements.append(ForStatement(init, cond, update, Block(body_stmts)))
                 statements += [
-                    IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, key_size_expr)),
-                    IdentifierExpr("o_idx").assign(m_plus("o_idx", 2, exp_m_op("*", key_size_expr, factor)))
+                    IdentifierExpr("o_idx").assign(m_plus("o_idx", 2, exp_m_op("*", key_size_expr, factor))),
+                    IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, key_size_expr))
                 ]
 
         statements.pop()
@@ -1024,7 +1024,7 @@ class CloakTransformer(AstTransformerVisitor):
                     IdentifierExpr("CloakService_inst").dot("verify").call(None, 
                         [IdentifierExpr("proof"), IdentifierExpr("teeCHash"), 
                             IdentifierExpr("teePHash"), IdentifierExpr("osHash")]).unop("!"),
-                    Block([ExpressionStatement(IdentifierExpr("revert").call(None, []))]),
+                    Block([ExpressionStatement(IdentifierExpr("revert").call(None, [StringLiteralExpr("hash error")]))]),
                     None
                 )
             ]
@@ -1051,11 +1051,10 @@ class CloakTransformer(AstTransformerVisitor):
         key_size_expr = data_exp.index(m_plus("m_idx", 1))
         for state in su.privacy_policy.policy["states"]:
             state_type = states_types[state["name"]]
-            # TODO: better way to check type
             if state_type.is_mapping:
                 # TODO: fix the wrong type
                 val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint256_array_type)))
-                factor = 2 if state["owner"] == "all" else 4
+                factor = 4 if state["owner"] != "all" and is_cipher else 2
                 init = VariableDeclarationStatement(
                         VariableDeclaration([], uint_type, Identifier("i")), 
                         NumberLiteralExpr(0))
