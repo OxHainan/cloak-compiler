@@ -99,6 +99,7 @@ setup(
         'semantic-version>=2.8.4,<2.9',
 
         'pysha3>=1.0.2,<1.1', # Console script doesn't work without this even though it is not required
+        'ccf==1.0.3',
     ],
 
     # Contents

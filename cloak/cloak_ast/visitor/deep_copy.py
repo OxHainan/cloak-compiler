@@ -150,6 +150,12 @@ class DeepCopyVisitor(AstVisitor):
             ast_copy.before_analysis = ast.before_analysis
         return ast_copy
 
+    # def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition) -> ConstructorOrFunctionDefinition:
+    #     ast_copy = self.visitChildren(ast)
+    #     if hasattr(ast, "privacy_type"):
+    #         ast_copy.privacy_type = privacy_type
+    #     return ast_copy
+
     def copy_field(self, field):
         if field is None:
             return None
