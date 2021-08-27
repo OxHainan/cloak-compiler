@@ -46,7 +46,8 @@ contract CrowdFunding {
         require(tx.origin == msg.sender);
         uint@me amount = funds[me];
         funds[me] = 0;
-        msg.sender.transfer(reveal(amount, all));
+        // TODO: 0.8.0 BREAK
+        // payable(msg.sender).transfer(reveal(amount, all));
     }
 
     // Pay secret amount of money into the pot
@@ -85,7 +86,8 @@ contract CrowdFunding {
         require(has_ended() && !success);
         uint@me amount = pledged[me];
         pledged[me] = 0;
-        msg.sender.transfer(reveal(amount, all));
+        // TODO: 0.8.0 BREAK
+        // payable(msg.sender).transfer(reveal(amount, all));
     }
 
     // Withdraw money after successful funding
@@ -94,6 +96,7 @@ contract CrowdFunding {
         require(closed && success);
         uint@me amount = pot_balance;
         pot_balance = 0;
-        msg.sender.transfer(reveal(amount, all));
+        // TODO: 0.8.0 BREAK
+        // payable(msg.sender).transfer(reveal(amount, all));
     }
 }

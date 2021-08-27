@@ -50,7 +50,7 @@ contract FuncCalls {
 
     // Function usable within private expression
     function priv_inlined(uint@me v1, uint@me v2) pure internal returns (uint@me) { // 5, 84
-        return -(v1 * v2 - priv_inlined_nested(v2, v1) * priv_inlined_nested(v1, v2));
+        return 0-(v1 * v2 - priv_inlined_nested(v2, v1) * priv_inlined_nested(v1, v2));
     } // 420 - (-3100 * -105168)
 
     // Nested function within private expression

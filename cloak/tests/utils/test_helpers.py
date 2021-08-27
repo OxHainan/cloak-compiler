@@ -1,7 +1,7 @@
 from cloak.tests.cloak_unit_test import CloakTestCase
 from cloak.utils.helpers import lines_of_code
 
-example_code = """pragma solidity ^0.6.0;
+example_code = """pragma solidity ^0.8.0;
 
 // Description: Record medical statistics on patients
 // Domain: Healthcare

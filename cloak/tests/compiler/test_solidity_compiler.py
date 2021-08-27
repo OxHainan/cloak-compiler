@@ -5,7 +5,7 @@ from cloak.compiler.solidity.compiler import compile_solidity_code, compile_soli
 from cloak.examples.examples import others_dir
 
 simple_storage = """
-pragma solidity ^0.6.0;
+pragma solidity ^0.8.0;
 
 contract SimpleStorage {
     uint storedData;
