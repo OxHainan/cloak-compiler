@@ -87,20 +87,20 @@ setup(
 
     # Dependencies
     python_requires='>=3.7,<4',
-    install_requires=[
-        'Cython>=0.29,<0.30',
-        'web3[tester]>=v5.11,<v5.13',
-        f'antlr4-python3-runtime=={antlr_version}',
-        'parameterized>=0.7,<0.8',
-        'py-solc-x',
-        'pycryptodome>=3.9,<4',
-        'appdirs>=1.4,<1.5',
-        'argcomplete>=1,<2',
-        'semantic-version>=2.8.4,<2.9',
+    # install_requires=[
+    #     'Cython>=0.29,<0.30',
+    #     'web3[tester]>=v5.11,<v5.13',
+    #     f'antlr4-python3-runtime=={antlr_version}',
+    #     'parameterized>=0.7,<0.8',
+    #     'py-solc-x',
+    #     'pycryptodome>=3.9,<4',
+    #     'appdirs>=1.4,<1.5',
+    #     'argcomplete>=1,<2',
+    #     'semantic-version>=2.8.4,<2.9',
 
-        'pysha3>=1.0.2,<1.1', # Console script doesn't work without this even though it is not required
-        'ccf==1.0.3',
-    ],
+    #     'pysha3>=1.0.2,<1.1', # Console script doesn't work without this even though it is not required
+    #     'ccf==1.0.3',
+    # ],
 
     # Contents
     packages=packages,

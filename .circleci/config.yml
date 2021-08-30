@@ -12,5 +12,8 @@ jobs:
           name: Install Development 
           command: python3 setup.py develop
       - run:
+          name: Install Python Dependencies
+          command: pip install -r install/requirements.txt
+      - run:
           name: Compiler Test
           command: python3 -m unittest discover --verbose cloak
