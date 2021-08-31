@@ -15,7 +15,6 @@ from cloak.config import cfg, zk_print
 from cloak.utils.progress_printer import warn_print
 from cloak.cloak_ast.analysis.partition_state import PartitionState
 from cloak.cloak_ast.visitor.visitor import AstVisitor
-import cloak.policy.privacy_policy as pp
 
 T = TypeVar('T')
 
@@ -1975,7 +1974,7 @@ class SourceUnit(AST):
         self.used_contracts = [] if used_contracts is None else used_contracts
 
         self.original_code: List[str] = []
-        self.privacy_policy: pp.PrivacyPolicy
+        self.privacy_policy = None
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)

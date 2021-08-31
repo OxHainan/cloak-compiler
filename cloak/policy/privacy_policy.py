@@ -1,7 +1,9 @@
 import json
+import web3
 from typing import Any, OrderedDict
 from cloak.type_check import type_pure
 from cloak.cloak_ast import ast
+from cloak.cloak_ast.visitor.deep_copy import deep_copy
 
 FUNC_INPUTS = "inputs"
 FUNC_READ = "read"
@@ -28,7 +30,7 @@ class FunctionPolicy():
         return self.fpolicy["name"]
 
     @property
-    def read(self):
+    def inputs(self):
         return self.fpolicy[FUNC_INPUTS]
 
     @property
@@ -36,11 +38,11 @@ class FunctionPolicy():
         return self.fpolicy[FUNC_READ]
 
     @property
-    def read(self):
+    def mutate(self):
         return self.fpolicy[FUNC_MUTATE]
 
     @property
-    def read(self):
+    def outputs(self):
         return self.fpolicy[FUNC_OUTPUTS]
 
     def get_item(self, clss, var):
@@ -79,6 +81,11 @@ class FunctionPolicy():
                 n_elem["type"] = type_pure.delete_cloak_annotation(
                     self.__ppv.visit(var.annotated_type.type_name))
 
+                if clss == FUNC_INPUTS:
+                    type_name = deep_copy(var.annotated_type.type_name)
+                    ConcreteTypeNameVisitor().visit(type_name)
+                    n_elem["concrete_type"] = type_name.code()
+
                 if isinstance(var.annotated_type.type_name, (ast.Mapping, ast.Array)):
                     n_elem["owner"] = self.__ppv.visit(var.annotated_type.type_name)
                 else:
@@ -99,6 +106,17 @@ class FunctionPolicy():
                 is_new = True
 
         return is_new
+
+    def set_function_selector(self):
+        fs = self.name + "("
+        for i, p in enumerate(self.inputs):
+            if i != 0:
+                fs += ","
+            fs += p["concrete_type"]
+            del p["concrete_type"]
+        fs += ")"
+        self.fpolicy["entry"] = web3.Web3.keccak(fs.encode())[:4].hex()
+
 
 class PrivacyPolicyEncoder(json.JSONEncoder):
 
@@ -163,6 +181,7 @@ class PrivacyPolicy(json.JSONEncoder):
         if not item in self.policy:
             self.policy[item] = []
 
+        func_policy.set_function_selector()
         self.policy[item].append(func_policy)
 
     def get_function_policy(self, f_name: str):
@@ -186,6 +205,18 @@ class PrivacyPolicy(json.JSONEncoder):
 
     def sort_states(self):
         self.policy["states"].sort(key=lambda x: x["type"].find("mapping"))
+
+
+# replace type name with concrete type name for computing function function selector
+class ConcreteTypeNameVisitor(ast.AstVisitor):
+    def __init__(self):
+        super().__init__()
+
+    def visitUintTypeName(self, type_name):
+        if type_name.name == "uint":
+            type_name.name = "uint256"
+        elif type_name.name == "int":
+            type_name.name = "int256"
 
 
 if __name__ == "__main__":
