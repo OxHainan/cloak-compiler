@@ -1,68 +1,28 @@
-# <font face="Copperplate" size="6">Cloak</font>: <font size="5">A Framework of the Development of Blockchain Confidential Smart Contract</font>
+# cloak-compiler
+cloak-compiler is an implementation of [Cloak Language](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/develop-cloak-smart-contract/cloak-language.html).
 
-cloak is a programming language which enables
-automatic compilation of intuitive data privacy specifications to NIZK, TEE enabled
-private smart contracts.
+## What is Cloak?
+Cloak is a pluggable and configurable framework for developing and deploying confidential smart contracts. To this end, Cloak allows users to specify privacy invariants (what is private data and to who is the data private) in a declarative way. Then, it automatically generate runtime with verifiably enforced privacy and deploy it to the existing EVM-enabled platforms (e.g., Ethereum) and TEE devices to enable the confidential smart contract.
 
-cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+The key capability of Cloak is to allow developers to implement and deploy practical solutions to Multi-Party Transaction (MPT) problems, i.e., to transact with secret functions parameters and states owned by different parties by simply specifying it.
+
+In our evaluation on both examples and real-world applications, developers manage to deploy business services on blockchain in a concise manner by only developing Cloak smart contracts, whose size is less than 30% of the deployed ones, and the gas cost of deployed MPTs reduced by 19%.
+
+The Cloak is an ongoing project aiming to become a chain-agnostic privacy infrastructure of the blockchain ecology. We are always calling for talented, self-motivated developers, researchers or students excited about our vision. Let us make it together.
 
 ## Warning
 
 This is a prototype implementation not intended for use in production. 
 
-## Install
+## Usage
+* [Install cloak-compiler](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#installation)
+* [Cloak Example](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-by-examples)
+* [Compile Cloak Contract](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#compile-cloak-contract)
+* [Use cloak-client to process Cloak transaction](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-web3)
+* [Full Document](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/index.html)
 
-### Using Docker
+## Contributing
+Please see the [Call for Contributing](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/contribute.html)
 
-The simplest way to run cloak is using docker. After installing docker, the docker image can be run
-as follows:
-
-```bash
-/path/to/cloak$ ./build-docker.sh
-/cloak-compiler$
-```
-
-This command mounts the directory `cloak` from your host as `/cloak-compiler`
-within the docker container. You can run `build-docker.sh` also from any other directory `d` on your host.
-In this case, `d` is mounted as `/d_host` inside the container.
-This allows you to operate on files from your host machine.
-
-### Directly On Host
-
-As an alternative to docker, you may install cloak on your host directly. To this end, follow
-the instructions in the [Dockerfile](./install/Dockerfile) marked by `To install on host`.
-
-Below we show how to test your cloak installation, and how to type-check and
-compile cloak contracts from _within the docker container_. However, the
-respective commands can similarly be _run directly on the host_ after having
-installed cloak properly.
-
-## Unit Tests
-
-To run all unit tests of cloak, run:
-
-```bash
-# run tests within docker
-/cloak-compiler$ python3 -m unittest discover --verbose cloak
-```
-
-If all tests pass, your cloak installation is likely set up correctly.
-Note that running all unit tests _may take several hours_.
-
-## Type-Check Contracts
-
-To type-check a cloak file `test.cloak` in `/path/to/contract` without compiling it, run:
-
-```bash
-# type check within docker
-/contract_host$ python3 cloak/__main__.py check test.cloak
-```
-
-## Compile Contracts
-
-To compile and type-check a cloak file `test.cloak` in `/path/to/contract`, run:
-
-```bash
-# run compilation within docker
-/contract_host$ python3 cloak/__main__.py compile [-o "<output_dir>"] test.cloak
-```
+## Related works
+cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
