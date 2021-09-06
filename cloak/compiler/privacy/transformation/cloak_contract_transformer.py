@@ -83,12 +83,18 @@ class CloakTransformer(AstTransformerVisitor):
                 c_type, import_filename)
 
     @staticmethod
-    def create_contract_variable(cname: str) -> StateVariableDeclaration:
+    def create_contract_variable(cname: str, default_value: Optional[str] = None) -> StateVariableDeclaration:
         """Create a public constant state variable with which contract with name 'cname' can be accessed"""
+        source_text = None
+        if default_value is None or default_value == "":
+            default_value = 0
+        else:
+            source_text = default_value
+
         inst_idf = Identifier(cfg.get_contract_var_name(cname))
         c_type = ContractTypeName([Identifier(cname)])
 
-        cast_0_to_c = PrimitiveCastExpr(c_type, NumberLiteralExpr(0))
+        cast_0_to_c = PrimitiveCastExpr(c_type, NumberLiteralExpr(int(default_value, 16), source_text=source_text))
         var_decl = StateVariableDeclaration(AnnotatedTypeName(
             c_type), ['public', 'constant'], inst_idf.clone(), cast_0_to_c)
         return var_decl
@@ -102,9 +108,9 @@ class CloakTransformer(AstTransformerVisitor):
         :return: list of all constant state variable declarations for the pki contract + all the verification contracts
         """
         c.contract_var_decls = [
-            self.create_contract_variable(cfg.pki_contract_name)]
+            self.create_contract_variable(cfg.pki_contract_name, cfg.blockchain_pki_address)]
         c.contract_var_decls.append(
-            self.create_contract_variable(cfg.service_contract_name))
+            self.create_contract_variable(cfg.service_contract_name, cfg.blockchain_service_address))
 
         for f in c.fcts_is_zkp:
             if f.requires_verification_when_external and f.has_side_effects:
