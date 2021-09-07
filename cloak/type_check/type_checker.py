@@ -9,7 +9,7 @@ from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, If
     BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, FunctionPrivacyType, \
-    UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
+    UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition, VariableDeclaration
 from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.policy.privacy_policy import FunctionPolicy, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
@@ -482,7 +482,7 @@ class PrivacyTypeVisitor(AstVisitor):
                         new_fp.mutate_values.append(v.target)
 
         for v in ast.modified_values:
-            if isinstance(v.target, StateVariableDeclaration):
+            if isinstance(v.target, VariableDeclaration):
                 if not v.target.annotated_type.type_name.is_primitive_type():
                     if isinstance(v[2], IndexExpr):
                         top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
