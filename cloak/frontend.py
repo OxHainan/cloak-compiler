@@ -72,7 +72,8 @@ def compile_cloak_file(input_file_path: str, output_dir: str, import_keys: bool 
 
     # compile
     with time_measure('compileFull'):
-        cg, _ = compile_cloak(code, output_dir, import_keys, **kwargs)
+        # cg, _ = compile_cloak(code, output_dir, import_keys, **kwargs)
+        compile_cloak(code, output_dir, import_keys, **kwargs)
 
 
 def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwargs) -> Tuple[CircuitGenerator, str]:
@@ -140,18 +141,18 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     circuits: List[CircuitHelper] = list(circuits.values())
 
     # Generate offchain simulation code (transforms transactions, interface to deploy and access the cloak contract)
-    offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
-    _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
+    # offchain_simulation_code = PythonOffchainVisitor(circuits).visit(ast)
+    # _dump_to_output(offchain_simulation_code, output_dir, 'contract.py')
 
     # Instantiate proving scheme and circuit generator
-    ps = proving_scheme_classes[cfg.proving_scheme]()
-    cg = generator_classes[cfg.snark_backend](circuits, ps, output_dir)
+    # ps = proving_scheme_classes[cfg.proving_scheme]()
+    # cg = generator_classes[cfg.snark_backend](circuits, ps, output_dir)
 
-    if 'verifier_names' in kwargs:
-        assert isinstance(kwargs['verifier_names'], list)
-        verifier_names = get_verification_contract_names(cloak_ast)
-        assert sorted(verifier_names) == sorted([cc.verifier_contract_type.code() for cc in cg.circuits_to_prove])
-        kwargs['verifier_names'][:] = verifier_names[:]
+    # if 'verifier_names' in kwargs:
+    #     assert isinstance(kwargs['verifier_names'], list)
+    #     verifier_names = get_verification_contract_names(cloak_ast)
+    #     assert sorted(verifier_names) == sorted([cc.verifier_contract_type.code() for cc in cg.circuits_to_prove])
+    #     kwargs['verifier_names'][:] = verifier_names[:]
 
     # Generate manifest
     if not import_keys:
@@ -169,11 +170,11 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
     # cg.generate_circuits(import_keys=import_keys)
 
     # Check that all verification contracts and the main contract compile
-    main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
+    # main_solidity_files = cg.get_verification_contract_filenames() + [os.path.join(output_dir, output_filename)]
     # for f in main_solidity_files:
     #     check_compilation(f, show_errors=False)
 
-    return cg, solidity_code_output
+    # return cg, solidity_code_output
 
 
 def use_configuration_from_manifest(contract_dir: str) -> Any:

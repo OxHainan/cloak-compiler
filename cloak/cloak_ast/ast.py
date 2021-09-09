@@ -572,6 +572,11 @@ class LocationExpr(TupleOrLocationExpr):
             item = NumberLiteralExpr(item)
         return IndexExpr(self, item).as_type(self.annotated_type.type_name.value_type)
 
+    def raw_index(self, item: Union[int, Expression]) -> IndexExpr:
+        if isinstance(item, int):
+            item = NumberLiteralExpr(item)
+        return IndexExpr(self, item)
+
     def assign(self, val: Expression) -> AssignmentStatement:
         return AssignmentStatement(self, val)
 
@@ -899,9 +904,10 @@ class ExpressionStatement(SimpleStatement):
 
 class RequireStatement(SimpleStatement):
 
-    def __init__(self, condition: Expression, unmodified_code: Optional[str] = None):
+    def __init__(self, condition: Expression, unmodified_code: Optional[str] = None, comment=None):
         super().__init__()
         self.condition = condition
+        self.comment = comment
         self.unmodified_code = self.code() if unmodified_code is None else unmodified_code
 
     def process_children(self, f: Callable[[T], T]):
@@ -1967,7 +1973,8 @@ class ContractDefinition(NamespaceDefinition):
 
 class SourceUnit(AST):
 
-    def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None):
+    def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None,
+            sbe=None, sbs=None):
         super().__init__()
         self.pragma_directive = pragma_directive
         self.contracts = contracts
@@ -1975,6 +1982,8 @@ class SourceUnit(AST):
 
         self.original_code: List[str] = []
         self.privacy_policy = None
+        # sba: sol badguy ast, for generating expression/statement from string
+        self.sba = sbe or sbs
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)
@@ -2298,6 +2307,8 @@ class CodeVisitor(AstVisitor):
 
     def visitRequireStatement(self, ast: RequireStatement):
         c = self.visit(ast.condition)
+        if ast.comment:
+            return f'require({c}, {ast.comment});'
         return f'require({c});'
 
     def visitAssignmentStatement(self, ast: AssignmentStatement):

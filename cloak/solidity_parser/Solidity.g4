@@ -27,7 +27,8 @@ grammar Solidity;
 
 // : importDirective
 sourceUnit
-  : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF ;
+  : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF
+  | 'SOL' (sbe=expression | sbs=statement) EOF;
 
 // https://solidity.readthedocs.io/en/v0.4.24/layout-of-source-files.html#version-pragma
 pragmaDirective

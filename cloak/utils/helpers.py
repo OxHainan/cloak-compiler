@@ -94,4 +94,3 @@ def uint_to(expr: Expression, target_type: TypeName) -> Expression:
         return PrimitiveCastExpr(AddressTypeName(), PrimitiveCastExpr(UintTypeName("uint160"), expr))
     else:
         return expr
-

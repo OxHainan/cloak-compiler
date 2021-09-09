@@ -4,7 +4,7 @@ from typing import Any, OrderedDict
 from cloak.type_check import type_pure
 from cloak.cloak_ast import ast
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
-from cloak.cloak_ast.visitor.formatter import OwnerFormatter
+from cloak.cloak_ast.visitor.formatter import OwnerFormatter, TypeFormatter
 
 FUNC_INPUTS = "inputs"
 FUNC_READ = "read"
@@ -161,6 +161,7 @@ class PrivacyPolicy(json.JSONEncoder):
             n_elem["name"] = var.idf.name
         n_elem["type"] = type_pure.delete_cloak_annotation(
             self.__ppv.visit(var.annotated_type.type_name))
+        n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
         # TODO: ARRAY
         n_elem["owner"] = OwnerFormatter().visit(var.annotated_type)
 

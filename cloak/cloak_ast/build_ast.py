@@ -27,6 +27,13 @@ def build_ast(code):
     return full_ast
 
 
+def SOL(code: str) -> ast.AST:
+    p = MyParser("SOL "+code)
+    full_ast = build_ast_from_parse_tree(p.tree, p.tokens, code)
+    assert full_ast.sba
+    return full_ast.sba
+
+
 class BuildASTVisitor(SolidityVisitor):
 
     def __init__(self, tokens: CommonTokenStream, code: str):
@@ -187,10 +194,10 @@ class BuildASTVisitor(SolidityVisitor):
         if s.startswith('"'):
             s = s[1:-1].replace('\\"', '"')
         else:
-            s = s[2:-2]
+            s = s[1:-1]
 
-        raise SyntaxException('Use of unsupported string literal expression', ctx, self.code)
-        # return StringLiteralExpr(s)
+        # raise SyntaxException('Use of unsupported string literal expression', ctx, self.code)
+        return StringLiteralExpr(s)
 
     def visitTupleExpr(self, ctx:SolidityParser.TupleExprContext):
         contents = ctx.expr.children[1:-1]
@@ -410,9 +417,11 @@ class BuildASTVisitor(SolidityVisitor):
                 f = e.func
                 if isinstance(f, IdentifierExpr):
                     if f.idf.name == 'require':
-                        if len(e.args) != 1:
-                            raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
-                        return ast.RequireStatement(e.args[0])
+                        if len(e.args) == 1:
+                            return ast.RequireStatement(e.args[0],)
+                        if len(e.args) == 2:
+                            return ast.RequireStatement(e.args[0], comment=e.args[1])
+                        raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
 
             assert isinstance(e, ast.Expression)
             return ExpressionStatement(e)
