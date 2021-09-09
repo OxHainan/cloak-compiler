@@ -91,10 +91,12 @@ Cloak is implemented based on a research work, [zkay](https://github.com/eth-sri
 ## 📄 License
 
 The cloak-compiler is made under the [Apache 2.0][al], as found in the [LICENSE][l] file.
-Some third-party code has its own licensing terms.
+
+Some third-party code has its [own licensing terms][2].
 
 [al]: http://www.apache.org/licenses/LICENSE-2.0
-[l]: https://github.com/OxHainan/cloak-compiler/blob/cloak/LICENSE
+[l]: https://github.com/OxHainan/cloak-compiler/blob/master/LICENSE
+[2]: https://github.com/OxHainan/cloak-compiler/blob/master/LICENSE-3RD-PARTIES
 
 ## ❗️ Warning
 
