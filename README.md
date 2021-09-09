@@ -32,6 +32,15 @@ In our evaluation on both examples and real-world applications, developers manag
 
 The Cloak is an ongoing project aiming to become a chain-agnostic privacy infrastructure of the blockchain ecology. We are always calling for talented, self-motivated developers, researchers or students excited about our vision. Let us make it together.
 
+## Contents
+
+- [Usage](#-usage)
+- [Documentation](#-documentation)
+- [How to Contribute](#-how-to-contribute)
+- [Related works](#-related-works)
+- [License](#-license)
+- [Warning](#-warning)
+
 ## 📖 Usage
 * [Install cloak-compiler](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#installation)
 * [Cloak Example](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-by-examples)
@@ -76,8 +85,16 @@ and get familiar with our contribution process.
 
 [issues]: https://github.com/OxHainan/cloak-compiler/issues
 
-## Related works
+## 📖 Related works
 Cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+
+## 📄 License
+
+The cloak-compiler is made under the [Apache 2.0][al], as found in the [LICENSE][l] file.
+Some third-party code has its own licensing terms.
+
+[al]: http://www.apache.org/licenses/LICENSE-2.0
+[l]: https://github.com/OxHainan/cloak-compiler/blob/cloak/LICENSE
 
 ## ❗️ Warning
 
