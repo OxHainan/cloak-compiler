@@ -32,10 +32,6 @@ In our evaluation on both examples and real-world applications, developers manag
 
 The Cloak is an ongoing project aiming to become a chain-agnostic privacy infrastructure of the blockchain ecology. We are always calling for talented, self-motivated developers, researchers or students excited about our vision. Let us make it together.
 
-## ❗️ Warning
-
-Cloak is an ongoing project. The security of our implementation has not been systematically reviewed yet! Do not use Cloak in a productive system or to process sensitive confidential data now. We will keep working on Cloak, making it cool and practical step-by-step. 
-
 ## 📖 Usage
 * [Install cloak-compiler](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#installation)
 * [Cloak Example](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-by-examples)
@@ -81,4 +77,8 @@ and get familiar with our contribution process.
 [issues]: https://github.com/OxHainan/cloak-compiler/issues
 
 ## Related works
-cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+Cloak is implemented based on a research work, [zkay](https://github.com/eth-sri/zkay.git).
+
+## ❗️ Warning
+
+Cloak is an ongoing project. The security of our implementation has not been systematically reviewed yet! Do not use Cloak in a productive system or to process sensitive confidential data now. We will keep working on Cloak, making it cool and practical step-by-step. 
