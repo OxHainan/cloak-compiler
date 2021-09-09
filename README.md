@@ -34,7 +34,7 @@ The Cloak is an ongoing project aiming to become a chain-agnostic privacy infras
 
 ## ❗️ Warning
 
-This is a prototype implementation not intended for use in production. 
+Cloak is an ongoing project. The security of our implementation has not been systematically reviewed yet! Do not use Cloak in a productive system or to process sensitive confidential data now. We will keep working on Cloak, making it cool and practical step-by-step. 
 
 ## 📖 Usage
 * [Install cloak-compiler](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#installation)
