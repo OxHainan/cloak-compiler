@@ -28,7 +28,6 @@ from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.global_defs import GlobalDefs
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
-from cloak.utils.helpers import m_plus, exp_m_op, to_uint, uint_to
 from cloak.cloak_ast import ast as ast_module
 from cloak.cloak_ast.build_ast import SOL
 
@@ -925,199 +924,150 @@ class CloakTransformer(AstTransformerVisitor):
 
     @staticmethod
     def get_states(su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
-        # TODO: Array
-        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
-        uint_type = AnnotatedTypeName(UintTypeName())
+        states = su.privacy_policy.policy["states"]
         states_types = c.states_types()
-        parameters = [
-            Parameter([], uint256_array_type, Identifier("read"), "memory"),
-            Parameter([], uint_type, Identifier("return_len"))
-        ]
-        returns = [Parameter([], uint256_array_type, Identifier(""), "memory")]
-        statements = [
-            VariableDeclarationStatement(
-                VariableDeclaration([], uint256_array_type, Identifier("oldStates"), "memory"), 
-                NewExpr(uint256_array_type, [IdentifierExpr("return_len")]))
-        ]
-        os_exp = IdentifierExpr("oldStates", uint256_array_type)
+        basic_type, idx = CloakTransformer.get_states_basic_type(states, states_types, is_cipher)
+        mapping_type, _ = CloakTransformer.get_states_mapping_type(states, states_types, idx, is_cipher)
+        return SOL(f"""
+            function get_states(uint256[] memory read, uint return_len) public returns (uint256[] memory) {{
+                uint256[] memory oldStates = new uint256[](return_len);
+                {basic_type}
+                uint read_idx = 0;
+                uint os_idx = {idx};
+                {mapping_type}
+                return oldStates;
+            }}
+        """)
+
+    @staticmethod
+    def get_states_basic_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], is_cipher = True) -> (str, int):
+        basic_type = ""
         idx = 0
-        for i, state in enumerate(su.privacy_policy.policy["states"]):
+        for i, state in enumerate(states):
             state_type = states_types[state["name"]]
-            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
             if not state_type.is_mapping:
-                statements.append(os_exp.index(idx).assign(NumberLiteralExpr(i)))
-                if state["owner"] != "all" and is_cipher:
-                    statements += [
-                        os_exp.index(idx+1).assign(val_exp.index(0)),
-                        os_exp.index(idx+2).assign(val_exp.index(1)),
-                        os_exp.index(idx+3).assign(val_exp.index(2))
-                    ]
+                basic_type += f"oldStates[{idx}] = {i};\n"
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    basic_type += f"oldStates[{idx+1}] = {state['name']}[0];\n"
+                    basic_type += f"oldStates[{idx+2}] = {state['name']}[1];\n"
+                    basic_type += f"oldStates[{idx+3}] = {state['name']}[2];\n"
                     idx += 4
                 else:
-                    statements.append(os_exp.index(idx+1).assign(to_uint(IdentifierExpr(state["name"]), state_type)))
+                    basic_type += f"oldStates[{idx+1}] = {state['name']};"
                     idx += 2
+        return basic_type, idx
 
-        statements.append(VariableDeclarationStatement(
-                VariableDeclaration([], uint_type, Identifier("read_idx")), 
-                NumberLiteralExpr(0)))
-        statements.append(VariableDeclarationStatement(
-                VariableDeclaration([], uint_type, Identifier("os_idx")), 
-                NumberLiteralExpr(idx)))
-        read_exp = IdentifierExpr("read", uint256_array_type)
-        key_size_expr = read_exp.index(m_plus("read_idx", 1))
-        key_expr = read_exp.index(m_plus("read_idx", 2, "i"))
-        for state in su.privacy_policy.policy["states"]:
+    @staticmethod
+    def get_states_mapping_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], idx: int, is_cipher = True) -> (str, int):
+        mapping_type = ""
+        for si, state in enumerate(states):
             state_type = states_types[state["name"]]
-            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
             if state_type.is_mapping:
-                statements.append(os_exp.index(IdentifierExpr("os_idx")).assign(read_exp.index(IdentifierExpr("read_idx"))))
-                statements.append(os_exp.index(m_plus("os_idx", 1)).assign(read_exp.index(m_plus("read_idx", 1))))
-                init = VariableDeclarationStatement(
-                        VariableDeclaration([], uint_type, Identifier("i")), 
-                        NumberLiteralExpr(0))
-                cond = IdentifierExpr("i").binop("<", key_size_expr)
-                update = IdentifierExpr("i").assign(m_plus("i", 1))
-                map_depth = state_type.get_map_depth()
-                factor = map_depth + (3 if state["owner"] != "all" and is_cipher else 1)
-                # body_stmts = [os_exp.index(m_plus("os_idx", 2, exp_m_op("*", "i", factor))).assign(key_expr)]
-                read_key_index = m_plus("read_idx", 2, map_depth)
-                os_key_index = m_plus("os_idx", 2, exp_m_op("*", factor, "i"))
-                body_stmts = CloakTransformer.mapping_state_assign(val_exp, os_exp, read_exp, state_type, os_key_index, read_key_index, is_cipher)
-                # if state["owner"] != "all" and is_cipher:
-                #     for i in range(0, 3):
-                #         lhs = os_exp.index(m_plus("o_idx", i+3, exp_m_op("*", "i", factor)))
-                #         rhs = val_exp.index(uint_to(key_expr, state_type.key_type)).as_type(Array(uint_type, 3)).index(i)
-                #         body_stmts.append(lhs.assign(rhs))
-                # else:
-                #     lhs = os_exp.index(m_plus("o_idx", 3, exp_m_op("*", "i", 2)))
-                #     rhs = to_uint(val_exp.index(uint_to(key_expr, state_type.key_type)), state_type.value_type)
-                #     body_stmts.append(lhs.assign(rhs))
-                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
-                statements += [
-                    IdentifierExpr("os_idx").assign(m_plus("os_idx", 2, exp_m_op("*", key_size_expr, factor))),
-                    IdentifierExpr("read_idx").assign(m_plus("read_idx", 2, key_size_expr))
-                ]
+                mapping_type += "oldStates[os_idx] = read[read_idx];\n"
+                mapping_type += "oldStates[os_idx+1] = read[read_idx+1];\n"
 
-        statements.pop()
-        statements.pop()
-        statements.append(ReturnStatement(IdentifierExpr("oldStates")))
-        return ConstructorOrFunctionDefinition(Identifier("get_states"), parameters, ["public"], returns, Block(statements))
+                mapping_depth = state_type.get_map_depth()
+                factor = mapping_depth + (3 if state["owner"]["owner"] != "all" and is_cipher else 1)
+                for_body = ""
+                key_expr = ""
+                for i in range(mapping_depth):
+                    for_body += f"oldStates[os_idx + {2+i} + i * {factor}] = read[read_idx + {2+i} + i];\n"
+                    key_expr += f"[read[read_idx + {2+i} + i]]"
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[0];\n"
+                    for_body += f"oldStates[os_idx + {3 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[1];\n"
+                    for_body += f"oldStates[os_idx + {4 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[2];\n"
+                else:
+                    for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = {state['name']}{key_expr};\n"
+                mapping_type += f"""
+                    for (uint i = 0; i < read[read_idx + 1]; i = i + 1) {{
+                        {for_body}
+                    }}
+                """
+
+                if si != len(states) - 1:
+                    mapping_type += f"os_idx = os_idx + 2 + read[read_idx+1] * {factor};\n"
+                    mapping_type += f"read_idx = read_idx + 2 + read[read_idx+1] * {mapping_depth};\n"
+
+        return mapping_type, idx
+
 
     @staticmethod
     def set_states(su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
-        # TODO: Array
-        uint256_array_type = AnnotatedTypeName(Array(UintTypeName("uint256")))
-        uint_type = AnnotatedTypeName(UintTypeName())
+        states = su.privacy_policy.policy["states"]
         states_types = c.states_types()
+        basic_type, idx = CloakTransformer.set_states_basic_type(states, states_types, is_cipher)
+        mapping_type, _ = CloakTransformer.set_states_mapping_type(states, states_types, idx, is_cipher)
+        guard = ""
         if is_cipher:
-            parameters = [
-                Parameter([], uint256_array_type, Identifier("read"), "memory"),
-                Parameter([], uint_type, Identifier("old_states_len")),
-                Parameter([], uint256_array_type, Identifier("data"), "memory"),
-                Parameter([], AnnotatedTypeName(Array(uint_type)), Identifier("proof"), "memory")
-            ]
-        else:
-            parameters = [Parameter([], uint256_array_type, Identifier("data"), "memory")]
+            guard = """
+                require(msg.sender == tee, 'msg.sender is not tee');
+                uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
+                if (!CloakService_inst.verify(proof, teeCHash, teePHash, osHash)) {
+                    revert('hash error');
+                }
+            """
+        res = SOL(f"""
+        function set_states(uint256[] memory read, uint old_states_len, uint256[] memory data, uint[] memory proof) public {{
+            {guard}
+            {basic_type}
+            uint data_idx = {idx};
+            {mapping_type}
+        }}
+        """)
+        return res
 
-        statements = []
-        if is_cipher:
-            # statements = [
-            #     ExpressionStatement(IdentifierExpr("require").call(
-            #         None, [IdentifierExpr("msg").dot("sender").binop("==", IdentifierExpr("tee")), 
-            #             StringLiteralExpr("msg.sender is not tee")])),
-            #     VariableDeclarationStatement(
-            #         VariableDeclaration([], AnnotatedTypeName(UintTypeName("uint256")), Identifier("osHash")),
-            #         IdentifierExpr("uint256").call(
-            #             None, [IdentifierExpr("keccak256").call(
-            #                 None, [IdentifierExpr("abi").dot("encode").call(
-            #                     None, [IdentifierExpr("get_states").call(
-            #                         None, [IdentifierExpr("read"), IdentifierExpr("old_states_len")])])])])),
-            #     IfStatement(
-            #         IdentifierExpr("CloakService_inst").dot("verify").call(None, 
-            #             [IdentifierExpr("proof"), IdentifierExpr("teeCHash"), 
-            #                 IdentifierExpr("teePHash"), IdentifierExpr("osHash")]).unop("!"),
-            #         Block([ExpressionStatement(IdentifierExpr("revert").call(None, [StringLiteralExpr("hash error")]))]),
-            #         None
-            #     )
-            # ]
-            statements = [
-                SOL("require(msg.sender == tee, 'msg.sender is not tee');"),
-                SOL("uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));"),
-                SOL("if (!CloakService_inst.verify(proof, teeCHash, teePHash, osHash)) { revert('hash error');}"),
-            ]
-        data_exp = IdentifierExpr("data", uint256_array_type)
+
+    @staticmethod
+    def set_states_basic_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], is_cipher = True) -> (str, int):
+        basic_type = ""
         idx = 0
-        for state in su.privacy_policy.policy["states"]:
-            val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint_type, 3)))
+        for i, state in enumerate(states):
             state_type = states_types[state["name"]]
             if not state_type.is_mapping:
-                if state["owner"] != "all" and is_cipher:
-                    statements += [
-                        val_exp.index(0).assign(data_exp.index(idx+1)),
-                        val_exp.index(1).assign(data_exp.index(idx+2)),
-                        val_exp.index(2).assign(data_exp.index(idx+3)),
-                    ]
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    basic_type += f"{state['name']}[0] = oldStates[{idx+1}] ;\n"
+                    basic_type += f"{state['name']}[1] = oldStates[{idx+2}] ;\n"
+                    basic_type += f"{state['name']}[2] = oldStates[{idx+3}] ;\n"
                     idx += 4
                 else:
-                    statements.append(IdentifierExpr(state["name"]).assign(uint_to(data_exp.index(idx+1), state_type)))
+                    basic_type += f"{state['name']} = data[{idx+1}];\n"
                     idx += 2
+        return basic_type, idx
 
-        statements.append(VariableDeclarationStatement(
-                VariableDeclaration([], uint_type, Identifier("m_idx")), 
-                NumberLiteralExpr(idx)))
-        key_size_expr = data_exp.index(m_plus("m_idx", 1))
-        for state in su.privacy_policy.policy["states"]:
+
+    @staticmethod
+    def set_states_mapping_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], idx: int, is_cipher = True) -> (str, int):
+        mapping_type = ""
+        for si, state in enumerate(states):
             state_type = states_types[state["name"]]
             if state_type.is_mapping:
-                # TODO: fix the wrong type
-                val_exp = IdentifierExpr(state["name"], AnnotatedTypeName(Array(uint256_array_type)))
-                factor = 4 if state["owner"] != "all" and is_cipher else 2
-                init = VariableDeclarationStatement(
-                        VariableDeclaration([], uint_type, Identifier("i")), 
-                        NumberLiteralExpr(0))
-                cond = IdentifierExpr("i").binop("<", key_size_expr)
-                update = IdentifierExpr("i").assign(m_plus("i", 1))
-                imf_exp = exp_m_op("*", "i", factor)
-                key_expr = data_exp.index(m_plus("m_idx", 2, imf_exp))
-                if state["owner"] != "all" and is_cipher:
-                    body_stmts = []
-                    for i in range(0, 3):
-                        lhs = val_exp.index(uint_to(key_expr, state_type.key_type)).index(i)
-                        rhs = data_exp.index(m_plus("m_idx", 3 + i, imf_exp))
-                        body_stmts.append(lhs.assign(rhs))
+                mapping_depth = state_type.get_map_depth()
+                factor = mapping_depth + (3 if state["owner"]["owner"] != "all" and is_cipher else 1)
+                key_expr = ""
+                for i in range(mapping_depth):
+                    key_expr += f"[data[data_idx + {2+i} + i * {factor}]]"
+                for_body = ""
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    for_body += f"{state['name']}{key_expr}[0] = data[data_idx +{2+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[1] = data[data_idx +{3+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[2] = data[data_idx +{4+mapping_depth} + i * {factor}];\n"
                 else:
-                    lhs = val_exp.index(uint_to(key_expr, state_type.key_type))
-                    rhs = uint_to(data_exp.index(m_plus("m_idx", 3, imf_exp)), state_type.value_type)
-                    body_stmts = [lhs.assign(rhs)]
-                statements.append(ForStatement(init, cond, update, Block(body_stmts)))
-                statements.append(IdentifierExpr("m_idx").assign(m_plus("m_idx", 2, exp_m_op("*", key_size_expr, factor))))
+                    for_body += f"{state['name']}{key_expr} = data[data_idx + {2+mapping_depth} + i * {factor}];\n"
+                mapping_type += f"""
+                    for (uint i = 0; i < data[data_idx + 1]; i = i + 1) {{
+                        {for_body}
+                    }}
+                """
 
-        statements.pop()
-        return ConstructorOrFunctionDefinition(Identifier("set_states"), parameters, ["public"], [], Block(statements))
+                if si != len(states) - 1:
+                    mapping_type += f"data_idx = data_idx + 2 + data[data_idx+1] * {factor};\n"
+
+        return mapping_type, idx
+
 
     def append_get_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
         c.new_fcts.append(self.get_states(su, c))
 
     def append_set_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
         c.new_fcts.append(self.set_states(su, c))
-
-    @staticmethod
-    def mapping_state_assign(state_exp: LocationExpr, data_exp: LocationExpr, read_exp: LocationExpr, state_type: Mapping, 
-            data_key_index: Expression, read_key_index: Expression, is_cipher = False)->[LocationExpr]:
-        lhs = data_exp
-        rhs = state_exp
-        idx = 0
-        body_stmts = []
-        # map_depth = state_type.get_map_depth()
-        while isinstance(state_type, Mapping):
-            key_idx_exp = read_exp.raw_index(m_plus(read_key_index, idx))
-            body_stmts.append(data_exp.raw_index(m_plus(data_key_index, idx)).assign(key_idx_exp))
-            rhs = rhs.raw_index(uint_to(key_idx_exp, state_type.key_type))
-            idx += 1
-            state_type = state_type.value_type.type_name
-        if is_cipher:
-            body_stmts += [lhs.raw_index(m_plus(data_key_index, idx+i)).assign(rhs.raw_index(i)) for i in range(3)]
-        else:
-            body_stmts += [lhs.raw_index(m_plus(data_key_index, idx)).assign(uint_to(rhs, state_type))]
-        return body_stmts
-

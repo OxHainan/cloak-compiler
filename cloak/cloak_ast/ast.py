@@ -455,15 +455,12 @@ class FunctionCallExpr(Expression):
         self.args[:] = map(f, self.args)
 
 
-class NewExpr(FunctionCallExpr):
-    def __init__(self, annotated_type: AnnotatedTypeName, args: List[Expression]):
-        assert not isinstance(annotated_type, ElementaryTypeName)
-        super().__init__(Identifier(f'new {annotated_type.code()}'), args)
-        self.annotated_type = annotated_type
+class NewExpr(Expression):
+    def __init__(self, target_type: TypeName):
+        self.target_type = target_type
 
     def process_children(self, f: Callable[[T], T]):
-        self.annotated_type = f(self.annotated_type)
-        self.args[:] = map(f, self.args)
+        self.target_type = f(self.target_type)
 
 
 class PrimitiveCastExpr(Expression):
@@ -1388,7 +1385,7 @@ class Mapping(TypeName):
 
 class Array(TypeName):
 
-    def __init__(self, value_type: AnnotatedTypeName, expr: Union[int, Expression] = None):
+    def __init__(self, value_type: TypeName, expr: Union[int, Expression] = None):
         super().__init__()
         self.value_type = value_type
         self.expr = NumberLiteralExpr(expr) if isinstance(expr, int) else expr
@@ -1974,7 +1971,7 @@ class ContractDefinition(NamespaceDefinition):
 class SourceUnit(AST):
 
     def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None,
-            sbe=None, sbs=None):
+            sbe=None, sbs=None, sbf=None):
         super().__init__()
         self.pragma_directive = pragma_directive
         self.contracts = contracts
@@ -1983,7 +1980,7 @@ class SourceUnit(AST):
         self.original_code: List[str] = []
         self.privacy_policy = None
         # sba: sol badguy ast, for generating expression/statement from string
-        self.sba = sbe or sbs
+        self.sba = sbe or sbs or sbf
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)
@@ -2541,3 +2538,7 @@ class CodeVisitor(AstVisitor):
         contracts = self.visit_list(ast.contracts)
         lfstr = 'import "{}";'
         return '\n\n'.join(filter(''.__ne__, [p, linesep.join([lfstr.format(uc) for uc in ast.used_contracts]), contracts]))
+
+    def visitNewExpr(self, ast: NewExpr) -> str:
+        return f"new {self.visit(ast.target_type)}"
+

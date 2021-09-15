@@ -5,16 +5,16 @@ from cloak.cloak_ast import ast as ast_module
 
 
 # e.g.
-#   @all: {"type": "all"}
-#   @tee: {"type": "tee"}
-#   @me: {"type": "tee"}
-#   @a: {"type": "a"}
+#   @all: {"owner": "all"}
+#   @tee: {"owner": "tee"}
+#   @me: {"owner": "tee"}
+#   @a: {"owner": "a"}
 #   mapping(address!x => uint@x):
-#       {"type": "mapping", "key_variable": "x", "value": {"type": "x"}}
+#       {"owner": "mapping", "key_variable": "x", "value": {"owner": "x"}}
 #   mapping(address => uint@a):
-#       {"type": "mapping", "key_variable": "", "value": {"type": "a"}}
+#       {"owner": "mapping", "key_variable": "", "value": {"owner": "a"}}
 #   mapping(address!x => mapping(address => uint@x)):
-#       {"type": "mapping", "key_variable": "x", "value": <NESTED MAPPING OWNER>}
+#       {"owner": "mapping", "key_variable": "x", "value": <NESTED MAPPING OWNER>}
 class OwnerFormatter():
     def visit(self, ast: AnnotatedTypeName):
         if isinstance(ast.type_name, Mapping):
@@ -22,11 +22,14 @@ class OwnerFormatter():
         elif isinstance(ast.type_name, Array):
             raise CloakCompilerError("format owner failed, don't support array owner")
         else:
-            return {"type": ast.privacy_annotation.code()}
+            return {"owner": ast.privacy_annotation.code()}
 
     def visitMapping(self, ast: Mapping):
         key_variable = getattr(ast.key_label, "name", None) or ast.key_label or ""
-        return {"type": "mapping", "key_variable": key_variable, "value": self.visit(ast.value_type)}
+        value = self.visit(ast.value_type)
+        if value["owner"] == "all":
+            return {"owner": "all"}
+        return {"owner": "mapping", "key_variable": key_variable, "value": value}
 
 
 # e.g.

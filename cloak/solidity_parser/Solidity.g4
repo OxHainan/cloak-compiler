@@ -28,7 +28,7 @@ grammar Solidity;
 // : importDirective
 sourceUnit
   : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF
-  | 'SOL' (sbe=expression | sbs=statement) EOF;
+  | 'SOL' (sbe=expression | sbs=statement | sbf=contractPart) EOF;
 
 // https://solidity.readthedocs.io/en/v0.4.24/layout-of-source-files.html#version-pragma
 pragmaDirective
@@ -116,7 +116,7 @@ parameterList
 // CHANGED:
 // - typeName -> annotatedTypeName
 parameter
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName idf=identifier? ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName dataLocation? idf=identifier? ;
 
 enumValue
   : idf=identifier ;
@@ -125,7 +125,7 @@ enumDefinition
   : 'enum' idf=identifier '{' values+=enumValue? (',' values+=enumValue)* '}' ;
 
 variableDeclaration
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName idf=identifier ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName dataLocation? idf=identifier ;
 
 // REMOVED:
 // - typeName '[' expression? ']' (arrays)
@@ -136,7 +136,9 @@ variableDeclaration
 typeName
   : elementaryTypeName
   | userDefinedTypeName
-  | mapping ;
+  | value_type=typeName '[' expr=expression? ']'
+  | mapping
+  ;
 
 userDefinedTypeName
   : names+=identifier ( '.' names+=identifier )* ;
@@ -150,6 +152,7 @@ mapping
 // - storage: Where the state variables are held. (default for local variables, forced for state variables)
 // - calldata: non-modifiable, non-persistent area for function arguments (forced for function parameters of external
 //   functions)
+dataLocation: MemoryKeyword | StorageKeyword | CalldataKeyword;
 
 //
 // state mutability
@@ -276,6 +279,7 @@ expression
   | numberLiteral # NumberLiteralExpr
   | StringLiteral # StringLiteralExpr
   | expr=tupleExpression # TupleExpr
+  | 'new' target_type=typeName # NewExpr
   | idf=identifier # IdentifierExpr ;
 
 // CHANGED:
@@ -373,6 +377,10 @@ PrivateKeyword : 'private' ;
 PublicKeyword : 'public' ;
 PureKeyword : 'pure' ;
 ViewKeyword : 'view' ;
+
+MemoryKeyword: 'memory';
+StorageKeyword: 'storage';
+CalldataKeyword: 'calldata';
 
 // ADDED
 FinalKeyword : 'final' ;
