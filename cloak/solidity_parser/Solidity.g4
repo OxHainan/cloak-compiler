@@ -193,7 +193,7 @@ whileStatement
   : 'while' '(' condition=expression ')' body=statement ;
 
 simpleStatement
-  : ( variableDeclarationStatement | expressionStatement ) ;
+  : ( variableDeclarationStatement | expressionStatement | tupleVariableDeclarationStatement) ;
 
 forStatement
   : 'for' '(' ( init=simpleStatement | ';' ) condition=expression? ';' update=expression? ')' body=statement ;
@@ -215,7 +215,12 @@ returnStatement
 // - 'var' identifierList
 // - '(' variableDeclarationList ')'
 variableDeclarationStatement
-  : variable_declaration=variableDeclaration ( '=' expr=expression )? ';';
+  : variable_declaration=variableDeclaration ( '=' expr=expression )? ';'
+  ;
+
+tupleVariableDeclarationStatement:
+    '(' (',')* variableDeclaration (',' (variableDeclaration)?)* ')' '=' expression ';'
+    ;
 
 // REMOVED: identifierList
 
@@ -246,7 +251,6 @@ Ufixed
 // - identifier ('[' ']')? -> identifier
 // - added me and all
 // REMOVED:
-// - 'new' typeName
 // - ('after' | 'delete') expression
 expression
   : MeKeyword # MeExpr
@@ -257,7 +261,6 @@ expression
   | elem_type=elementaryTypeName '(' expr=expression ')' # PrimitiveCastExpr
   | func=expression '(' args=functionCallArguments ')' # FunctionCallExpr
   | expr=expression '.' member=identifier # MemberAccessExpr
-  | '(' expr=expression ')' # ParenthesisExpr
   | op=('++' | '--') expr=expression # PreCrementExpr
   | op=('+' | '-') expr=expression # SignExpr
   | '!' expr=expression # NotExpr
@@ -280,7 +283,10 @@ expression
   | StringLiteral # StringLiteralExpr
   | expr=tupleExpression # TupleExpr
   | 'new' target_type=typeName # NewExpr
-  | idf=identifier # IdentifierExpr ;
+  | idf=identifier # IdentifierExpr
+  // REMOVED: literal
+  | ( elementaryTypeName ) # PrimaryExpression
+  ;
 
 // CHANGED:
 // - inlined expressionList

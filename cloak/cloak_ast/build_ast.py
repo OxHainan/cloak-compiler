@@ -6,6 +6,7 @@ import cloak.cloak_ast.ast as ast
 from cloak.config import cfg
 from cloak.solidity_parser.parse import SyntaxException
 from cloak.solidity_parser.emit import Emitter
+from antlr4.tree.Tree import Token, TerminalNodeImpl
 from cloak.solidity_parser.generated.SolidityParser import SolidityParser, ParserRuleContext, CommonTokenStream
 from cloak.solidity_parser.generated.SolidityVisitor import SolidityVisitor
 from cloak.solidity_parser.parse import MyParser
@@ -53,7 +54,7 @@ class BuildASTVisitor(SolidityVisitor):
         t = t.replace('Context', '')
 
         # may be able to return the result for a SINGLE, UNNAMED CHILD without wrapping it in an object
-        direct_unnamed = ['TypeName', 'ContractPart', 'StateMutability', 'Statement', 'SimpleStatement']
+        direct_unnamed = ['ContractPart', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
         if t in direct_unnamed:
             if ctx.getChildCount() != 1:
                 raise TypeError(t + ' does not have a single, unnamed child')
@@ -99,9 +100,11 @@ class BuildASTVisitor(SolidityVisitor):
             return None
         elif isinstance(field, list):
             return [self.handle_field(element) for element in field]
-        elif isinstance(field, CommonToken):
+        elif isinstance(field, Token):
             # text
             return field.text
+        elif isinstance(field, TerminalNodeImpl):
+            return field.symbol.text
         else:
             # other
             return self.visit(field)
@@ -231,6 +234,8 @@ class BuildASTVisitor(SolidityVisitor):
             return ast.IntTypeName(t)
         elif t.startswith('uint'):
             return ast.UintTypeName(t)
+        elif t == 'bytes':
+            return ast.BytesTypeName()
         elif t == 'var':
             raise SyntaxException(f'Use of unsupported var keyword', ctx, self.code)
         else:
@@ -243,10 +248,10 @@ class BuildASTVisitor(SolidityVisitor):
         index = self.visit(ctx.index)
         return IndexExpr(arr, index)
 
-    def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):
-        f = BuiltinFunction('parenthesis').override(line=ctx.start.line, column=ctx.start.column)
-        expr = self.visit(ctx.expr)
-        return FunctionCallExpr(f, [expr])
+    # def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):
+    #     f = BuiltinFunction('parenthesis').override(line=ctx.start.line, column=ctx.start.column)
+    #     expr = self.visit(ctx.expr)
+    #     return FunctionCallExpr(f, [expr])
 
     def visitSignExpr(self, ctx: SolidityParser.SignExprContext):
         f = BuiltinFunction('sign' + ctx.op.text).override(line=ctx.op.line, column=ctx.op.column)
@@ -433,3 +438,21 @@ class BuildASTVisitor(SolidityVisitor):
             val_type = self.handle_field(ctx.value_type)
             expr = self.handle_field(ctx.expr)
             return ast.Array(val_type, expr)
+
+    def visitTupleVariableDeclarationStatement(self, ctx: SolidityParser.TupleVariableDeclarationStatementContext):
+        vs = []
+        marked = False
+        for child in ctx.children:
+            c = self.handle_field(child)
+            if isinstance(c, ast.VariableDeclaration):
+                vs.append(c)
+                marked = True
+            elif c == ",":
+                if not marked:
+                    vs.append(None)
+                marked = False
+            elif c == ")":
+                if not marked:
+                    vs.append(None)
+                break
+        return ast.TupleVariableDeclarationStatement(vs, self.handle_field(ctx.expression()))

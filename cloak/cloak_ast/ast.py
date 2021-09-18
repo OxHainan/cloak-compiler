@@ -475,6 +475,10 @@ class PrimitiveCastExpr(Expression):
         self.expr = f(self.expr)
 
 
+class PrimaryExpression(Expression):
+    pass
+
+
 class LiteralExpr(Expression):
     pass
 
@@ -1093,7 +1097,7 @@ class TypeName(AST):
         raise NotImplementedError()
 
 
-class ElementaryTypeName(TypeName):
+class ElementaryTypeName(TypeName, PrimaryExpression):
 
     def __init__(self, name: str):
         super().__init__()
@@ -1182,6 +1186,11 @@ class NumberTypeName(ElementaryTypeName):
 
     def __eq__(self, other):
         return isinstance(other, NumberTypeName) and self.name == other.name
+
+
+class BytesTypeName(ElementaryTypeName):
+    def __init__(self):
+        super().__init__("bytes")
 
 
 class NumberLiteralType(NumberTypeName):
@@ -1381,6 +1390,16 @@ class Mapping(TypeName):
                 return depth
 
         return recursively_update_depth(n_map, 1)
+
+    def split(self) -> (int, [ElementaryTypeName], AnnotatedTypeName):
+        def r_split(n_map, depth, keys):
+            if isinstance(n_map, Mapping):
+                return r_split(n_map.value_type.type_name, depth+1, keys+[n_map.key_type])
+            else:
+                return depth, keys, n_map
+
+        return r_split(self.value_type.type_name, 1, [self.key_type])
+
 
 
 class Array(TypeName):
@@ -1715,6 +1734,12 @@ class VariableDeclarationStatement(SimpleStatement):
     def process_children(self, f: Callable[[T], T]):
         self.variable_declaration = f(self.variable_declaration)
         self.expr = f(self.expr)
+
+
+class TupleVariableDeclarationStatement(SimpleStatement):
+    def __init__(self, vs: [VariableDeclaration], expr: Expression):
+        self.vs = vs
+        self.expr = expr
 
 
 class Parameter(IdentifierDeclaration):
@@ -2542,3 +2567,7 @@ class CodeVisitor(AstVisitor):
     def visitNewExpr(self, ast: NewExpr) -> str:
         return f"new {self.visit(ast.target_type)}"
 
+    def visitTupleVariableDeclarationStatement(self, ast: TupleVariableDeclarationStatement) -> str:
+        ss = map(lambda x: "" if x is None else self.visit(x), ast.vs)
+        res = f"({', '.join(ss)}) = {self.visit(ast.expr)};"
+        return res
