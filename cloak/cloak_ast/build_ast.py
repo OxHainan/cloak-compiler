@@ -236,6 +236,8 @@ class BuildASTVisitor(SolidityVisitor):
             return ast.UintTypeName(t)
         elif t == 'bytes':
             return ast.BytesTypeName()
+        elif t == 'string':
+            return ast.StringTypeName()
         elif t == 'var':
             raise SyntaxException(f'Use of unsupported var keyword', ctx, self.code)
         else:
@@ -456,3 +458,6 @@ class BuildASTVisitor(SolidityVisitor):
                     vs.append(None)
                 break
         return ast.TupleVariableDeclarationStatement(vs, self.handle_field(ctx.expression()))
+
+    def visitDataLocation(self, ctx: SolidityParser.DataLocationContext):
+        return ctx.getText()

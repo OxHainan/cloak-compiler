@@ -475,10 +475,6 @@ class PrimitiveCastExpr(Expression):
         self.expr = f(self.expr)
 
 
-class PrimaryExpression(Expression):
-    pass
-
-
 class LiteralExpr(Expression):
     pass
 
@@ -506,6 +502,7 @@ class StringLiteralExpr(LiteralExpr):
     def __init__(self, value: str):
         super().__init__()
         self.value = value
+        self.annotated_type = AnnotatedTypeName(StringTypeName())
 
 
 class ArrayLiteralExpr(LiteralExpr):
@@ -1097,6 +1094,10 @@ class TypeName(AST):
         raise NotImplementedError()
 
 
+class PrimaryExpression(LocationExpr):
+    pass
+
+
 class ElementaryTypeName(TypeName, PrimaryExpression):
 
     def __init__(self, name: str):
@@ -1191,6 +1192,11 @@ class NumberTypeName(ElementaryTypeName):
 class BytesTypeName(ElementaryTypeName):
     def __init__(self):
         super().__init__("bytes")
+
+
+class StringTypeName(ElementaryTypeName):
+    def __init__(self):
+        super().__init__("string")
 
 
 class NumberLiteralType(NumberTypeName):
@@ -1442,7 +1448,7 @@ class Array(TypeName):
 class CipherText(Array):
     def __init__(self, plain_type: AnnotatedTypeName):
         assert not plain_type.type_name.is_cipher()
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.cipher_len))
+        super().__init__(BytesTypeName(), NumberLiteralExpr(cfg.cipher_len))
         self.plain_type = plain_type.clone()
 
     @property
@@ -2571,3 +2577,6 @@ class CodeVisitor(AstVisitor):
         ss = map(lambda x: "" if x is None else self.visit(x), ast.vs)
         res = f"({', '.join(ss)}) = {self.visit(ast.expr)};"
         return res
+
+    def visitStringTypeName(self, ast: StringTypeName) -> str:
+        return ast.name

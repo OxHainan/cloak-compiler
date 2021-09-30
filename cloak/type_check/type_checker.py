@@ -353,7 +353,7 @@ class TypeCheckVisitor(AstVisitor):
 
         map_t = arr.annotated_type
         # should have already been checked
-        assert (map_t.privacy_annotation.is_all_expr())
+        # assert (map_t.privacy_annotation.is_all_expr())
 
         # do actual type checking
         if isinstance(map_t.type_name, Mapping):
@@ -380,7 +380,7 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException('No private array index', ast)
             if not ast.key.instanceof_data_type(TypeName.number_type()):
                 raise TypeException('Array index must be numeric', ast)
-            ast.annotated_type = map_t.type_name.value_type
+            ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
         else:
             raise TypeException('Indexing into non-mapping', ast)
 
@@ -429,9 +429,9 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException('Unsupported use of user-defined type', ast.type_name)
             ast.type_name = ast.type_name.target.annotated_type.type_name.clone()
 
-        if ast.privacy_annotation != Expression.all_expr():
-            if not ast.type_name.can_be_private():
-                raise TypeException(f'Currently, we do not support private {str(ast.type_name)}', ast)
+        # if ast.privacy_annotation != Expression.all_expr():
+        #     if not ast.type_name.can_be_private():
+        #         raise TypeException(f'Currently, we do not support private {str(ast.type_name)}', ast)
 
         p = ast.privacy_annotation
         if isinstance(p, IdentifierExpr):

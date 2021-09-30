@@ -9,27 +9,31 @@ from cloak.cloak_ast import ast as ast_module
 #   @tee: {"owner": "tee"}
 #   @me: {"owner": "tee"}
 #   @a: {"owner": "a"}
-#   mapping(address!x => uint@x):
-#       {"owner": "mapping", "key_variable": "x", "value": {"owner": "x"}}
-#   mapping(address => uint@a):
-#       {"owner": "mapping", "key_variable": "", "value": {"owner": "a"}}
-#   mapping(address!x => mapping(address => uint@x)):
-#       {"owner": "mapping", "key_variable": "x", "value": <NESTED MAPPING OWNER>}
+#   mapping(address!x => uint@x): {"owner": "mapping", "var": "x", "var_pos": 0}
+#   mapping(address => uint@a): {"owner": "mapping", "var": "a", "var_pos": -1}
+#   mapping(address!x => mapping(address => uint@x)): {"owner": "mapping", "var": "x", "var_pos": 0}
+#   mapping(address => mapping(address!x => uint@x)): {"owner": "mapping", "var": "x", "var_pos": 1}
 class OwnerFormatter():
     def visit(self, ast: AnnotatedTypeName):
         if isinstance(ast.type_name, Mapping):
-            return self.visitMapping(ast.type_name)
-        elif isinstance(ast.type_name, Array):
-            raise CloakCompilerError("format owner failed, don't support array owner")
+            return self.visitMapping(ast)
         else:
             return {"owner": ast.privacy_annotation.code()}
 
-    def visitMapping(self, ast: Mapping):
-        key_variable = getattr(ast.key_label, "name", None) or ast.key_label or ""
-        value = self.visit(ast.value_type)
+    def visitMapping(self, ast: AnnotatedTypeName):
+        var_pos = -1
+        pos = 0
+        while isinstance(ast.type_name, Mapping):
+            m_type = ast.type_name
+            key_variable = getattr(m_type.key_label, "name", None) or m_type.key_label or None
+            if key_variable is not None:
+                var_pos = pos
+            pos += 1
+            ast = m_type.value_type
+        value = self.visit(ast)
         if value["owner"] == "all":
-            return {"owner": "all"}
-        return {"owner": "mapping", "key_variable": key_variable, "value": value}
+            return value
+        return {"owner": "mapping", "var": value["owner"], "var_pos": var_pos}
 
 
 # e.g.
@@ -47,7 +51,7 @@ class TypeFormatter(AstVisitor):
         assert isinstance(ast, ast_module.TypeName)
         f = self.get_visit_function(ast.__class__)
         if f is None:
-            raise CloakCompilerError("format type failed, don't support {}", ast.code())
+            return {"type": ast.code()}
         return f(ast)
 
     def visitNumberTypeName(self, ast: ast_module.NumberTypeName):
@@ -57,5 +61,16 @@ class TypeFormatter(AstVisitor):
         return {"type": "address"}
 
     def visitMapping(self, ast: Mapping):
-        return {"type": "mapping", "parameters": [self.visit(ast.key_type), self.visit(ast.value_type.type_name)]}
+        res = {"type": "mapping", "key_type": self.visit(ast.key_type), "value_type": self.visit(ast.value_type.type_name)}
+        # set depth
+        if res["value_type"]["type"] == "mapping":
+            res["depth"] = res["value_type"]["depth"] + 1
+        else:
+            res["depth"] = 1
+        return res
+
+    def visitArray(self, ast: ast_module.Array):
+        if ast.expr:
+            return {"type": "array", "value_type": self.visit(ast.value_type), "len": int(ast.expr.code())}
+        return {"type": "array", "value_type": self.visit(ast.value_type)}
 

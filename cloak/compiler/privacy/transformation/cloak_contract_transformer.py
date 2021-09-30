@@ -930,7 +930,7 @@ class CloakTransformer(AstTransformerVisitor):
         mapping_type, _ = CloakTransformer.get_states_mapping_type(states, states_types, idx, is_cipher)
         return SOL(f"""
             function get_states(bytes[] memory read, uint return_len) public returns (bytes[] memory) {{
-                bytes[] memory oldStates = new byets[](return_len);
+                bytes[] memory oldStates = new bytes[](return_len);
                 {basic_type}
                 uint read_idx = 0;
                 uint os_idx = {idx};
@@ -1002,6 +1002,7 @@ class CloakTransformer(AstTransformerVisitor):
         basic_type, idx = CloakTransformer.set_states_basic_type(states, states_types, is_cipher)
         mapping_type, _ = CloakTransformer.set_states_mapping_type(states, states_types, idx, is_cipher)
         guard = ""
+        params = "bytes[] memory data"
         if is_cipher:
             guard = """
                 require(msg.sender == tee, 'msg.sender is not tee');
@@ -1010,8 +1011,9 @@ class CloakTransformer(AstTransformerVisitor):
                     revert('hash error');
                 }
             """
+            params = "bytes[] memory read, uint old_states_len, bytes[] memory data, uint[] memory proof"
         res = SOL(f"""
-        function set_states(bytes[] memory read, uint old_states_len, bytes[] memory data, uint[] memory proof) public {{
+        function set_states({params}) public {{
             {guard}
             {basic_type}
             uint data_idx = {idx};
@@ -1059,7 +1061,7 @@ class CloakTransformer(AstTransformerVisitor):
                 else:
                     for_body += f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
                 mapping_type += f"""
-                    keys_count = abi.decode(read[data_idx + 1], (uint));
+                    keys_count = abi.decode(data[data_idx + 1], (uint));
                     for (uint i = 0; i < keys_count; i = i + 1) {{
                         {for_body}
                     }}

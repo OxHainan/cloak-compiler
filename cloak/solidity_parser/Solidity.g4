@@ -116,7 +116,7 @@ parameterList
 // CHANGED:
 // - typeName -> annotatedTypeName
 parameter
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName dataLocation? idf=identifier? ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier? ;
 
 enumValue
   : idf=identifier ;
@@ -125,7 +125,7 @@ enumDefinition
   : 'enum' idf=identifier '{' values+=enumValue? (',' values+=enumValue)* '}' ;
 
 variableDeclaration
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName dataLocation? idf=identifier ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
 // REMOVED:
 // - typeName '[' expression? ']' (arrays)

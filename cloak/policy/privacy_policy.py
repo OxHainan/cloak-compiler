@@ -32,7 +32,7 @@ class FunctionPolicy():
 
     @property
     def inputs(self):
-        return self.fpolicy[FUNC_INPUTS]
+        return self.fpolicy.get(FUNC_INPUTS, [])
 
     @property
     def read(self):

@@ -45,7 +45,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
 
 
 def get_processed_ast(code, parents=True, identifier_link=True, return_check=True, alias_analysis=True, type_check=True, solc_check=True) -> AST:
-    ast, _ = get_parsed_ast_and_fake_code(code, solc_check=solc_check)
+    ast, _ = get_parsed_ast_and_fake_code(code, solc_check=False)
 
     # Cloak preprocessing and type checking
     with time_measure("typeCheck"):
