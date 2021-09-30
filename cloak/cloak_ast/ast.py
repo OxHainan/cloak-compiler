@@ -455,15 +455,12 @@ class FunctionCallExpr(Expression):
         self.args[:] = map(f, self.args)
 
 
-class NewExpr(FunctionCallExpr):
-    def __init__(self, annotated_type: AnnotatedTypeName, args: List[Expression]):
-        assert not isinstance(annotated_type, ElementaryTypeName)
-        super().__init__(Identifier(f'new {annotated_type.code()}'), args)
-        self.annotated_type = annotated_type
+class NewExpr(Expression):
+    def __init__(self, target_type: TypeName):
+        self.target_type = target_type
 
     def process_children(self, f: Callable[[T], T]):
-        self.annotated_type = f(self.annotated_type)
-        self.args[:] = map(f, self.args)
+        self.target_type = f(self.target_type)
 
 
 class PrimitiveCastExpr(Expression):
@@ -505,6 +502,7 @@ class StringLiteralExpr(LiteralExpr):
     def __init__(self, value: str):
         super().__init__()
         self.value = value
+        self.annotated_type = AnnotatedTypeName(StringTypeName())
 
 
 class ArrayLiteralExpr(LiteralExpr):
@@ -571,6 +569,11 @@ class LocationExpr(TupleOrLocationExpr):
         if isinstance(item, int):
             item = NumberLiteralExpr(item)
         return IndexExpr(self, item).as_type(self.annotated_type.type_name.value_type)
+
+    def raw_index(self, item: Union[int, Expression]) -> IndexExpr:
+        if isinstance(item, int):
+            item = NumberLiteralExpr(item)
+        return IndexExpr(self, item)
 
     def assign(self, val: Expression) -> AssignmentStatement:
         return AssignmentStatement(self, val)
@@ -899,9 +902,10 @@ class ExpressionStatement(SimpleStatement):
 
 class RequireStatement(SimpleStatement):
 
-    def __init__(self, condition: Expression, unmodified_code: Optional[str] = None):
+    def __init__(self, condition: Expression, unmodified_code: Optional[str] = None, comment=None):
         super().__init__()
         self.condition = condition
+        self.comment = comment
         self.unmodified_code = self.code() if unmodified_code is None else unmodified_code
 
     def process_children(self, f: Callable[[T], T]):
@@ -1090,7 +1094,11 @@ class TypeName(AST):
         raise NotImplementedError()
 
 
-class ElementaryTypeName(TypeName):
+class PrimaryExpression(LocationExpr):
+    pass
+
+
+class ElementaryTypeName(TypeName, PrimaryExpression):
 
     def __init__(self, name: str):
         super().__init__()
@@ -1179,6 +1187,16 @@ class NumberTypeName(ElementaryTypeName):
 
     def __eq__(self, other):
         return isinstance(other, NumberTypeName) and self.name == other.name
+
+
+class BytesTypeName(ElementaryTypeName):
+    def __init__(self):
+        super().__init__("bytes")
+
+
+class StringTypeName(ElementaryTypeName):
+    def __init__(self):
+        super().__init__("string")
 
 
 class NumberLiteralType(NumberTypeName):
@@ -1379,10 +1397,20 @@ class Mapping(TypeName):
 
         return recursively_update_depth(n_map, 1)
 
+    def split(self) -> (int, [ElementaryTypeName], AnnotatedTypeName):
+        def r_split(n_map, depth, keys):
+            if isinstance(n_map, Mapping):
+                return r_split(n_map.value_type.type_name, depth+1, keys+[n_map.key_type])
+            else:
+                return depth, keys, n_map
+
+        return r_split(self.value_type.type_name, 1, [self.key_type])
+
+
 
 class Array(TypeName):
 
-    def __init__(self, value_type: AnnotatedTypeName, expr: Union[int, Expression] = None):
+    def __init__(self, value_type: TypeName, expr: Union[int, Expression] = None):
         super().__init__()
         self.value_type = value_type
         self.expr = NumberLiteralExpr(expr) if isinstance(expr, int) else expr
@@ -1420,7 +1448,7 @@ class Array(TypeName):
 class CipherText(Array):
     def __init__(self, plain_type: AnnotatedTypeName):
         assert not plain_type.type_name.is_cipher()
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.cipher_len))
+        super().__init__(BytesTypeName(), NumberLiteralExpr(cfg.cipher_len))
         self.plain_type = plain_type.clone()
 
     @property
@@ -1714,6 +1742,12 @@ class VariableDeclarationStatement(SimpleStatement):
         self.expr = f(self.expr)
 
 
+class TupleVariableDeclarationStatement(SimpleStatement):
+    def __init__(self, vs: [VariableDeclaration], expr: Expression):
+        self.vs = vs
+        self.expr = expr
+
+
 class Parameter(IdentifierDeclaration):
 
     def __init__(
@@ -1967,7 +2001,8 @@ class ContractDefinition(NamespaceDefinition):
 
 class SourceUnit(AST):
 
-    def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None):
+    def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None,
+            sbe=None, sbs=None, sbf=None):
         super().__init__()
         self.pragma_directive = pragma_directive
         self.contracts = contracts
@@ -1975,6 +2010,8 @@ class SourceUnit(AST):
 
         self.original_code: List[str] = []
         self.privacy_policy = None
+        # sba: sol badguy ast, for generating expression/statement from string
+        self.sba = sbe or sbs or sbf
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)
@@ -2298,6 +2335,8 @@ class CodeVisitor(AstVisitor):
 
     def visitRequireStatement(self, ast: RequireStatement):
         c = self.visit(ast.condition)
+        if ast.comment:
+            return f'require({c}, {ast.comment});'
         return f'require({c});'
 
     def visitAssignmentStatement(self, ast: AssignmentStatement):
@@ -2530,3 +2569,14 @@ class CodeVisitor(AstVisitor):
         contracts = self.visit_list(ast.contracts)
         lfstr = 'import "{}";'
         return '\n\n'.join(filter(''.__ne__, [p, linesep.join([lfstr.format(uc) for uc in ast.used_contracts]), contracts]))
+
+    def visitNewExpr(self, ast: NewExpr) -> str:
+        return f"new {self.visit(ast.target_type)}"
+
+    def visitTupleVariableDeclarationStatement(self, ast: TupleVariableDeclarationStatement) -> str:
+        ss = map(lambda x: "" if x is None else self.visit(x), ast.vs)
+        res = f"({', '.join(ss)}) = {self.visit(ast.expr)};"
+        return res
+
+    def visitStringTypeName(self, ast: StringTypeName) -> str:
+        return ast.name

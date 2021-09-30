@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from cloak.cloak_ast import ast
-from cloak.cloak_ast.ast import *
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.privacy.transformation.cloak_contract_transformer import CloakTransformer
 from cloak.policy.privacy_policy import PrivacyPolicy
-from cloak.utils.helpers import m_plus
 from cloak.config import cfg
 
 class PrivateContractTransformer(AstTransformerVisitor):

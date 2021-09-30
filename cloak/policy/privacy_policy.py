@@ -4,6 +4,7 @@ from typing import Any, OrderedDict
 from cloak.type_check import type_pure
 from cloak.cloak_ast import ast
 from cloak.cloak_ast.visitor.deep_copy import deep_copy
+from cloak.cloak_ast.visitor.formatter import OwnerFormatter, TypeFormatter
 
 FUNC_INPUTS = "inputs"
 FUNC_READ = "read"
@@ -31,7 +32,7 @@ class FunctionPolicy():
 
     @property
     def inputs(self):
-        return self.fpolicy[FUNC_INPUTS]
+        return self.fpolicy.get(FUNC_INPUTS, [])
 
     @property
     def read(self):
@@ -84,6 +85,7 @@ class FunctionPolicy():
                 if clss == FUNC_INPUTS:
                     type_name = deep_copy(var.annotated_type.type_name)
                     ConcreteTypeNameVisitor().visit(type_name)
+                    # for computing function selector
                     n_elem["concrete_type"] = type_name.code()
 
                 if isinstance(var.annotated_type.type_name, (ast.Mapping, ast.Array)):
@@ -159,17 +161,9 @@ class PrivacyPolicy(json.JSONEncoder):
             n_elem["name"] = var.idf.name
         n_elem["type"] = type_pure.delete_cloak_annotation(
             self.__ppv.visit(var.annotated_type.type_name))
-        # n_elem["structural_type"] = var.annotated_type.type_name
-        # TODO: renqian - handle array
-        if isinstance(var.annotated_type.type_name, ast.Mapping):
-            if var.annotated_type.type_name.key_label:
-                n_elem["owner"] = self.__ppv.visit(var.annotated_type.type_name)
-            else:
-                n_elem["owner"] = "all"
-        elif isinstance(var.annotated_type.type_name, ast.Array):
-            n_elem["owner"] = self.__ppv.visit(var.annotated_type)
-        else:
-            n_elem["owner"] = self.__ppv.visit(var.annotated_type.privacy_annotation)
+        n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
+        # TODO: ARRAY
+        n_elem["owner"] = OwnerFormatter().visit(var.annotated_type)
 
         self.policy[item].append(n_elem)
 

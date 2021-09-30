@@ -27,7 +27,8 @@ grammar Solidity;
 
 // : importDirective
 sourceUnit
-  : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF ;
+  : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF
+  | 'SOL' (sbe=expression | sbs=statement | sbf=contractPart) EOF;
 
 // https://solidity.readthedocs.io/en/v0.4.24/layout-of-source-files.html#version-pragma
 pragmaDirective
@@ -115,7 +116,7 @@ parameterList
 // CHANGED:
 // - typeName -> annotatedTypeName
 parameter
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName idf=identifier? ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier? ;
 
 enumValue
   : idf=identifier ;
@@ -124,7 +125,7 @@ enumDefinition
   : 'enum' idf=identifier '{' values+=enumValue? (',' values+=enumValue)* '}' ;
 
 variableDeclaration
-  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName idf=identifier ;
+  : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
 // REMOVED:
 // - typeName '[' expression? ']' (arrays)
@@ -135,7 +136,9 @@ variableDeclaration
 typeName
   : elementaryTypeName
   | userDefinedTypeName
-  | mapping ;
+  | value_type=typeName '[' expr=expression? ']'
+  | mapping
+  ;
 
 userDefinedTypeName
   : names+=identifier ( '.' names+=identifier )* ;
@@ -149,6 +152,7 @@ mapping
 // - storage: Where the state variables are held. (default for local variables, forced for state variables)
 // - calldata: non-modifiable, non-persistent area for function arguments (forced for function parameters of external
 //   functions)
+dataLocation: MemoryKeyword | StorageKeyword | CalldataKeyword;
 
 //
 // state mutability
@@ -189,7 +193,7 @@ whileStatement
   : 'while' '(' condition=expression ')' body=statement ;
 
 simpleStatement
-  : ( variableDeclarationStatement | expressionStatement ) ;
+  : ( variableDeclarationStatement | expressionStatement | tupleVariableDeclarationStatement) ;
 
 forStatement
   : 'for' '(' ( init=simpleStatement | ';' ) condition=expression? ';' update=expression? ')' body=statement ;
@@ -211,7 +215,12 @@ returnStatement
 // - 'var' identifierList
 // - '(' variableDeclarationList ')'
 variableDeclarationStatement
-  : variable_declaration=variableDeclaration ( '=' expr=expression )? ';';
+  : variable_declaration=variableDeclaration ( '=' expr=expression )? ';'
+  ;
+
+tupleVariableDeclarationStatement:
+    '(' (',')* variableDeclaration (',' (variableDeclaration)?)* ')' '=' expression ';'
+    ;
 
 // REMOVED: identifierList
 
@@ -242,7 +251,6 @@ Ufixed
 // - identifier ('[' ']')? -> identifier
 // - added me and all
 // REMOVED:
-// - 'new' typeName
 // - ('after' | 'delete') expression
 expression
   : MeKeyword # MeExpr
@@ -253,7 +261,6 @@ expression
   | elem_type=elementaryTypeName '(' expr=expression ')' # PrimitiveCastExpr
   | func=expression '(' args=functionCallArguments ')' # FunctionCallExpr
   | expr=expression '.' member=identifier # MemberAccessExpr
-  | '(' expr=expression ')' # ParenthesisExpr
   | op=('++' | '--') expr=expression # PreCrementExpr
   | op=('+' | '-') expr=expression # SignExpr
   | '!' expr=expression # NotExpr
@@ -275,7 +282,11 @@ expression
   | numberLiteral # NumberLiteralExpr
   | StringLiteral # StringLiteralExpr
   | expr=tupleExpression # TupleExpr
-  | idf=identifier # IdentifierExpr ;
+  | 'new' target_type=typeName # NewExpr
+  | idf=identifier # IdentifierExpr
+  // REMOVED: literal
+  | ( elementaryTypeName ) # PrimaryExpression
+  ;
 
 // CHANGED:
 // - inlined expressionList
@@ -372,6 +383,10 @@ PrivateKeyword : 'private' ;
 PublicKeyword : 'public' ;
 PureKeyword : 'pure' ;
 ViewKeyword : 'view' ;
+
+MemoryKeyword: 'memory';
+StorageKeyword: 'storage';
+CalldataKeyword: 'calldata';
 
 // ADDED
 FinalKeyword : 'final' ;

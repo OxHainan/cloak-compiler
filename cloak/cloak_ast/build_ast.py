@@ -6,6 +6,7 @@ import cloak.cloak_ast.ast as ast
 from cloak.config import cfg
 from cloak.solidity_parser.parse import SyntaxException
 from cloak.solidity_parser.emit import Emitter
+from antlr4.tree.Tree import Token, TerminalNodeImpl
 from cloak.solidity_parser.generated.SolidityParser import SolidityParser, ParserRuleContext, CommonTokenStream
 from cloak.solidity_parser.generated.SolidityVisitor import SolidityVisitor
 from cloak.solidity_parser.parse import MyParser
@@ -27,6 +28,13 @@ def build_ast(code):
     return full_ast
 
 
+def SOL(code: str) -> ast.AST:
+    p = MyParser("SOL "+code)
+    full_ast = build_ast_from_parse_tree(p.tree, p.tokens, code)
+    assert full_ast.sba
+    return full_ast.sba
+
+
 class BuildASTVisitor(SolidityVisitor):
 
     def __init__(self, tokens: CommonTokenStream, code: str):
@@ -46,7 +54,7 @@ class BuildASTVisitor(SolidityVisitor):
         t = t.replace('Context', '')
 
         # may be able to return the result for a SINGLE, UNNAMED CHILD without wrapping it in an object
-        direct_unnamed = ['TypeName', 'ContractPart', 'StateMutability', 'Statement', 'SimpleStatement']
+        direct_unnamed = ['ContractPart', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
         if t in direct_unnamed:
             if ctx.getChildCount() != 1:
                 raise TypeError(t + ' does not have a single, unnamed child')
@@ -92,9 +100,11 @@ class BuildASTVisitor(SolidityVisitor):
             return None
         elif isinstance(field, list):
             return [self.handle_field(element) for element in field]
-        elif isinstance(field, CommonToken):
+        elif isinstance(field, Token):
             # text
             return field.text
+        elif isinstance(field, TerminalNodeImpl):
+            return field.symbol.text
         else:
             # other
             return self.visit(field)
@@ -187,10 +197,10 @@ class BuildASTVisitor(SolidityVisitor):
         if s.startswith('"'):
             s = s[1:-1].replace('\\"', '"')
         else:
-            s = s[2:-2]
+            s = s[1:-1]
 
-        raise SyntaxException('Use of unsupported string literal expression', ctx, self.code)
-        # return StringLiteralExpr(s)
+        # raise SyntaxException('Use of unsupported string literal expression', ctx, self.code)
+        return StringLiteralExpr(s)
 
     def visitTupleExpr(self, ctx:SolidityParser.TupleExprContext):
         contents = ctx.expr.children[1:-1]
@@ -224,6 +234,10 @@ class BuildASTVisitor(SolidityVisitor):
             return ast.IntTypeName(t)
         elif t.startswith('uint'):
             return ast.UintTypeName(t)
+        elif t == 'bytes':
+            return ast.BytesTypeName()
+        elif t == 'string':
+            return ast.StringTypeName()
         elif t == 'var':
             raise SyntaxException(f'Use of unsupported var keyword', ctx, self.code)
         else:
@@ -236,10 +250,10 @@ class BuildASTVisitor(SolidityVisitor):
         index = self.visit(ctx.index)
         return IndexExpr(arr, index)
 
-    def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):
-        f = BuiltinFunction('parenthesis').override(line=ctx.start.line, column=ctx.start.column)
-        expr = self.visit(ctx.expr)
-        return FunctionCallExpr(f, [expr])
+    # def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):
+    #     f = BuiltinFunction('parenthesis').override(line=ctx.start.line, column=ctx.start.column)
+    #     expr = self.visit(ctx.expr)
+    #     return FunctionCallExpr(f, [expr])
 
     def visitSignExpr(self, ctx: SolidityParser.SignExprContext):
         f = BuiltinFunction('sign' + ctx.op.text).override(line=ctx.op.line, column=ctx.op.column)
@@ -410,9 +424,40 @@ class BuildASTVisitor(SolidityVisitor):
                 f = e.func
                 if isinstance(f, IdentifierExpr):
                     if f.idf.name == 'require':
-                        if len(e.args) != 1:
-                            raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
-                        return ast.RequireStatement(e.args[0])
+                        if len(e.args) == 1:
+                            return ast.RequireStatement(e.args[0],)
+                        if len(e.args) == 2:
+                            return ast.RequireStatement(e.args[0], comment=e.args[1])
+                        raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
 
             assert isinstance(e, ast.Expression)
             return ExpressionStatement(e)
+
+    def visitTypeName(self, ctx: SolidityParser.TypeNameContext) -> ast.TypeName:
+        if ctx.getChildCount() == 1:
+            return self.handle_field(ctx.getChild(0))
+        elif ctx.value_type is not None:
+            val_type = self.handle_field(ctx.value_type)
+            expr = self.handle_field(ctx.expr)
+            return ast.Array(val_type, expr)
+
+    def visitTupleVariableDeclarationStatement(self, ctx: SolidityParser.TupleVariableDeclarationStatementContext):
+        vs = []
+        marked = False
+        for child in ctx.children:
+            c = self.handle_field(child)
+            if isinstance(c, ast.VariableDeclaration):
+                vs.append(c)
+                marked = True
+            elif c == ",":
+                if not marked:
+                    vs.append(None)
+                marked = False
+            elif c == ")":
+                if not marked:
+                    vs.append(None)
+                break
+        return ast.TupleVariableDeclarationStatement(vs, self.handle_field(ctx.expression()))
+
+    def visitDataLocation(self, ctx: SolidityParser.DataLocationContext):
+        return ctx.getText()

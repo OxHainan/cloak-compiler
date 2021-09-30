@@ -39,9 +39,9 @@ class DirectCanBePrivateDetector(FunctionVisitor):
             self.visit(arg)
 
     def visitLocationExpr(self, ast: LocationExpr):
-        if ast.statement.function.is_zkp():
-            t = ast.annotated_type.type_name
-            ast.statement.function.can_be_private &= t.can_be_private()
+        # if ast.statement.function.is_zkp():
+        #     t = ast.annotated_type.type_name
+        #     ast.statement.function.can_be_private &= t.can_be_private()
         self.visitChildren(ast)
 
     def visitReclassifyExpr(self, ast: ReclassifyExpr):

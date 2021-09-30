@@ -9,7 +9,7 @@ from cloak.cloak_ast.ast import CodeVisitor, IdentifierExpr, ReturnStatement, If
     BuiltinFunction, VariableDeclarationStatement, RequireStatement, MemberAccessExpr, TupleType, IndexExpr, Array, \
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, FunctionPrivacyType, \
-    UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition
+    UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition, VariableDeclaration
 from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.policy.privacy_policy import FunctionPolicy, PrivacyPolicy, FUNC_INPUTS, FUNC_READ, FUNC_MUTATE, FUNC_OUTPUTS
@@ -353,7 +353,7 @@ class TypeCheckVisitor(AstVisitor):
 
         map_t = arr.annotated_type
         # should have already been checked
-        assert (map_t.privacy_annotation.is_all_expr())
+        # assert (map_t.privacy_annotation.is_all_expr())
 
         # do actual type checking
         if isinstance(map_t.type_name, Mapping):
@@ -380,7 +380,7 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException('No private array index', ast)
             if not ast.key.instanceof_data_type(TypeName.number_type()):
                 raise TypeException('Array index must be numeric', ast)
-            ast.annotated_type = map_t.type_name.value_type
+            ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
         else:
             raise TypeException('Indexing into non-mapping', ast)
 
@@ -429,9 +429,9 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException('Unsupported use of user-defined type', ast.type_name)
             ast.type_name = ast.type_name.target.annotated_type.type_name.clone()
 
-        if ast.privacy_annotation != Expression.all_expr():
-            if not ast.type_name.can_be_private():
-                raise TypeException(f'Currently, we do not support private {str(ast.type_name)}', ast)
+        # if ast.privacy_annotation != Expression.all_expr():
+        #     if not ast.type_name.can_be_private():
+        #         raise TypeException(f'Currently, we do not support private {str(ast.type_name)}', ast)
 
         p = ast.privacy_annotation
         if isinstance(p, IdentifierExpr):
@@ -482,7 +482,7 @@ class PrivacyTypeVisitor(AstVisitor):
                         new_fp.mutate_values.append(v.target)
 
         for v in ast.modified_values:
-            if isinstance(v.target, StateVariableDeclaration):
+            if isinstance(v.target, VariableDeclaration):
                 if not v.target.annotated_type.type_name.is_primitive_type():
                     if isinstance(v[2], IndexExpr):
                         top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
