@@ -128,8 +128,6 @@ variableDeclaration
   : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
 // REMOVED:
-// - typeName '[' expression? ']' (arrays)
-//
 // special types:
 // - address payable: Same as address, but with the additional members transfer and send
 // - arrays: allows fixed size (T[k]) and dynamic size (T[])
@@ -257,7 +255,7 @@ expression
   | AllKeyword # AllExpr
   | TeeKeyword # TeeExpr
   | expr=expression op=('++' | '--') # PostCrementExpr
-  | arr=expression '[' index=expression ']' # IndexExpr
+  | arr=expression '[' index=expression? ']' # IndexExpr
   | elem_type=elementaryTypeName '(' expr=expression ')' # PrimitiveCastExpr
   | func=expression '(' args=functionCallArguments ')' # FunctionCallExpr
   | expr=expression '.' member=identifier # MemberAccessExpr

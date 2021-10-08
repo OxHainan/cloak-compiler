@@ -4,6 +4,7 @@ from cloak.cloak_ast.ast import AnnotatedTypeName, AssignmentStatement, Function
     Array, UintTypeName, ElementaryTypeName
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.config import cfg
+from cloak.errors.exceptions import CloakCompilerError
 array_length_member = VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('length'))
 array_push_member = VariableDeclaration([], AnnotatedTypeName.uint_all(), Identifier('push'))
 
@@ -181,3 +182,11 @@ class GlobalVars:
         Identifier('abi'), None
     )
     abi.idf.parent = abi
+
+def get_array_builtin_function(name: str, arr: Array) -> ConstructorOrFunctionDefinition:
+    val_type = arr.value_type
+    if name == 'push':
+        return ConstructorOrFunctionDefinition(Identifier(name), [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], [], [], Block([]))
+    if name == 'pop':
+        return ConstructorOrFunctionDefinition(Identifier(name), [], [], [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], Block([]))
+    raise CloakCompilerError(f"unsupported array functin: {name}")

@@ -618,6 +618,7 @@ class IndexExpr(LocationExpr):
         super().__init__()
         assert isinstance(arr, LocationExpr)
         self.arr = arr
+        # key may be None, e.g. abi.decode(b, (uint[]))
         self.key = key
 
     def process_children(self, f: Callable[[T], T]):
@@ -1401,8 +1402,7 @@ class Mapping(TypeName):
         def r_split(n_map, depth, keys):
             if isinstance(n_map, Mapping):
                 return r_split(n_map.value_type.type_name, depth+1, keys+[n_map.key_type])
-            else:
-                return depth, keys, n_map
+            return depth, keys, n_map
 
         return r_split(self.value_type.type_name, 1, [self.key_type])
 
@@ -2264,7 +2264,10 @@ class CodeVisitor(AstVisitor):
         return f'{self.visit(ast.expr)}.{self.visit(ast.member)}'
 
     def visitIndexExpr(self, ast: IndexExpr):
-        return f'{self.visit(ast.arr)}[{self.visit(ast.key)}]'
+        key = ''
+        if ast.key is not None:
+            key = self.visit(ast.key)
+        return f'{self.visit(ast.arr)}[{key}]'
 
     def visitMeExpr(self, _: MeExpr):
         return 'me'

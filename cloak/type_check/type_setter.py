@@ -389,7 +389,7 @@ class FunctionTypeVisitor(AstVisitor):
                 raise TypeException('No private array index', ast)
             if not ast.key.instanceof_data_type(TypeName.number_type()):
                 raise TypeException('Array index must be numeric', ast)
-            ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
+            ast.annotated_type = map_t.type_name.annotate(map_t.privacy_annotation)
         else:
             raise TypeException('Indexing into non-mapping', ast)
 

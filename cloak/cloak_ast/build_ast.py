@@ -247,7 +247,9 @@ class BuildASTVisitor(SolidityVisitor):
         arr = self.visit(ctx.arr)
         if not isinstance(arr, ast.LocationExpr):
             raise SyntaxException(f'Expression cannot be indexed', ctx.arr, self.code)
-        index = self.visit(ctx.index)
+        index = None
+        if ctx.index is not None:
+            index = self.visit(ctx.index)
         return IndexExpr(arr, index)
 
     # def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):
@@ -434,12 +436,11 @@ class BuildASTVisitor(SolidityVisitor):
             return ExpressionStatement(e)
 
     def visitTypeName(self, ctx: SolidityParser.TypeNameContext) -> ast.TypeName:
-        if ctx.getChildCount() == 1:
-            return self.handle_field(ctx.getChild(0))
-        elif ctx.value_type is not None:
+        if ctx.value_type is not None:
             val_type = self.handle_field(ctx.value_type)
             expr = self.handle_field(ctx.expr)
             return ast.Array(val_type, expr)
+        return self.handle_field(ctx.getChild(0))
 
     def visitTupleVariableDeclarationStatement(self, ctx: SolidityParser.TupleVariableDeclarationStatementContext):
         vs = []
