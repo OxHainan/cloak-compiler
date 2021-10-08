@@ -187,6 +187,6 @@ def get_array_builtin_function(name: str, arr: Array) -> ConstructorOrFunctionDe
     val_type = arr.value_type
     if name == 'push':
         return ConstructorOrFunctionDefinition(Identifier(name), [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], [], [], Block([]))
-    elif name == 'pop':
+    if name == 'pop':
         return ConstructorOrFunctionDefinition(Identifier(name), [], [], [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], Block([]))
     raise CloakCompilerError(f"unsupported array functin: {name}")
