@@ -181,3 +181,11 @@ class GlobalVars:
         Identifier('abi'), None
     )
     abi.idf.parent = abi
+
+def get_array_builtin_function(name: str, arr: Array) -> ConstructorOrFunctionDefinition:
+    val_type = arr.value_type
+    if name == 'push':
+        return ConstructorOrFunctionDefinition(Identifier(name), [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], [], [], Block([]))
+    elif name == 'pop':
+        return ConstructorOrFunctionDefinition(Identifier(name), [], [], [Parameter([], AnnotatedTypeName(val_type), Identifier(''))], Block([]))
+

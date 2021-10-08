@@ -4,7 +4,7 @@ from cloak.cloak_ast.ast import AST, FunctionCallExpr, SourceUnit, ContractDefin
     SimpleStatement, IdentifierExpr, Block, Mapping, Identifier, Comment, MemberAccessExpr, IndexExpr, LocationExpr, \
     StructDefinition, UserDefinedTypeName, StatementList, Array, ConstructorOrFunctionDefinition, EnumDefinition, \
     EnumValue, NamespaceDefinition, TargetDefinition, VariableDeclarationStatement, ForStatement, IdentifierDeclaration
-from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_member, array_push_member
+from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_member, get_array_builtin_function
 from cloak.cloak_ast.pointers.pointer_exceptions import UnknownIdentifierException
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 
@@ -189,11 +189,13 @@ class SymbolTableLinker(AstVisitor):
         else:
             t = ast.expr.target.annotated_type.type_name
             if isinstance(t, Array):
-                assert ast.member.name == 'length' or ast.member.name == 'push'
+                assert ast.member.name in ['length', 'push', 'pop']
                 if ast.member.name == 'length':
                     ast.target = array_length_member
                 elif ast.member.name == 'push':
-                    ast.target = array_push_member
+                    ast.target = get_array_builtin_function('push', t)
+                elif ast.member.name == 'pop':
+                    ast.target = get_array_builtin_function('pop', t)
             else:
                 assert isinstance(t, UserDefinedTypeName)
                 if t.target is None:
@@ -209,4 +211,7 @@ class SymbolTableLinker(AstVisitor):
             source_t = ast.arr.annotated_type.type_name
         else:
             source_t = ast.arr.target.annotated_type.type_name
-        ast.target = VariableDeclaration([], source_t.value_type, Identifier(''))
+        if isinstance(source_t, Array):
+            ast.target = VariableDeclaration([], source_t.value_type.annotate(ast.arr.annotated_type), Identifier(''))
+        else:
+            ast.target = VariableDeclaration([], source_t.value_type, Identifier(''))

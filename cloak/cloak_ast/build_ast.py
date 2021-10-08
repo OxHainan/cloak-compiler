@@ -247,7 +247,9 @@ class BuildASTVisitor(SolidityVisitor):
         arr = self.visit(ctx.arr)
         if not isinstance(arr, ast.LocationExpr):
             raise SyntaxException(f'Expression cannot be indexed', ctx.arr, self.code)
-        index = self.visit(ctx.index)
+        index = None
+        if ctx.index is not None:
+            index = self.visit(ctx.index)
         return IndexExpr(arr, index)
 
     # def visitParenthesisExpr(self, ctx: SolidityParser.ParenthesisExprContext):

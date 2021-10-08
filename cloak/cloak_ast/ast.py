@@ -618,6 +618,7 @@ class IndexExpr(LocationExpr):
         super().__init__()
         assert isinstance(arr, LocationExpr)
         self.arr = arr
+        # key may be None, e.g. abi.decode(b, (uint[]))
         self.key = key
 
     def process_children(self, f: Callable[[T], T]):
@@ -2264,7 +2265,10 @@ class CodeVisitor(AstVisitor):
         return f'{self.visit(ast.expr)}.{self.visit(ast.member)}'
 
     def visitIndexExpr(self, ast: IndexExpr):
-        return f'{self.visit(ast.arr)}[{self.visit(ast.key)}]'
+        key = ''
+        if ast.key is not None:
+            key = self.visit(ast.key)
+        return f'{self.visit(ast.arr)}[{key}]'
 
     def visitMeExpr(self, _: MeExpr):
         return 'me'
