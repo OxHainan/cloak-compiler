@@ -31,13 +31,12 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
         except SyntaxException as e:
             raise ZkaySyntaxError(f'\n\nSYNTAX ERROR: {e}')
 
-    from cloak.compiler.solidity.fake_solidity_generator import fake_solidity_code
-    fake_code = fake_solidity_code(str(code))
+    fake_code = ast.code(for_solidity=True)
     if solc_check:
         # Solc type checking
         with print_step("Type checking with solc"):
             try:
-                check_for_cloak_solc_errors(code, fake_code)
+                check_for_cloak_solc_errors(fake_code)
             except SolcException as e:
                 raise CloakCompilerError(f'{e}')
     ast.cloak_source = code
@@ -45,7 +44,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
 
 
 def get_processed_ast(code, parents=True, identifier_link=True, return_check=True, alias_analysis=True, type_check=True, solc_check=True) -> AST:
-    ast, _ = get_parsed_ast_and_fake_code(code, solc_check=False)
+    ast, _ = get_parsed_ast_and_fake_code(code, solc_check=solc_check)
 
     # Cloak preprocessing and type checking
     with time_measure("typeCheck"):

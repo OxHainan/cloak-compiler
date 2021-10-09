@@ -69,8 +69,8 @@ class AST:
     def process_children(self, f: Callable[[T], T]):
         pass
 
-    def code(self) -> str:
-        v = CodeVisitor()
+    def code(self, for_solidity=False) -> str:
+        v = CodeVisitor(for_solidity=for_solidity)
         s = v.visit(self)
         return s
 
@@ -2183,9 +2183,10 @@ class AstException(Exception):
 
 class CodeVisitor(AstVisitor):
 
-    def __init__(self, display_final=True):
+    def __init__(self, display_final=True, for_solidity=False):
         super().__init__('node-or-children')
-        self.display_final = display_final
+        self.display_final = not for_solidity and display_final
+        self.for_solidity = for_solidity
 
     def visit_list(self, l: List[Union[AST, str]], sep='\n'):
         if l is None:
@@ -2270,6 +2271,8 @@ class CodeVisitor(AstVisitor):
         return f'{self.visit(ast.arr)}[{key}]'
 
     def visitMeExpr(self, _: MeExpr):
+        if self.for_solidity:
+            return 'msg.sender'
         return 'me'
 
     def visitAllExpr(self, _: AllExpr):
@@ -2280,6 +2283,8 @@ class CodeVisitor(AstVisitor):
 
     def visitReclassifyExpr(self, ast: ReclassifyExpr):
         e = self.visit(ast.expr)
+        if self.for_solidity:
+            return e
         p = self.visit(ast.privacy)
         return f'reveal({e}, {p})'
 
@@ -2407,18 +2412,20 @@ class CodeVisitor(AstVisitor):
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
         t = self.visit(ast.type_name)
-        p = self.visit(ast.privacy_annotation)
-        if ast.had_privacy_annotation:
+        if not self.for_solidity and ast.had_privacy_annotation:
+            p = self.visit(ast.privacy_annotation)
             return f'{t}@{p}'
         return t
 
     def visitMapping(self, ast: Mapping):
         k = self.visit(ast.key_type)
-        if isinstance(ast.key_label, Identifier):
-            label = '!' + self.visit(ast.key_label)
-        else:
-            label = f'/*!{ast.key_label}*/' if ast.key_label is not None else ''
         v = self.visit(ast.value_type)
+        label = ''
+        if not self.for_solidity:
+            if isinstance(ast.key_label, Identifier):
+                label = '!' + self.visit(ast.key_label)
+            else:
+                label = f'/*!{ast.key_label}*/' if ast.key_label is not None else ''
         return f"mapping({k}{label} => {v})"
 
     def visitArray(self, ast: Array):
@@ -2565,6 +2572,8 @@ class CodeVisitor(AstVisitor):
             structs)
 
     def handle_pragma(self, pragma: str) -> str:
+        if self.for_solidity:
+            return f"pragma solidity {cfg.cloak_solc_version_compatibility.expression};"
         return pragma
 
     def visitSourceUnit(self, ast: SourceUnit):
