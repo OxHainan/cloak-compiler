@@ -112,7 +112,7 @@ def compile_cloak(code: str, output_dir: str, import_keys: bool = False, **kwarg
         private_ast = build_ast(code)
         PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
         # for code Hash
-        cloak_ast.private_contract_code = delete_cloak_annotation(private_ast.code())
+        cloak_ast.private_contract_code = private_ast.code(for_solidity=True)
         solidity_code_output = _dump_to_output(cloak_ast.private_contract_code, output_dir, output_filename)
 
     # Contract transformation

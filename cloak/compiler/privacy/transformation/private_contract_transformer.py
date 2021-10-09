@@ -16,8 +16,7 @@ class PrivateContractTransformer(AstTransformerVisitor):
         self.pp = pp
         super().__init__(log)
 
-    def visitSourceUnit(self, su: SourceUnit):
-        su.pragma_directive = f"pragma solidity {cfg.cloak_solc_version_compatibility.expression};";
+    def visitSourceUnit(self, su: ast.SourceUnit):
         su.privacy_policy = self.pp
         for cd in su.contracts:
             cd.function_definitions.append(CloakTransformer.get_states(su, cd, False))
