@@ -345,5 +345,3 @@ See :py:mod:`.frontend`
 
 - Compilation: :py:meth:`~zkay.frontend.compile_cloak_file`, :py:meth:`~zkay.frontend.compile_cloak`
 - Deployment: :py:meth:`~zkay.frontend.deploy_contract`
-- Export/Import: :py:meth:`~zkay.frontend.package_zkay_contract`, :py:meth:`~zkay.frontend.extract_zkay_package`
-- Creating transaction interface object: :py:meth:`~zkay.frontend.connect_to_contract_at` (after loading the correct zkay configuration using :py:meth:`~zkay.frontend.use_configuration_from_manifest`)

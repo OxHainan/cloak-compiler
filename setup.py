@@ -32,19 +32,19 @@ def build_grammar():
                           cwd=os.path.dirname(os.path.realpath(antlr_jar_path)))
 
 
-def build_libsnark_backend(target_dir: str):
-    import subprocess
-    import multiprocessing
-    import shutil
-    import stat
-    from tempfile import TemporaryDirectory
-    with TemporaryDirectory() as d:
-        subprocess.check_call(['git', 'clone', '--recursive', 'https://github.com/eth-sri/zkay-libsnark.git', 'snark'], cwd=d)
-        subprocess.check_call(['git', 'checkout', zkay_libsnark_commit_hash], cwd=os.path.join(d, 'snark'))
-        subprocess.check_call(['./build.sh', str(multiprocessing.cpu_count())], cwd=os.path.join(d, 'snark'))
-        shutil.copyfile(os.path.join(d, 'snark', 'build', 'libsnark', 'zkay_interface', 'run_snark'), os.path.join(target_dir, 'run_snark'))
-        perms = os.stat(os.path.join(target_dir, 'run_snark'))
-        os.chmod(os.path.join(target_dir, 'run_snark'), perms.st_mode | (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
+# def build_libsnark_backend(target_dir: str):
+#     import subprocess
+#     import multiprocessing
+#     import shutil
+#     import stat
+#     from tempfile import TemporaryDirectory
+#     with TemporaryDirectory() as d:
+#         subprocess.check_call(['git', 'clone', '--recursive', 'https://github.com/eth-sri/zkay-libsnark.git', 'snark'], cwd=d)
+#         subprocess.check_call(['git', 'checkout', zkay_libsnark_commit_hash], cwd=os.path.join(d, 'snark'))
+#         subprocess.check_call(['./build.sh', str(multiprocessing.cpu_count())], cwd=os.path.join(d, 'snark'))
+#         shutil.copyfile(os.path.join(d, 'snark', 'build', 'libsnark', 'zkay_interface', 'run_snark'), os.path.join(target_dir, 'run_snark'))
+#         perms = os.stat(os.path.join(target_dir, 'run_snark'))
+#         os.chmod(os.path.join(target_dir, 'run_snark'), perms.st_mode | (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH))
 
 
 def install_latest_compatible_solc():
@@ -63,15 +63,15 @@ class CustomInstall(install):
     def run(self):
         install.run(self)
         interface_dir = os.path.join(self.install_lib, self.distribution.metadata.name, 'jsnark_interface')
-        build_libsnark_backend(interface_dir)
+        # build_libsnark_backend(interface_dir)
         install_latest_compatible_solc()
 
 
 class CustomDevelop(develop):
     def run(self):
-        interface_source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cloak', 'jsnark_interface')
+        # interface_source_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'cloak', 'jsnark_interface')
         build_grammar()
-        build_libsnark_backend(interface_source_dir)
+        # build_libsnark_backend(interface_source_dir)
         develop.run(self)
         install_latest_compatible_solc()
 

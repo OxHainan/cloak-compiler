@@ -777,12 +777,12 @@ class HybridArgumentIdf(Identifier):
                 return tgt.clone().index(start_offset).assign(expr)
 
 
-class EncryptionExpression(ReclassifyExpr):
-    def __init__(self, expr: Expression, privacy: PrivacyLabelExpr):
-        if isinstance(privacy, Identifier):
-            privacy = IdentifierExpr(privacy)
-        super().__init__(expr, privacy)
-        self.annotated_type = AnnotatedTypeName.cipher_type(expr.annotated_type)
+# class EncryptionExpression(ReclassifyExpr):
+#     def __init__(self, expr: Expression, privacy: PrivacyLabelExpr):
+#         if isinstance(privacy, Identifier):
+#             privacy = IdentifierExpr(privacy)
+#         super().__init__(expr, privacy)
+#         self.annotated_type = AnnotatedTypeName.cipher_type(expr.annotated_type)
 
 
 class Statement(AST):
@@ -996,25 +996,25 @@ class TypeName(AST):
     def address_payable_type():
         return AddressPayableTypeName()
 
-    @staticmethod
-    def cipher_type(plain_type: AnnotatedTypeName):
-        return CipherText(plain_type)
+    # @staticmethod
+    # def cipher_type(plain_type: AnnotatedTypeName):
+    #     return CipherText(plain_type)
 
-    @staticmethod
-    def rnd_type():
-        return Randomness()
+    # @staticmethod
+    # def rnd_type():
+    #     return Randomness()
 
-    @staticmethod
-    def key_type():
-        return Key()
+    # @staticmethod
+    # def key_type():
+    #     return Key()
 
-    @staticmethod
-    def zk_proof_type():
-        return ZKProof()
+    # @staticmethod
+    # def zk_proof_type():
+    #     return ZKProof()
 
-    @staticmethod
-    def tee_proof_type():
-        return TEEProof()
+    # @staticmethod
+    # def tee_proof_type():
+    #     return TEEProof()
 
     @staticmethod
     def dyn_uint_array():
@@ -1040,8 +1040,8 @@ class TypeName(AST):
     def is_primitive_type(self) -> bool:
         return isinstance(self, (ElementaryTypeName, EnumTypeName, EnumValueTypeName, AddressTypeName, AddressPayableTypeName))
 
-    def is_cipher(self) -> bool:
-        return isinstance(self, CipherText)
+    # def is_cipher(self) -> bool:
+    #     return isinstance(self, CipherText)
 
     @property
     def is_numeric(self) -> bool:
@@ -1077,13 +1077,13 @@ class TypeName(AST):
             return other_type
         return None
 
-    def get_type(self):
-        n_map = self
+    # def get_type(self):
+    #     n_map = self
 
-        while isinstance(n_map, (Mapping, Array)) and not isinstance(n_map, CipherText):
-            n_map = n_map.value_type.type_name
-        
-        return n_map
+    #     while isinstance(n_map, (Mapping, Array)) and not isinstance(n_map, CipherText):
+    #         n_map = n_map.value_type.type_name
+    #     
+    #     return n_map
 
     def annotate(self, privacy_annotation):
         return AnnotatedTypeName(self, privacy_annotation)
@@ -1445,40 +1445,40 @@ class Array(TypeName):
         return False
 
 
-class CipherText(Array):
-    def __init__(self, plain_type: AnnotatedTypeName):
-        assert not plain_type.type_name.is_cipher()
-        super().__init__(BytesTypeName(), NumberLiteralExpr(cfg.cipher_len))
-        self.plain_type = plain_type.clone()
-
-    @property
-    def size_in_uints(self):
-        return cfg.cipher_payload_len
-
-    def clone(self) -> CipherText:
-        return CipherText(self.plain_type)
-
-    def __eq__(self, other):
-        return isinstance(other, CipherText) and (self.plain_type is None or self.plain_type == other.plain_type)
-
-
-class Randomness(Array):
-    def __init__(self):
-        if cfg.randomness_len is None:
-            super().__init__(AnnotatedTypeName.uint_all(), None)
-        else:
-            super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.randomness_len))
-
-    def __eq__(self, other):
-        return isinstance(other, Randomness)
+# class CipherText(Array):
+#     def __init__(self, plain_type: AnnotatedTypeName):
+#         assert not plain_type.type_name.is_cipher()
+#         super().__init__(BytesTypeName(), NumberLiteralExpr(cfg.cipher_len))
+#         self.plain_type = plain_type.clone()
+# 
+#     @property
+#     def size_in_uints(self):
+#         return cfg.cipher_payload_len
+# 
+#     def clone(self) -> CipherText:
+#         return CipherText(self.plain_type)
+# 
+#     def __eq__(self, other):
+#         return isinstance(other, CipherText) and (self.plain_type is None or self.plain_type == other.plain_type)
 
 
-class Key(Array):
-    def __init__(self):
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.key_len))
+# class Randomness(Array):
+#     def __init__(self):
+#         if cfg.randomness_len is None:
+#             super().__init__(AnnotatedTypeName.uint_all(), None)
+#         else:
+#             super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.randomness_len))
+# 
+#     def __eq__(self, other):
+#         return isinstance(other, Randomness)
+# 
 
-    def __eq__(self, other):
-        return isinstance(other, Key)
+# class Key(Array):
+#     def __init__(self):
+#         super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.key_len))
+# 
+#     def __eq__(self, other):
+#         return isinstance(other, Key)
 
 
 class ZKProof(Array):
@@ -1613,12 +1613,12 @@ class AnnotatedTypeName(AST):
         at.had_privacy_annotation = self.had_privacy_annotation
         return at
 
-    @property
-    def zkay_type(self) -> AnnotatedTypeName:
-        if isinstance(self.type_name, CipherText):
-            return self.type_name.plain_type
-        else:
-            return self
+    # @property
+    # def zkay_type(self) -> AnnotatedTypeName:
+    #     if isinstance(self.type_name, CipherText):
+    #         return self.type_name.plain_type
+    #     else:
+    #         return self
 
     def __eq__(self, other):
         if isinstance(other, AnnotatedTypeName):
@@ -1650,8 +1650,8 @@ class AnnotatedTypeName(AST):
     def is_address(self) -> bool:
         return isinstance(self.type_name, (AddressTypeName, AddressPayableTypeName))
 
-    def is_cipher(self) -> bool:
-        return isinstance(self.type_name, CipherText)
+    # def is_cipher(self) -> bool:
+    #     return isinstance(self.type_name, CipherText)
 
     @staticmethod
     def uint_all():
@@ -1665,9 +1665,9 @@ class AnnotatedTypeName(AST):
     def address_all():
         return AnnotatedTypeName(TypeName.address_type())
 
-    @staticmethod
-    def cipher_type(plain_type: AnnotatedTypeName):
-        return AnnotatedTypeName(TypeName.cipher_type(plain_type))
+    # @staticmethod
+    # def cipher_type(plain_type: AnnotatedTypeName):
+    #     return AnnotatedTypeName(TypeName.cipher_type(plain_type))
 
     @staticmethod
     def key_type():
@@ -2072,17 +2072,17 @@ class InstanceTarget(tuple):
     def key(self) -> Optional[Union[Identifier, Expression]]:
         return self[1]
 
-    @property
-    def privacy(self) -> PrivacyLabelExpr:
-        if self.key is None or not isinstance(self.target.annotated_type.type_name, Mapping):
-            return self.target.annotated_type.zkay_type.privacy_annotation.privacy_annotation_label()
-        else:
-            t = self.target.annotated_type.zkay_type.type_name
-            assert isinstance(t, Mapping)
-            if t.has_key_label:
-                return self.key.privacy_annotation_label()
-            else:
-                t.value_type.privacy_annotation.privacy_annotation_label()
+    # @property
+    # def privacy(self) -> PrivacyLabelExpr:
+    #     if self.key is None or not isinstance(self.target.annotated_type.type_name, Mapping):
+    #         return self.target.annotated_type.zkay_type.privacy_annotation.privacy_annotation_label()
+    #     else:
+    #         t = self.target.annotated_type.zkay_type.type_name
+    #         assert isinstance(t, Mapping)
+    #         if t.has_key_label:
+    #             return self.key.privacy_annotation_label()
+    #         else:
+    #             t.value_type.privacy_annotation.privacy_annotation_label()
 
     def in_scope_at(self, ast: AST) -> bool:
         from cloak.cloak_ast.pointers.symbol_table import SymbolTableLinker
@@ -2436,9 +2436,9 @@ class CodeVisitor(AstVisitor):
             e = ''
         return f'{t}[{e}]'
 
-    def visitCipherText(self, ast: CipherText):
-        e = self.visitArray(ast)
-        return f'{e}/*{ast.plain_type.code()}*/'
+    # def visitCipherText(self, ast: CipherText):
+    #     e = self.visitArray(ast)
+    #     return f'{e}/*{ast.plain_type.code()}*/'
 
     def visitTupleType(self, ast: TupleType):
         s = self.visit_list(ast.types, ', ')

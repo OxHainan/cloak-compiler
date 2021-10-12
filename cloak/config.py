@@ -9,7 +9,7 @@ from semantic_version import NpmSpec
 from cloak.compiler.privacy.proving_scheme.meta import provingschemeparams
 from cloak.config_user import UserConfig
 from cloak.config_version import Versions
-from cloak.transaction.crypto.meta import cryptoparams
+# from cloak.transaction.crypto.meta import cryptoparams
 
 
 def zk_print(*args, verbosity_level=1, **kwargs):
@@ -115,47 +115,47 @@ class Config(UserConfig):
     def override_solc(new_version):
         Versions.set_solc_version(new_version)
 
-    @property
-    def key_bits(self) -> int:
-        return cryptoparams[self.crypto_backend]['key_bits']
+    # @property
+    # def key_bits(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['key_bits']
 
-    @property
-    def key_bytes(self) -> int:
-        return self.key_bits // 8
+    # @property
+    # def key_bytes(self) -> int:
+    #     return self.key_bits // 8
 
-    @property
-    def rnd_bytes(self) -> int:
-        return cryptoparams[self.crypto_backend]['rnd_bytes']
+    # @property
+    # def rnd_bytes(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['rnd_bytes']
 
-    @property
-    def cipher_bytes_payload(self) -> int:
-        return cryptoparams[self.crypto_backend]['cipher_payload_bytes']
+    # @property
+    # def cipher_bytes_payload(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['cipher_payload_bytes']
 
-    @property
-    def cipher_bytes_meta(self) -> int:
-        return cryptoparams[self.crypto_backend]['cipher_meta_bytes']
+    # @property
+    # def cipher_bytes_meta(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['cipher_meta_bytes']
 
-    def is_symmetric_cipher(self) -> bool:
-        return cryptoparams[self.crypto_backend]['symmetric']
+    # def is_symmetric_cipher(self) -> bool:
+    #     return cryptoparams[self.crypto_backend]['symmetric']
 
-    @property
-    def cipher_payload_len(self) -> int:
-        return int(math.ceil(self.cipher_bytes_payload / self.cipher_chunk_size))
+    # @property
+    # def cipher_payload_len(self) -> int:
+    #     return int(math.ceil(self.cipher_bytes_payload / self.cipher_chunk_size))
 
-    @property
-    def cipher_len(self) -> int:
-        if self.is_symmetric_cipher():
-            return self.cipher_payload_len + 1 # Additional uint to store sender address
-        else:
-            return self.cipher_payload_len
+    # @property
+    # def cipher_len(self) -> int:
+    #     if self.is_symmetric_cipher():
+    #         return self.cipher_payload_len + 1 # Additional uint to store sender address
+    #     else:
+    #         return self.cipher_payload_len
 
-    @property
-    def key_len(self) -> int:
-        return 1 if self.is_symmetric_cipher() else int(math.ceil(self.key_bytes / self.cipher_chunk_size))
+    # @property
+    # def key_len(self) -> int:
+    #     return 1 if self.is_symmetric_cipher() else int(math.ceil(self.key_bytes / self.cipher_chunk_size))
 
-    @property
-    def randomness_len(self) -> int:
-        return 0 if self.is_symmetric_cipher() else int(math.ceil(self.rnd_bytes / self.rnd_chunk_size))
+    # @property
+    # def randomness_len(self) -> int:
+    #     return 0 if self.is_symmetric_cipher() else int(math.ceil(self.rnd_bytes / self.rnd_chunk_size))
 
     @property
     def zk_proof_len(self) -> int:
@@ -360,13 +360,13 @@ class Config(UserConfig):
     def tee_set_addr_function_name(self) -> str:
         return "setTEEAddress"
 
-    @property
-    def cipher_chunk_size(self) -> int:
-        return cryptoparams[self.crypto_backend]['cipher_chunk_size']
+    # @property
+    # def cipher_chunk_size(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['cipher_chunk_size']
 
-    @property
-    def rnd_chunk_size(self) -> int:
-        return cryptoparams[self.crypto_backend]['rnd_chunk_size']
+    # @property
+    # def rnd_chunk_size(self) -> int:
+    #     return cryptoparams[self.crypto_backend]['rnd_chunk_size']
 
     @property
     def is_unit_test(self) -> bool:

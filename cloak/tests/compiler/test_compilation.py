@@ -4,7 +4,7 @@ from contextlib import contextmanager
 
 from parameterized import parameterized_class
 
-from cloak.frontend import compile_cloak
+# from cloak.frontend import compile_cloak
 from cloak.config import cfg
 from cloak.examples.examples import all_examples, get_code_example
 from cloak.tests.utils.test_examples import TestExamples
