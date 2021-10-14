@@ -777,14 +777,6 @@ class HybridArgumentIdf(Identifier):
                 return tgt.clone().index(start_offset).assign(expr)
 
 
-# class EncryptionExpression(ReclassifyExpr):
-#     def __init__(self, expr: Expression, privacy: PrivacyLabelExpr):
-#         if isinstance(privacy, Identifier):
-#             privacy = IdentifierExpr(privacy)
-#         super().__init__(expr, privacy)
-#         self.annotated_type = AnnotatedTypeName.cipher_type(expr.annotated_type)
-
-
 class Statement(AST):
 
     def __init__(self):
@@ -1444,56 +1436,6 @@ class Array(TypeName):
             return True
         return False
 
-
-# class CipherText(Array):
-#     def __init__(self, plain_type: AnnotatedTypeName):
-#         assert not plain_type.type_name.is_cipher()
-#         super().__init__(BytesTypeName(), NumberLiteralExpr(cfg.cipher_len))
-#         self.plain_type = plain_type.clone()
-# 
-#     @property
-#     def size_in_uints(self):
-#         return cfg.cipher_payload_len
-# 
-#     def clone(self) -> CipherText:
-#         return CipherText(self.plain_type)
-# 
-#     def __eq__(self, other):
-#         return isinstance(other, CipherText) and (self.plain_type is None or self.plain_type == other.plain_type)
-
-
-# class Randomness(Array):
-#     def __init__(self):
-#         if cfg.randomness_len is None:
-#             super().__init__(AnnotatedTypeName.uint_all(), None)
-#         else:
-#             super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.randomness_len))
-# 
-#     def __eq__(self, other):
-#         return isinstance(other, Randomness)
-# 
-
-# class Key(Array):
-#     def __init__(self):
-#         super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.key_len))
-# 
-#     def __eq__(self, other):
-#         return isinstance(other, Key)
-
-
-class ZKProof(Array):
-    def __init__(self):
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.zk_proof_len))
-
-    def __eq__(self, other):
-        return isinstance(other, ZKProof)
-
-class TEEProof(Array):
-    def __init__(self):
-        super().__init__(AnnotatedTypeName.uint_all(), NumberLiteralExpr(cfg.tee_proof_len))
-
-    def __eq__(self, other):
-        return isinstance(other, TEEProof)
 
 class DummyAnnotation:
     pass

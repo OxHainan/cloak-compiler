@@ -14,13 +14,13 @@ output_dir = os.path.join(cfg.log_dir, 'compile_tests', 'output')
 os.makedirs(output_dir, exist_ok=True)
 
 
-@contextmanager
-def _mock_config(crypto: str, hash_opt):
-    old_c, old_h = cfg.crypto_backend, cfg.should_use_hash
-    cfg.crypto_backend = crypto
-    cfg.should_use_hash = (lambda _: hash_opt) if isinstance(hash_opt, bool) else hash_opt
-    yield
-    cfg.crypto_backend, cfg.should_use_hash = old_c, old_h
+# @contextmanager
+# def _mock_config(crypto: str, hash_opt):
+#     old_c, old_h = cfg.crypto_backend, cfg.should_use_hash
+#     cfg.crypto_backend = crypto
+#     cfg.should_use_hash = (lambda _: hash_opt) if isinstance(hash_opt, bool) else hash_opt
+#     yield
+#     cfg.crypto_backend, cfg.should_use_hash = old_c, old_h
 
 
 #@parameterized_class(('name', 'example'), get_code_example('.zkay'))

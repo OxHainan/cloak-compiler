@@ -3,7 +3,6 @@ This module defines zkay->solidity transformers for the smaller contract element
 """
 
 from __future__ import annotations
-from cloak.compiler.name_remapper import V
 from math import exp
 from operator import index, xor
 import re

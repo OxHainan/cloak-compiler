@@ -101,51 +101,6 @@ def parse_arguments():
     solify_parser = subparsers.add_parser('solify', parents=[config_parser], help=msg, formatter_class=ShowSuppressedInHelpFormatter)
     solify_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
 
-    # 'export' parser
-    export_parser = subparsers.add_parser('export', parents=[config_parser], help='Package a compiled cloak contract.', formatter_class=ShowSuppressedInHelpFormatter)
-    msg = 'Output filename. Default: ./contract.zkp'
-    export_parser.add_argument('-o', '--output', default='contract.zkp', help=msg, metavar='<output_filename>').completer = FilesCompleter(cloak_package_files)
-    msg = 'Directory with the compilation output of the contract which should be packaged.'
-    export_parser.add_argument('input', help=msg, metavar='<cloak_compilation_output_dir>').completer = DirectoriesCompleter()
-
-    # 'import' parser
-    msg = 'Unpack a packaged cloak contract.\n' \
-          'Note: An internet connection is required if the packaged contract used a solc version which is not currently installed.'
-    import_parser = subparsers.add_parser('import', parents=[config_parser], help=msg, formatter_class=ShowSuppressedInHelpFormatter)
-    msg = 'Directory where the contract should be unpacked to. Default: Current Directory'
-    import_parser.add_argument('-o', '--output', default=os.getcwd(), help=msg, metavar='<target_directory>').completer = DirectoriesCompleter()
-    msg = 'Contract package to unpack.'
-    import_parser.add_argument('input', help=msg, metavar='<cloak_package_file>').completer = FilesCompleter(cloak_package_files)
-
-    # 'run, deploy and connect' parsers
-    interact_parser = argparse.ArgumentParser(add_help=False)
-    msg = 'Directory with the compilation output of the contract with which you want to interact.'
-    interact_parser.add_argument('input', help=msg, metavar='<cloak_compilation_output_dir>').completer = DirectoriesCompleter()
-    interact_parser.add_argument('--log', action='store_true', help='enable logging')
-    interact_parser.add_argument('--account', help='Sender blockchain address', metavar='<address>')
-
-    subparsers.add_parser('run', parents=[interact_parser, config_parser],
-                          help='Enter transaction shell for a compiled cloak contract.',
-                          formatter_class=ShowSuppressedInHelpFormatter)
-
-    deploy_parser = subparsers.add_parser('deploy', parents=[interact_parser, config_parser],
-                                          help='Deploy contract with given constructor arguments',
-                                          formatter_class=ShowSuppressedInHelpFormatter)
-    deploy_parser.add_argument('constructor_args', nargs='*', help='Constructor arguments', metavar='<args>...')
-
-    connect_parser = subparsers.add_parser('connect', parents=[interact_parser, config_parser],
-                                          help='Connect to contract at address and enter shell.',
-                                          formatter_class=ShowSuppressedInHelpFormatter)
-    connect_parser.add_argument('address', help='Blockchain address of deployed contract', metavar='<address>')
-
-    # Common deploy libs parameters
-    deploy_libs_parser = argparse.ArgumentParser(add_help=False)
-    msg = 'Address of the account to use for deploying the library contracts. ' \
-          'Its ethereum keys must be hosted in the specified node and sufficient funds ' \
-          'to cover the deployment costs must be available. ' \
-          'WARNING: This account will be charged with the deployment costs.'
-    deploy_libs_parser.add_argument('account', metavar='<deployer account ethereum address>', help=msg)
-
     subparsers.add_parser('version', help='Display cloak version information')
     subparsers.add_parser('update-solc', help='Install latest compatible solc version (requires internet connection)')
 
@@ -270,33 +225,6 @@ def main():
                 with fail_print():
                     print(f'{e}')
                 exit(3)
-    elif a.cmd == 'import':
-        # create output directory
-        output_dir = Path(a.output).absolute()
-        if output_dir.exists():
-            with fail_print():
-                print(f'Error: \'{output_dir}\' already exists')
-            exit(2)
-
-        try:
-            frontend.extract_cloak_package(str(input_path), str(output_dir))
-        except CloakCompilerError as e:
-            with fail_print():
-                print(f"ERROR while compiling unpacked cloak contract.\n{e}")
-            exit(3)
-        except Exception as e:
-            with fail_print():
-                print(f"ERROR while unpacking cloak contract\n{e}")
-            exit(5)
-    elif a.cmd == 'export':
-        output_filename = Path(a.output).absolute()
-        os.makedirs(output_filename.parent, exist_ok=True)
-        try:
-            frontend.package_cloak_contract(str(input_path), str(output_filename))
-        except Exception as e:
-            with fail_print():
-                print(f"ERROR while exporting cloak contract\n{e}")
-            exit(4)
     else:
         raise NotImplementedError(a.cmd)
 

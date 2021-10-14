@@ -3,7 +3,6 @@ import json
 import base64
 from typing import Dict, Optional, List, Tuple
 
-from cloak.compiler.privacy.library_contracts import bn128_scalar_field
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer
 from cloak.config import cfg
@@ -68,11 +67,6 @@ class CloakTransformer(AstTransformerVisitor):
         import_filename = f'./{cname}.sol'
         su.used_contracts.append(import_filename)
 
-        # if corresponding_circuit is not None:
-        #     c_type = ContractTypeName([Identifier(cname)])
-        #     corresponding_circuit.register_verification_contract_metadata(
-        #         c_type, import_filename)
-
     @staticmethod
     def create_contract_variable(cname: str, default_value: Optional[str] = None) -> StateVariableDeclaration:
         """Create a public constant state variable with which contract with name 'cname' can be accessed"""
@@ -99,36 +93,12 @@ class CloakTransformer(AstTransformerVisitor):
         :return: list of all constant state variable declarations for the pki contract + all the verification contracts
         """
         c.contract_var_decls = [
-            self.create_contract_variable(cfg.pki_contract_name, cfg.blockchain_pki_address)]
-        c.contract_var_decls.append(
-            self.create_contract_variable(cfg.service_contract_name, cfg.blockchain_service_address))
-
-        # for f in c.fcts_is_zkp:
-        #     if f.requires_verification_when_external and f.has_side_effects:
-        #         name = cfg.get_zk_verification_contract_name(
-        #             c.idf.name, f.name)
-        #         self.import_contract(name, su, self.circuits[f])
-        #         c.contract_var_decls.append(
-        #             self.create_contract_variable(name))
+            self.create_contract_variable(cfg.service_contract_name, cfg.blockchain_service_address),
+        ]
 
         return c.contract_var_decls
 
-    # @staticmethod
-    # def create_circuit_helper(fct: ConstructorOrFunctionDefinition, global_owners: List[PrivacyLabelExpr],
-    #                           internal_circ: Optional[CircuitHelper] = None):
-    #     """
-    #     Create circuit helper for the given function.
-
-    #     :param fct: function for which to create a circuit
-    #     :param global_owners: list of all statically known privacy labels (me + final address state variables)
-    #     :param internal_circ: the circuit of the internal function on which to base this circuit
-    #                           (only used when creating the circuit of the external wrapper function)
-    #     :return: new circuit helper
-    #     """
-    #     return CircuitHelper(fct, global_owners, ZkpExpressionTransformer, ZkpCircuitTransformer, internal_circ)
-
     def visitSourceUnit(self, ast: SourceUnit):
-        self.import_contract(cfg.pki_contract_name, ast)
         self.import_contract(cfg.service_contract_name, ast)
 
         for c in ast.contracts:
@@ -167,29 +137,13 @@ class CloakTransformer(AstTransformerVisitor):
             fct.original_body = deep_copy(
                 fct.body, with_types=True, with_analysis=True)
 
-        # c.fcts_is_zkp = [fct for fct in c.all_fcts if fct.is_zkp()]
         c.fcts_is_tee = [fct for fct in c.all_fcts if fct.is_tee()]
-
-        # Split into functions which require verification and those which don't need a circuit helper
-        # self.circuits: Dict[ConstructorOrFunctionDefinition,
-        #                     CircuitHelper] = {}
         """Abstract circuits for all functions which require verification"""
-        # c.req_ext_zk_fcts, c.req_ext_tee_fcts = {}, {}
         c.new_fcts, c.new_constr = [], []
         for fct in c.all_fcts:
             assert isinstance(fct, ConstructorOrFunctionDefinition)
-            # if fct.requires_verification or fct.requires_verification_when_external:
-            #     self.circuits[fct] = self.create_circuit_helper(
-            #         fct, c.global_owners)
-
-            # if fct.requires_verification_when_external and fct.is_zkp():
-            #     c.req_ext_zk_fcts[fct] = fct.parameters[:]
-            # elif fct.requires_verification_when_external and fct.is_tee():
-            #     c.req_ext_tee_fcts[fct] = fct.parameters[:]
             if fct.is_constructor:
                 c.new_constr.append(fct)
-            # else:
-            #     c.new_fcts.append(fct)
 
         self.include_verification_contracts(su, c)
 
@@ -217,22 +171,12 @@ class CloakTransformer(AstTransformerVisitor):
             c.state_variable_declarations = [Comment('TEE helper variables'), code_hash_decl, policy_hash_decl, tee_addr_var, Comment()]\
                 + c.state_variable_declarations
 
-        # if c.fcts_is_zkp:
-        #     # Add constant state variables for zkp external contracts and field prime
-        #     field_prime_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-        #                                                 Identifier(
-        #                                                     cfg.zk_field_prime_var_name),
-        #                                                 NumberLiteralExpr(bn128_scalar_field))
-
-        #     c.state_variable_declarations = [Comment('ZKP helper variables'), field_prime_decl, Comment()]\
-        #         + c.state_variable_declarations
 
         # Add helper contracts
         c.state_variable_declarations = [Comment()]\
             + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
             + c.state_variable_declarations
 
-        # new_fcts = [GlobalDefs.set_code_hash, GlobalDefs.set_policy] + new_fcts
         c.constructor_definitions = c.new_constr
         c.function_definitions = [fct for fct in c.new_fcts if fct.body.statements]
 
@@ -353,10 +297,10 @@ class CloakTransformer(AstTransformerVisitor):
         if is_cipher:
             guard = """
                 require(msg.sender == tee, 'msg.sender is not tee');
+                require(proof[0] == teeCHash, 'code hash error');
+                require(proof[1] == teePHash, 'policy hash error');
                 uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
-                if (!CloakService_inst.verify(proof, teeCHash, teePHash, osHash)) {
-                    revert('hash error');
-                }
+                require(proof[2] == osHash, 'old states hash error');
             """
             params = "bytes[] memory read, uint old_states_len, bytes[] memory data, uint[] memory proof"
         res = SOL(f"""

@@ -92,15 +92,7 @@ def compile_cloak(code: str, output_dir: str, **kwargs):
 
     # Dump libraries
     with print_step("Write library contract files"):
-        with cfg.library_compilation_environment():
-            # Write pki contract
-            _dump_to_output(library_contracts.get_pki_contract(), output_dir, f'{cfg.pki_contract_name}.sol', dryrun_solc=True)
-
-            # Write library contract
-            # _dump_to_output(library_contracts.get_verify_libs_code(), output_dir, ProvingScheme.verify_libs_contract_filename, dryrun_solc=True)
-
-            # Write cloak service contract
-            _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
+        _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
 
     # Write public contract file
     with print_step('Write public solidity code'):
