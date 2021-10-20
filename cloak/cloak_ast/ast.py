@@ -1191,8 +1191,11 @@ class NumberTypeName(ElementaryTypeName):
 
 
 class BytesTypeName(ElementaryTypeName):
-    def __init__(self):
-        super().__init__("bytes")
+    def __init__(self, name="bytes"):
+        assert name.startswith("bytes")
+        prefix_len = len("bytes")
+        super().__init__(name)
+        self.len = int(name[prefix_len:]) if len(name) > prefix_len else None
 
 
 class StringTypeName(ElementaryTypeName):
