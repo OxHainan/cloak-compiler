@@ -234,8 +234,8 @@ class BuildASTVisitor(SolidityVisitor):
             return ast.IntTypeName(t)
         elif t.startswith('uint'):
             return ast.UintTypeName(t)
-        elif t == 'bytes':
-            return ast.BytesTypeName()
+        elif t.startswith('bytes'):
+            return ast.BytesTypeName(t)
         elif t == 'string':
             return ast.StringTypeName()
         elif t == 'var':

@@ -5,6 +5,7 @@ from cloak.cloak_ast.ast import AST, Expression, Statement, UserDefinedTypeName
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast import ast as ast_module
 
 T = TypeVar('T')
 
@@ -165,3 +166,6 @@ class DeepCopyVisitor(AstVisitor):
             return [self.copy_field(e) for e in field]
         else:
             return self.visit(field)
+
+    def visitBytesTypeName(self, ast: ast_module.BytesTypeName):
+        return ast_module.BytesTypeName(ast.name)

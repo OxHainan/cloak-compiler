@@ -82,8 +82,12 @@ class FunctionPolicy():
                 n_elem["type"] = type_pure.delete_cloak_annotation(
                     self.__ppv.visit(var.annotated_type.type_name))
 
+                if clss == FUNC_OUTPUTS:
+                    n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
+
                 if clss == FUNC_INPUTS:
                     type_name = deep_copy(var.annotated_type.type_name)
+                    n_elem["structural_type"] = TypeFormatter().visit(type_name)
                     ConcreteTypeNameVisitor().visit(type_name)
                     # for computing function selector
                     n_elem["concrete_type"] = type_name.code()
