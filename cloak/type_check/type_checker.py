@@ -21,6 +21,7 @@ def check_type(ast):
     v = TypeCheckVisitor()
     v.visit(ast)
 
+def generate_policy(ast):
     # generate privacy policy
     ptv = PrivacyTypeVisitor()
     ptv.visit(ast)
@@ -380,7 +381,8 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeException('No private array index', ast)
             if not ast.key.instanceof_data_type(TypeName.number_type()):
                 raise TypeException('Array index must be numeric', ast)
-            ast.annotated_type = map_t.type_name.annotate(map_t.privacy_annotation)
+            # ast.annotated_type = map_t.type_name.annotate(map_t.privacy_annotation)
+            ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
         else:
             raise TypeException('Indexing into non-mapping', ast)
 
@@ -455,34 +457,21 @@ class PrivacyTypeVisitor(AstVisitor):
         self.privacy_policy.add_state(ast)
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        print(f'Generate policy of function {ast.name}...')
         new_fp = FunctionPolicy(ast.name, ast.privacy_type)
 
         for v in ast.parameters:
             new_fp.add_item(FUNC_INPUTS, v)
 
         for v in ast.read_values:
-            if isinstance(v.target, StateVariableDeclaration):
-                if v.target.annotated_type.type_name.is_primitive_type():
-                    if new_fp.add_item(FUNC_READ, v.target):
-                        new_fp.read_values.append(v.target)
-
-        for v in ast.read_values:
-            if isinstance(v.target, StateVariableDeclaration):
-                if not v.target.annotated_type.type_name.is_primitive_type():
-                    if isinstance(v[2], IndexExpr):
-                        top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
-                        if new_fp.add_item(FUNC_READ, map_idx_expr.target, map_key):
-                            new_fp.read_values.append(map_idx_expr.target)
+            if isinstance(v.target, StateVariableDeclaration) \
+                    and isinstance(v.target.annotated_type.type_name, Mapping) \
+                    and isinstance(v[2], IndexExpr):
+                top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])
+                if new_fp.add_item(FUNC_READ, map_idx_expr.target, map_key):
+                    new_fp.read_values.append(map_idx_expr.target)
 
         for v in ast.modified_values:
             if isinstance(v.target, StateVariableDeclaration):
-                if v.target.annotated_type.type_name.is_primitive_type():
-                    if new_fp.add_item(FUNC_MUTATE, v.target):
-                        new_fp.mutate_values.append(v.target)
-
-        for v in ast.modified_values:
-            if isinstance(v.target, VariableDeclaration):
                 if not v.target.annotated_type.type_name.is_primitive_type():
                     if isinstance(v[2], IndexExpr):
                         top_idx_expr, map_idx_expr, map_key = self.privacy_policy.get_visited_map_and_key(v[2])

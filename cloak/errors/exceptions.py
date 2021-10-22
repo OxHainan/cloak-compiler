@@ -10,7 +10,7 @@ class CloakCompilerError(Exception):
     pass
 
 
-class ZkaySyntaxError(CloakCompilerError):
+class CloakSyntaxError(CloakCompilerError):
     """
     Error during parsing / AST construction"
     """

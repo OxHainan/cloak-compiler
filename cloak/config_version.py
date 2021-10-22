@@ -9,7 +9,6 @@ from semantic_version import NpmSpec, Version
 
 class Versions:
     CLOAK_SOLC_VERSION_COMPATIBILITY = NpmSpec('^0.8.0')
-    ZKAY_LIBRARY_SOLC_VERSION = '0.8.5'
     SOLC_VERSION = None
 
     # Read zkay version from VERSION file

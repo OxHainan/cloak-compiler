@@ -1,12 +1,12 @@
 from antlr4 import CommonTokenStream, InputStream
 from antlr4.error.ErrorListener import ErrorListener
 
-from cloak.errors.exceptions import ZkaySyntaxError
+from cloak.errors.exceptions import CloakSyntaxError
 from cloak.solidity_parser.generated.SolidityLexer import SolidityLexer
 from cloak.solidity_parser.generated.SolidityParser import SolidityParser
 
 
-class SyntaxException(ZkaySyntaxError):
+class SyntaxException(CloakSyntaxError):
     """
     Error during parsing"
     """

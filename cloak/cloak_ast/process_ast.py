@@ -4,10 +4,10 @@ from cloak.utils.timer import time_measure
 from cloak.compiler.solidity.compiler import check_for_cloak_solc_errors, SolcException
 from cloak.config import cfg
 from cloak.errors.exceptions import CloakCompilerError, PreprocessAstException, TypeCheckException, AnalysisException, \
-    ZkaySyntaxError
+    CloakSyntaxError
 from cloak.solidity_parser.parse import SyntaxException
 from cloak.type_check.type_setter import set_type
-from cloak.type_check.type_checker import check_type
+from cloak.type_check.type_checker import check_type, generate_policy
 from cloak.type_check.type_exceptions import TypeMismatchException, TypeException, RequireException, ReclassifyException
 from cloak.utils.progress_printer import print_step
 from cloak.cloak_ast.analysis.alias_analysis import analyze_alias
@@ -29,7 +29,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
         try:
             ast = build_ast(code)
         except SyntaxException as e:
-            raise ZkaySyntaxError(f'\n\nSYNTAX ERROR: {e}')
+            raise CloakSyntaxError(f'\n\nSYNTAX ERROR: {e}')
 
     fake_code = ast.code(for_solidity=True)
     if solc_check:
@@ -63,38 +63,23 @@ def process_ast(ast, parents=True, identifier_link=True, return_check=True, alia
             except UnknownIdentifierException as e:
                 raise PreprocessAstException(f'\n\nSYMBOL ERROR: {e}')
         try:
-            if return_check:
-                check_return(ast)
-            if alias_analysis:
-                analyze_alias(ast)
-            analyze_call_graph(ast)
+            # if return_check:
+            #     check_return(ast)
+            # if alias_analysis:
+            #     analyze_alias(ast)
+            # analyze_call_graph(ast)
             compute_modified_sets(ast)
-            check_for_undefined_behavior_due_to_eval_order(ast)
+            # check_for_undefined_behavior_due_to_eval_order(ast)
+            generate_policy(ast)
         except AstException as e:
             raise AnalysisException(f'\n\nANALYSIS ERROR: {e}')
-    if type_check:
-        with print_step("Checking type"):
-            try:
-                set_type(ast)
-                detect_hybrid_functions(ast)
-                check_type(ast)
-                check_circuit_compliance(ast)
-                check_loops(ast)
-            except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:
-                raise TypeCheckException(f'\n\nCOMPILER ERROR: {e}')
-
-
-def get_verification_contract_names(code_or_ast) -> List[str]:
-    if isinstance(code_or_ast, str):
-        ast = get_processed_ast(code_or_ast)
-    else:
-        ast = code_or_ast
-    if not isinstance(ast, SourceUnit):
-        raise CloakCompilerError('Invalid AST (no source unit at root)')
-
-    vc_names = []
-    for contract in ast.contracts:
-        cname = contract.idf.name
-        fcts = [fct for fct in contract.function_definitions + contract.constructor_definitions if fct.is_zkp() and fct.requires_verification_when_external and fct.has_side_effects]
-        vc_names += [cfg.get_zk_verification_contract_name(cname, fct.name) for fct in fcts]
-    return vc_names
+    # if type_check:
+    #     with print_step("Checking type"):
+    #         try:
+    #             # set_type(ast)
+    #             # detect_hybrid_functions(ast)
+    #             # check_type(ast)
+    #             # check_circuit_compliance(ast)
+    #             # check_loops(ast)
+    #         except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:
+    #             raise TypeCheckException(f'\n\nCOMPILER ERROR: {e}')
