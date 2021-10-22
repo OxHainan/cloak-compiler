@@ -15,6 +15,7 @@ from cloak.config import cfg, zk_print
 from cloak.utils.progress_printer import warn_print
 from cloak.cloak_ast.analysis.partition_state import PartitionState
 from cloak.cloak_ast.visitor.visitor import AstVisitor
+from cloak.errors import exceptions
 
 T = TypeVar('T')
 
@@ -624,6 +625,15 @@ class IndexExpr(LocationExpr):
     def process_children(self, f: Callable[[T], T]):
         self.arr = f(self.arr)
         self.key = f(self.key)
+
+    # for nested mapping
+    def get_leftmost_identifier(self) -> IdentifierExpr:
+        var = self.arr
+        while isinstance(var, IndexExpr):
+            var = var.arr
+        if not isinstance(var, IdentifierExpr):
+            raise exceptions.CloakCompilerError(f"the leftmost expression of {self} is not identifier expression")
+        return var
 
 
 class SliceExpr(LocationExpr):
@@ -1996,7 +2006,7 @@ class InstanceTarget(tuple):
                 target_key[1] = expr.member.clone()
             else:
                 assert isinstance(expr, IndexExpr)
-                target_key[0] = expr.arr.target
+                target_key[0] = expr.get_leftmost_identifier().target
                 target_key[1] = expr.key
                 target_key[2] = expr
 

@@ -190,7 +190,13 @@ class PrivacyPolicy(json.JSONEncoder):
         top_idx, target_idx = idx_expr, idx_expr
         map_key = ""
         while isinstance(target_idx, ast.IndexExpr):
-            map_key = f'{self.__ppv.visit(target_idx.key)}:{map_key}' if map_key else self.__ppv.visit(target_idx.key)
+            k = target_idx.key.code(for_solidity=True)
+            if k == "me":
+                k = "msg.sender"
+            if map_key:
+                map_key = f"{k}:{map_key}"
+            else:
+                map_key = k
             target_idx = target_idx.arr
 
         return top_idx, target_idx, map_key
