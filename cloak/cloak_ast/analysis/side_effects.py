@@ -1,9 +1,10 @@
 from typing import List, Union
 
 from cloak.type_check.type_exceptions import TypeException
+from cloak.errors.exceptions import CloakCompilerError
 from cloak.cloak_ast.ast import FunctionCallExpr, LocationExpr, AssignmentStatement, \
     AST, Expression, Statement, StateVariableDeclaration, BuiltinFunction, \
-    TupleExpr, InstanceTarget, VariableDeclaration, Parameter
+    TupleExpr, InstanceTarget, VariableDeclaration, Parameter, Mapping
 from cloak.cloak_ast.visitor.function_visitor import FunctionVisitor
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 
@@ -97,13 +98,25 @@ class IndirectModificationDetector(FunctionVisitor):
             # for now no reference types -> only state could have been modified
             fdef = ast.func.target
             rlen = len(ast.read_values)
-            ast.read_values.update({v for v in fdef.read_values if isinstance(v.target, StateVariableDeclaration)})
+            # don't support call another fucntion that read or mutated mapping state variables now.
+            for v in fdef.read_values:
+                if isinstance(v.target, StateVariableDeclaration):
+                    if isinstance(v.target.annotated_type.type_name, Mapping):
+                        msg = f"Don't support *{ast.get_related_function().idf}* to call another fucntion *{fdef.name}*"\
+                               " that read mapping state variables now"
+                        raise CloakCompilerError(msg)
+                    ast.read_values.add(v)
+            # ast.read_values.update({v for v in fdef.read_values if isinstance(v.target, StateVariableDeclaration)})
             self.fixed_point_reached &= rlen == len(ast.read_values)
 
             # update modified values if any
             mlen = len(ast.modified_values)
             for v in fdef.modified_values:
                 if isinstance(v.target, StateVariableDeclaration):
+                    if isinstance(v.target.annotated_type.type_name, Mapping):
+                        msg = f"Don't support *{ast.get_related_function().idf}* to call another fucntion *{fdef.name}*"\
+                               " that mutated mapping state variables now"
+                        raise CloakCompilerError(msg)
                     ast.modified_values[v] = None
             self.fixed_point_reached &= mlen == len(ast.modified_values)
 

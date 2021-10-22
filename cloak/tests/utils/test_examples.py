@@ -1,7 +1,7 @@
 from parameterized import parameterized_class
 
-from cloak.examples.scenario import Scenario
-from cloak.examples.example_scenarios import all_scenarios
+# from cloak.examples.scenario import Scenario
+# from cloak.examples.example_scenarios import all_scenarios
 from cloak.examples.examples import all_examples, Example
 from cloak.tests.cloak_unit_test import CloakTestCase
 
@@ -11,9 +11,9 @@ class TestExamples(CloakTestCase):
     example: Example = None
 
 
-class TestScenarios(CloakTestCase):
-    name: str = None
-    scenario: Scenario = None
+# class TestScenarios(CloakTestCase):
+#     name: str = None
+#     scenario: Scenario = None
 
 
 @parameterized_class(('name', 'example'), all_examples)
@@ -32,20 +32,20 @@ class TestExamplesFunctions(TestExamples):
         self.assertIsNotNone(self.example.name())
 
 
-@parameterized_class(('name', 'scenario'), all_scenarios)
-class TestScenariosFunctions(TestScenarios):
-
-    def test_file_location(self):
-        self.assertIsNotNone(self.scenario.file_location)
-
-    def test_code(self):
-        self.assertIsNotNone(self.scenario.code())
-
-    def test_users(self):
-        self.assertIsNotNone(self.scenario.users())
-
-    def test_deployment_transaction(self):
-        self.assertIsNotNone(self.scenario.deployment_transaction())
-
-    def test_transactions(self):
-        self.assertGreater(len(self.scenario.transactions_and_assertions()), 0)
+#@parameterized_class(('name', 'scenario'), all_scenarios)
+#class TestScenariosFunctions(TestScenarios):
+#
+#    def test_file_location(self):
+#        self.assertIsNotNone(self.scenario.file_location)
+#
+#    def test_code(self):
+#        self.assertIsNotNone(self.scenario.code())
+#
+#    def test_users(self):
+#        self.assertIsNotNone(self.scenario.users())
+#
+#    def test_deployment_transaction(self):
+#        self.assertIsNotNone(self.scenario.deployment_transaction())
+#
+#    def test_transactions(self):
+#        self.assertGreater(len(self.scenario.transactions_and_assertions()), 0)

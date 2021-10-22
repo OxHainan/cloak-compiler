@@ -88,18 +88,13 @@ class FunctionPolicy():
                     # for computing function selector
                     n_elem["concrete_type"] = type_name.code()
 
-                if isinstance(var.annotated_type.type_name, (ast.Mapping, ast.Array)):
-                    n_elem["owner"] = self.__ppv.visit(var.annotated_type.type_name)
-                else:
-                    n_elem["owner"] = self.__ppv.visit(
-                        var.annotated_type.privacy_annotation)
+                n_elem["owner"] = OwnerFormatter().visit(var.annotated_type)
 
             self.fpolicy[clss].append(n_elem)
             elem = n_elem            
             is_new = True
 
-        if isinstance(var, ast.StateVariableDeclaration) \
-            and isinstance(var.annotated_type.type_name, (ast.Mapping, ast.Array)):
+        if isinstance(var, ast.StateVariableDeclaration) and isinstance(var.annotated_type.type_name, ast.Mapping):
             if not "keys" in elem:
                 elem["keys"] = []
             _key = type_pure.delete_cloak_annotation(key)
@@ -162,7 +157,6 @@ class PrivacyPolicy(json.JSONEncoder):
         n_elem["type"] = type_pure.delete_cloak_annotation(
             self.__ppv.visit(var.annotated_type.type_name))
         n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
-        # TODO: ARRAY
         n_elem["owner"] = OwnerFormatter().visit(var.annotated_type)
 
         self.policy[item].append(n_elem)
