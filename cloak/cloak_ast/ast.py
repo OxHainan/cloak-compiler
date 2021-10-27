@@ -2613,7 +2613,7 @@ class CodeVisitor(AstVisitor):
 
     def visitImportDirective(self, ast: ImportDirective) -> str:
         if ast.aliases:
-            return f'import {ast.aliases} from "{ast.path}";';
+            return f'import {ast.aliases} from "{ast.path}";'
         if ast.unitAlias:
-            return f'import "{ast.path}" as {ast.unitAlias};';
+            return f'import "{ast.path}" as {ast.unitAlias};'
         return f'import "{ast.path}";'
