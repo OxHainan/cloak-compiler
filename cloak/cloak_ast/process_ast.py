@@ -39,8 +39,17 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
                 check_for_cloak_solc_errors(fake_code)
             except SolcException as e:
                 raise CloakCompilerError(f'{e}')
-    ast.cloak_source = code
     return ast, fake_code
+
+
+def check_with_solc(ast: AST):
+    fake_code = ast.code(for_solidity=True)
+    # Solc type checking
+    with print_step("Type checking with solc"):
+        try:
+            check_for_cloak_solc_errors(fake_code)
+        except SolcException as e:
+            raise CloakCompilerError(f'{e}')
 
 
 def get_processed_ast(code, parents=True, identifier_link=True, return_check=True, alias_analysis=True, type_check=True, solc_check=True) -> AST:

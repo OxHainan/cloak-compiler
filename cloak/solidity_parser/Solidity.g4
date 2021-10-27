@@ -25,18 +25,33 @@
 
 grammar Solidity;
 
-// : importDirective
-sourceUnit
-  : pragma_directive=pragmaDirective (contracts+=contractDefinition)* EOF
-  | 'SOL' (sbe=expression | sbs=statement | sbf=contractPart) EOF;
 
-// https://solidity.readthedocs.io/en/v0.4.24/layout-of-source-files.html#version-pragma
+/**
+ * On top level, Solidity allows pragmas, import directives, and
+ * definitions of contracts, interfaces, libraries, structs, enums and constants.
+ */
+sourceUnit: (
+    pragmaDirective
+    | importDirective
+    | contractDefinition
+    | interfaceDefinition
+    // | libraryDefinition
+    // | functionDefinition
+    // | constantVariableDeclaration
+    // | structDefinition
+    // | enumDefinition
+    // | userDefinedValueTypeDefinition
+    // | errorDefinition
+)* EOF
+    | sba EOF;
+
+sba: 'SOL' (expression | statement | contractBodyElement ) EOF;
+
 pragmaDirective
   : 'pragma' pragma ';' ;
 
 pragma
   : (name=('cloak' | 'solidity') ver=version) # VersionPragma;
-//| ('other pragma' val=expression) # OtherPragma
 
 version
   : versionConstraint versionConstraint? ;
@@ -47,17 +62,85 @@ versionOperator
 versionConstraint
   : versionOperator? VersionLiteral ;
 
+importDirective:
+    'import' (
+        (import_path=path ('as' unitAlias=identifier)?)
+        | (symbolAliases 'from' import_path=path)
+        | ('*' 'as' unitAlias=identifier 'from' import_path=path)
+    ) ';';
+//@doc: inline
+//@doc:name aliases
+importAliases: symbol=identifier ('as' alias=identifier)?;
+/**
+ * Path of a file to be imported.
+ */
+path: StringLiteral;
+/**
+ * List of aliases for symbols to be imported.
+ */
+symbolAliases: '{' aliases+=importAliases (',' aliases+=importAliases)* '}';
+
 // REMOVED: interface, library, inheritance
 contractDefinition
   : ( 'contract' ) idf=identifier
-    '{' parts+=contractPart* '}' ;
+    '{' parts+=contractBodyElement* '}' ;
 
-// REMOVED: structDefinition, usingForDeclaration, modifierDefinition, eventDefinition
-contractPart
-  : stateVariableDeclaration
-  | constructorDefinition
-  | functionDefinition
-  | enumDefinition;
+/**
+ * Top-level definition of an interface.
+ */
+interfaceDefinition:
+    'interface' name=identifier
+    inheritanceSpecifierList?
+    '{' contractBodyElement* '}';
+
+/**
+ * Top-level definition of a library.
+ */
+libraryDefinition: 'library' name=identifier '{' contractBodyElement* '}';
+
+//@doc:inline
+inheritanceSpecifierList:
+    'is' inheritanceSpecifiers+=inheritanceSpecifier
+    (',' inheritanceSpecifiers+=inheritanceSpecifier)*?;
+/**
+ * Inheritance specifier for contracts and interfaces.
+ * Can optionally supply base constructor arguments.
+ */
+inheritanceSpecifier: name=identifierPath arguments=callArgumentList?;
+
+/**
+ * Declarations that can be used in contracts, interfaces and libraries.
+ *
+ * Note that interfaces and libraries may not contain constructors, interfaces may not contain state variables
+ * and libraries may not contain fallback, receive functions nor non-constant state variables.
+ */
+contractBodyElement:
+    constructorDefinition
+    | functionDefinition
+    // TODO | modifierDefinition
+    // TODO | fallbackFunctionDefinition
+    // TODO | receiveFunctionDefinition
+    // TODO | structDefinition
+    | enumDefinition
+    // TODO | userDefinedValueTypeDefinition
+    | stateVariableDeclaration
+    // TODO | eventDefinition
+    // TODO | errorDefinition
+    // TODO | usingDirective
+    ;
+
+//@doc:inline
+namedArgument: name=identifier ':' value=expression;
+/**
+ * Arguments when calling a function or a similar callable object.
+ * The arguments are either given as comma separated list or as map of named arguments.
+ */
+callArgumentList: '(' ((expression (',' expression)*)? | '{' (namedArgument (',' namedArgument)*)? '}') ')';
+
+/**
+ * Qualified name.
+ */
+identifierPath: identifier ('.' identifier)*;
 
 // CHANGED: typeName -> annotatedTypeName
 // REMOVED (only allow default):
@@ -74,6 +157,12 @@ stateVariableDeclaration
   : ( keywords+=FinalKeyword )* annotated_type=annotatedTypeName
     ( keywords+=ConstantKeyword )*
     idf=identifier ('=' expr=expression)? ';' ;
+
+// 
+// The declaration of a constant variable.
+// 
+constantVariableDeclaration:
+    annotated_type=annotatedTypeName 'constant' idf=identifier '=' expr=expression ';';
 
 constructorDefinition
   : 'constructor' parameters=parameterList modifiers=modifierList body=block ;
@@ -257,7 +346,7 @@ expression
   | expr=expression op=('++' | '--') # PostCrementExpr
   | arr=expression '[' index=expression? ']' # IndexExpr
   | elem_type=elementaryTypeName '(' expr=expression ')' # PrimitiveCastExpr
-  | func=expression '(' args=functionCallArguments ')' # FunctionCallExpr
+  | expression callArgumentList # FunctionCallExpr
   | expr=expression '.' member=identifier # MemberAccessExpr
   | op=('++' | '--') expr=expression # PreCrementExpr
   | op=('+' | '-') expr=expression # SignExpr
@@ -285,16 +374,6 @@ expression
   // REMOVED: literal
   | ( elementaryTypeName ) # PrimaryExpression
   ;
-
-// CHANGED:
-// - inlined expressionList
-// REMOVED
-// - '{' nameValueList? '}'
-functionCallArguments
-  : (exprs+=expression (',' exprs+=expression)*)? ;
-
-// REMOVED
-// - functionCall (already covered by expressions)
 
 tupleExpression
   : '(' ( expression? ( ',' expression? )* ) ')' ;

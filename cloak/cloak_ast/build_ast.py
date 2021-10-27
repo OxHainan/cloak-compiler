@@ -13,6 +13,7 @@ from cloak.solidity_parser.parse import MyParser
 from cloak.cloak_ast.ast import StateVariableDeclaration, ContractDefinition, NumberLiteralExpr, \
     BooleanLiteralExpr, StringLiteralExpr, FunctionCallExpr, ExpressionStatement, IdentifierExpr, \
     ReclassifyExpr, BuiltinFunction, IndexExpr
+from cloak.cloak_ast import ast as ast_module
 
 
 def build_ast_from_parse_tree(parse_tree: ParserRuleContext, tokens: CommonTokenStream, code: str) -> ast.AST:
@@ -54,7 +55,7 @@ class BuildASTVisitor(SolidityVisitor):
         t = t.replace('Context', '')
 
         # may be able to return the result for a SINGLE, UNNAMED CHILD without wrapping it in an object
-        direct_unnamed = ['ContractPart', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
+        direct_unnamed = ['ContractBodyElement', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
         if t in direct_unnamed:
             if ctx.getChildCount() != 1:
                 raise TypeError(t + ' does not have a single, unnamed child')
@@ -322,8 +323,8 @@ class BuildASTVisitor(SolidityVisitor):
         return FunctionCallExpr(f, [cond, then_expr, else_expr])
 
     def visitFunctionCallExpr(self, ctx: SolidityParser.FunctionCallExprContext):
-        func = self.visit(ctx.func)
-        args = self.handle_field(ctx.args)
+        func = self.visit(ctx.expression())
+        args = self.handle_field(ctx.callArgumentList())
 
         if isinstance(func, IdentifierExpr):
             if func.idf.name == 'reveal':
@@ -462,3 +463,33 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitDataLocation(self, ctx: SolidityParser.DataLocationContext):
         return ctx.getText()
+
+    def visitSourceUnit(self, ctx: SolidityParser.SourceUnitContext):
+        su = ast_module.SourceUnit()
+        if ctx.sba():
+            su.sba = self.visit(ctx.sba())
+            return su
+        if ctx.pragmaDirective():
+            su.pragma_directives = self.handle_field(ctx.pragmaDirective())
+        if ctx.importDirective():
+            su.import_directives = self.handle_field(ctx.importDirective())
+        if ctx.contractDefinition():
+            su.contracts = self.handle_field(ctx.contractDefinition())
+        return su
+
+    def visitPath(self, ctx: SolidityParser.PathContext):
+        return ctx.getText()
+
+    def visitSba(self, ctx: SolidityParser.SbaContext):
+        return self.handle_field(ctx.getChild(1))
+
+    def visitNamedArgument(self, ctx: SolidityParser.NamedArgumentContext):
+        return {ctx.name.name.text: self.visit(ctx.value)}
+
+    def visitCallArgumentList(self, ctx: SolidityParser.CallArgumentListContext):
+        if ctx.namedArgument():
+            args = {}
+            for v in self.handle_field(ctx.namedArgument()):
+                args.update(v)
+            return ast_module.NamedArguments(args)
+        return self.handle_field(ctx.expression())

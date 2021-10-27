@@ -137,7 +137,7 @@ def main():
     from cloak.errors.exceptions import CloakCompilerError
     from cloak.my_logging.log_context import log_context
     from cloak.utils.progress_printer import fail_print, success_print
-    from cloak.cloak_ast.process_ast import get_processed_ast, get_parsed_ast_and_fake_code
+    from cloak.cloak_ast.process_ast import get_processed_ast
 
     # Load configuration files
     try:
@@ -175,30 +175,30 @@ def main():
             print(f'Error: input file \'{input_path}\' does not exist')
         exit(1)
 
-    if a.cmd == 'check':
-        # only type-check
-        print(f'Type checking file {input_path.name}:')
+    # if a.cmd == 'check':
+    #     # only type-check
+    #     print(f'Type checking file {input_path.name}:')
 
-        code = read_file(str(input_path))
-        try:
-            get_processed_ast(code)
-        except CloakCompilerError as e:
-            with fail_print():
-                print(f'{e}')
-            exit(3)
-    elif a.cmd == 'solify':
-        was_unit_test = cfg.is_unit_test
-        cfg._is_unit_test = True  # Suppress other output
-        try:
-            _, fake_code = get_parsed_ast_and_fake_code(read_file(str(input_path)))
-            print(fake_code)
-        except CloakCompilerError as e:
-            with fail_print():
-                print(f'{e}')
-            exit(3)
-        finally:
-            cfg._is_unit_test = was_unit_test
-        exit(0)
+    #     code = read_file(str(input_path))
+    #     try:
+    #         get_processed_ast(code)
+    #     except CloakCompilerError as e:
+    #         with fail_print():
+    #             print(f'{e}')
+    #         exit(3)
+    # elif a.cmd == 'solify':
+    #     was_unit_test = cfg.is_unit_test
+    #     cfg._is_unit_test = True  # Suppress other output
+    #     try:
+    #         _, fake_code = get_parsed_ast_and_fake_code(read_file(str(input_path)))
+    #         print(fake_code)
+    #     except CloakCompilerError as e:
+    #         with fail_print():
+    #             print(f'{e}')
+    #         exit(3)
+    #     finally:
+    #         cfg._is_unit_test = was_unit_test
+    #     exit(0)
     elif a.cmd == 'compile':
         # create output directory
         output_dir = Path(a.output).absolute()
