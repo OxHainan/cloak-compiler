@@ -65,7 +65,7 @@ class CloakTransformer(AstTransformerVisitor):
         :param su: [SIDE EFFECT] source unit where contract should be imported
         """
         import_filename = f'./{cname}.sol'
-        su.used_contracts.append(import_filename)
+        su.import_directives.append(ast_module.ImportDirective(import_filename))
 
     @staticmethod
     def create_contract_variable(cname: str, default_value: Optional[str] = None) -> StateVariableDeclaration:
@@ -152,24 +152,23 @@ class CloakTransformer(AstTransformerVisitor):
         c.state_variable_declarations = [Comment('User state variables')]\
             + c.state_variable_declarations
 
-        if c.fcts_is_tee:
-            # Add constant state variables for tee external contracts
-            code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
-            print(code_hash_hb.hex())
-            code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                      Identifier(
-                                                          cfg.tee_code_hash_name),
-                                                      NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
-            policy_hash_hb = web3.Web3.keccak(json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode())
-            print(policy_hash_hb.hex())
-            policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                        Identifier(
-                                                            cfg.tee_policy_hash_name),
-                                                        NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
-            tee_addr_var = StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public'], Identifier('tee'),
-                                                    IdentifierExpr(f'{cfg.service_contract_name}_inst').call(cfg.tee_get_addr_function_name, []))
-            c.state_variable_declarations = [Comment('TEE helper variables'), code_hash_decl, policy_hash_decl, tee_addr_var, Comment()]\
-                + c.state_variable_declarations
+        # Add constant state variables for tee external contracts
+        code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
+        print(code_hash_hb.hex())
+        code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                  Identifier(
+                                                      cfg.tee_code_hash_name),
+                                                  NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
+        policy_hash_hb = web3.Web3.keccak(json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode())
+        print(policy_hash_hb.hex())
+        policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
+                                                    Identifier(
+                                                        cfg.tee_policy_hash_name),
+                                                    NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
+        tee_addr_var = StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public'], Identifier('tee'),
+                                                IdentifierExpr(f'{cfg.service_contract_name}_inst').call(cfg.tee_get_addr_function_name, []))
+        c.state_variable_declarations = [Comment('TEE helper variables'), code_hash_decl, policy_hash_decl, tee_addr_var, Comment()]\
+            + c.state_variable_declarations
 
 
         # Add helper contracts

@@ -22,7 +22,7 @@ from cloak.config import cfg
 from cloak.utils.helpers import read_file, lines_of_code, without_extension
 from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
-from cloak.cloak_ast.process_ast import get_processed_ast
+from cloak.cloak_ast.process_ast import process_ast, check_with_solc
 from cloak.cloak_ast.build_ast import build_ast
 from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
@@ -47,14 +47,13 @@ def compile_cloak_file(input_file_path: str, output_dir: str, **kwargs):
     m = re.search(r'\/\/ Domain: (.*)', code)
     if m:
         my_logging.data('domain', m.group(1))
-    _, filename = os.path.split(input_file_path)
 
     # compile
     with time_measure('compileFull'):
-        compile_cloak(code, output_dir, **kwargs)
+        compile_cloak(code, input_file_path, output_dir, **kwargs)
 
 
-def compile_cloak(code: str, output_dir: str, **kwargs):
+def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
     """
     Parse, type-check and compile the given cloak code.
 
@@ -66,12 +65,22 @@ def compile_cloak(code: str, output_dir: str, **kwargs):
     :raise CloakCompilerError: if any compilation stage fails
     """
 
+    # input_file_dir, filename = os.path.split(input_file_path)
     # Copy cloak code to output
     cloak_filename = 'contract.cloak'
     _dump_to_output(code, output_dir, cloak_filename)
 
-    # Type checking
-    cloak_ast = get_processed_ast(code)
+    # get ast
+    cloak_ast = build_ast(code)
+
+    # dump solified code to output
+    _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")
+
+    # check with solc
+    check_with_solc(cloak_ast)
+
+    # process ast
+    process_ast(cloak_ast)
 
     with print_step("Generate privacy policy"):
         _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')

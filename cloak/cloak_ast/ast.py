@@ -439,9 +439,18 @@ class BuiltinFunction(Expression):
         return self.op not in ['**', '%', '/']
 
 
+class NamedArguments(AST):
+    def __init__(self, args: Dict[str, Expression]):
+        self.args = args
+
+    def process_children(self, f: Callable[[T], T]):
+        for k, v in self.args.items():
+            self.args[k] = f(v)
+
+
 class FunctionCallExpr(Expression):
 
-    def __init__(self, func: Expression, args: List[Expression], sec_start_offset: Optional[int] = 0):
+    def __init__(self, func: Expression, args: Union[List[Expression], NamedArguments], sec_start_offset: Optional[int] = 0):
         super().__init__()
         self.func = func
         self.args = args
@@ -453,7 +462,10 @@ class FunctionCallExpr(Expression):
 
     def process_children(self, f: Callable[[T], T]):
         self.func = f(self.func)
-        self.args[:] = map(f, self.args)
+        if isinstance(self.args, NamedArguments):
+            self.args = f(self.args)
+        else:
+            self.args[:] = map(f, self.args)
 
 
 class NewExpr(Expression):
@@ -1865,6 +1877,17 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
     def is_tee(self):
         return FunctionPrivacyType.TEE == self.privacy_type
 
+
+class ConstantVariableDeclaration(IdentifierDeclaration):
+    def __init__(annotated_type, idf, expr):
+        super().__init__([], annotated_type, idf)
+        self.expr = expr
+
+    def process_children(self, f: Callable[[T], T]):
+        super().process_children(f)
+        self.expr = f(self.expr)
+
+
 class StateVariableDeclaration(IdentifierDeclaration):
 
     def __init__(self, annotated_type: AnnotatedTypeName, keywords: List[str], idf: Identifier, expr: Optional[Expression]):
@@ -1956,17 +1979,37 @@ class ContractDefinition(NamespaceDefinition):
 
 class SourceUnit(AST):
 
-    def __init__(self, pragma_directive: str, contracts: List[ContractDefinition], used_contracts: Optional[List[str]] = None,
-            sbe=None, sbs=None, sbf=None):
+    def __init__(self,
+            pragma_directives: List[str] = None,
+            import_directives: List[ImportDirective] = None,
+            contracts: List[ContractDefinition] = None,
+            interfaces: [] = None,
+            libraries: [] = None,
+            function_definitions: [] = None,
+            constants: [] = None,
+            struct_definitions: [] = None,
+            enum_definitions: [] = None,
+            user_defined_value_types: [] = None,
+            error_definitions: [] = None,
+            sba: AST = None):
         super().__init__()
-        self.pragma_directive = pragma_directive
-        self.contracts = contracts
-        self.used_contracts = [] if used_contracts is None else used_contracts
+        self.pragma_directives = pragma_directives or []
+        self.import_directives = import_directives or []
+        self.contracts = contracts or []
+        self.interfaces = interfaces or []
+        self.libraries = libraries or []
+        self.function_definitions = function_definitions or []
+        self.contracts = constants or []
+        self.struct_definitions = struct_definitions or []
+        self.enum_definitions = enum_definitions or []
+        self.user_defined_value_types = user_defined_value_types or []
+        self.error_definitions = error_definitions or []
 
-        self.original_code: List[str] = []
+        # sba: sol badguy ast, for generating expression/statement/function_definition from string
+        self.sba = sba
+
         self.privacy_policy = None
-        # sba: sol badguy ast, for generating expression/statement from string
-        self.sba = sbe or sbs or sbf
+        self.original_code: List[str] = []
 
     def process_children(self, f: Callable[[T], T]):
         self.contracts[:] = map(f, self.contracts)
@@ -1976,6 +2019,15 @@ class SourceUnit(AST):
         c = c_identifier.parent
         assert (isinstance(c, ContractDefinition))
         return c
+
+
+class ImportDirective(AST):
+    def __init__(self, import_path: str, unitAlias: Optional[str] = None, aliases: Optional[Dict[str, str]] = None):
+        self.path = import_path
+        self.unitAlias = unitAlias
+        self.aliases = aliases or {}
+        # bond definition of symbols
+        self.processed_aliases = {}
 
 
 PrivacyLabelExpr = Union[MeExpr, AllExpr, TeeExpr, Identifier]
@@ -2186,8 +2238,19 @@ class CodeVisitor(AstVisitor):
             return ast.func.format_string().format(*args)
         else:
             f = self.visit(ast.func)
-            a = self.visit_list(ast.args, ', ')
+            if isinstance(ast.args, list):
+                a = self.visit_list(ast.args, ', ')
+            else:
+                a = self.visit(ast.args)
             return f'{f}({a})'
+
+    def visitNamedArguments(self, ast: NamedArguments) -> str:
+        res = "{"
+        first = True
+        for k, v in ast.args.items():
+            print(f"k:{k}, v:{v}, args:{ast.args}")
+            res += f"{k}: {self.visit(v)}" if first else f", {k}: {self.visit(v)}"
+        return res + "}"
 
     def visitPrimitiveCastExpr(self, ast: PrimitiveCastExpr):
         if ast.is_implicit:
@@ -2526,16 +2589,16 @@ class CodeVisitor(AstVisitor):
             enums,
             structs)
 
-    def handle_pragma(self, pragma: str) -> str:
+    def handle_pragma(self, pragma: List[str]) -> str:
         if self.for_solidity:
             return f"pragma solidity {cfg.cloak_solc_version_compatibility.expression};"
-        return pragma
+        return self.visit_list(pragma)
 
     def visitSourceUnit(self, ast: SourceUnit):
-        p = self.handle_pragma(ast.pragma_directive)
+        p = self.handle_pragma(ast.pragma_directives)
+        import_directives = self.visit_list(ast.import_directives)
         contracts = self.visit_list(ast.contracts)
-        lfstr = 'import "{}";'
-        return '\n\n'.join(filter(''.__ne__, [p, linesep.join([lfstr.format(uc) for uc in ast.used_contracts]), contracts]))
+        return f"{p}\n\n{import_directives}\n\n{contracts}"
 
     def visitNewExpr(self, ast: NewExpr) -> str:
         return f"new {self.visit(ast.target_type)}"
@@ -2547,3 +2610,10 @@ class CodeVisitor(AstVisitor):
 
     def visitStringTypeName(self, ast: StringTypeName) -> str:
         return ast.name
+
+    def visitImportDirective(self, ast: ImportDirective) -> str:
+        if ast.aliases:
+            return f'import {ast.aliases} from "{ast.path}";';
+        if ast.unitAlias:
+            return f'import "{ast.path}" as {ast.unitAlias};';
+        return f'import "{ast.path}";'
