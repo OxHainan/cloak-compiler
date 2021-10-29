@@ -25,7 +25,6 @@
 
 grammar Solidity;
 
-
 /**
  * On top level, Solidity allows pragmas, import directives, and
  * definitions of contracts, interfaces, libraries, structs, enums and constants.
@@ -35,7 +34,7 @@ sourceUnit: (
     | importDirective
     | contractDefinition
     | interfaceDefinition
-    // | libraryDefinition
+    | libraryDefinition
     // | functionDefinition
     // | constantVariableDeclaration
     // | structDefinition
@@ -48,10 +47,7 @@ sourceUnit: (
 sba: 'SOL' (expression | statement | contractBodyElement ) EOF;
 
 pragmaDirective
-  : 'pragma' pragma ';' ;
-
-pragma
-  : (name=('cloak' | 'solidity') ver=version) # VersionPragma;
+  : 'pragma' name=('cloak' | 'solidity') ver=version ';' ;
 
 version
   : versionConstraint versionConstraint? ;
@@ -177,7 +173,8 @@ functionDefinition
     parameters=parameterList
     modifiers=modifierList
     return_parameters=returnParameters?
-    body=block ;
+    ( ';' | body=block)
+    ;
 
 returnParameters
 : 'returns' return_parameters=parameterList ;
@@ -196,7 +193,29 @@ modifierList
   : ( modifiers+=modifier )* ;
 
 modifier
-  : stateMutability | PublicKeyword | InternalKeyword | PrivateKeyword ;
+  : stateMutability | PublicKeyword | InternalKeyword| ExternalKeyword | PrivateKeyword ;
+
+// /**
+//  * Call to a modifier. If the modifier takes no arguments, the argument list can be skipped entirely
+//  * (including opening and closing parentheses).
+//  */
+// modifierInvocation: identifierPath callArgumentList?;
+// /**
+//  * Visibility for functions and function types.
+//  */
+// visibility: 'internal' | 'external' | 'private' | 'public';
+// /**
+//  * State mutability for function types.
+//  * The default mutability 'non-payable' is assumed if no mutability is specified.
+//  */
+// stateMutability: Pure | View | Payable;
+// /**
+//  * An override specifier used for functions, modifiers or state variables.
+//  * In cases where there are ambiguous declarations in several base contracts being overridden,
+//  * a complete list of base contracts has to be given.
+//  */
+// overrideSpecifier: Override (LParen overrides+=identifierPath (Comma overrides+=identifierPath)* RParen)?;
+
 
 parameterList
   : '(' ( params+=parameter (',' params+=parameter)* )? ')' ;

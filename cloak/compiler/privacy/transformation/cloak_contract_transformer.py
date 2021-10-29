@@ -133,9 +133,9 @@ class CloakTransformer(AstTransformerVisitor):
 
         # Backup untransformed function bodies
         c.all_fcts = c.constructor_definitions + c.function_definitions
-        for fct in c.all_fcts:
-            fct.original_body = deep_copy(
-                fct.body, with_types=True, with_analysis=True)
+        # for fct in c.all_fcts:
+        #     fct.original_body = deep_copy(
+        #         fct.body, with_types=True, with_analysis=True)
 
         c.fcts_is_tee = [fct for fct in c.all_fcts if fct.is_tee()]
         """Abstract circuits for all functions which require verification"""
@@ -177,7 +177,7 @@ class CloakTransformer(AstTransformerVisitor):
             + c.state_variable_declarations
 
         c.constructor_definitions = c.new_constr
-        c.function_definitions = [fct for fct in c.new_fcts if fct.body.statements]
+        c.function_definitions = [fct for fct in c.new_fcts if fct.body and fct.body.statements]
 
         return c
 

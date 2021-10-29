@@ -439,21 +439,34 @@ class BuiltinFunction(Expression):
         return self.op not in ['**', '%', '/']
 
 
-class NamedArguments(AST):
-    def __init__(self, args: Dict[str, Expression]):
-        self.args = args
+class NamedArgument(AST):
+    def __init__(self, key: str, value: Expression):
+        super().__init__()
+        self.key = key
+        self.value = value
 
     def process_children(self, f: Callable[[T], T]):
-        for k, v in self.args.items():
-            self.args[k] = f(v)
+        self.value = f(self.value)
+
+
+class CallArgumentList(AST):
+    def __init__(self, args: List[Union[Expression, NamedArgument]], named_arguments=False):
+        super().__init__()
+        self.args = args or []
+        self.named_arguments = named_arguments
+
+    def process_children(self, f: Callable[[T], T]):
+        self.args[:] = map(f, self.args)
 
 
 class FunctionCallExpr(Expression):
 
-    def __init__(self, func: Expression, args: Union[List[Expression], NamedArguments], sec_start_offset: Optional[int] = 0):
+    def __init__(self, func: Expression, args: Union[CallArgumentList], sec_start_offset: Optional[int] = 0):
         super().__init__()
         self.func = func
         self.args = args
+        if isinstance(args, list):
+            self.args = CallArgumentList(args, False)
         self.sec_start_offset = sec_start_offset
 
     @property
@@ -462,10 +475,7 @@ class FunctionCallExpr(Expression):
 
     def process_children(self, f: Callable[[T], T]):
         self.func = f(self.func)
-        if isinstance(self.args, NamedArguments):
-            self.args = f(self.args)
-        else:
-            self.args[:] = map(f, self.args)
+        self.args = f(self.args)
 
 
 class NewExpr(Expression):
@@ -1754,7 +1764,8 @@ class FunctionPrivacyType(IntEnum):
 
 class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
-    def __init__(self, idf: Optional[Identifier], parameters: List[Parameter], modifiers: List[str], return_parameters: Optional[List[Parameter]], body: Block):
+    def __init__(self, idf: Optional[Identifier], parameters: List[Parameter], modifiers: List[str],
+            return_parameters: Optional[List[Parameter]], body: Optional[Block] = None):
         assert (idf is not None and idf.name != 'constructor') or not return_parameters
         if idf is None:
             idf = Identifier('constructor')
@@ -1853,7 +1864,8 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         super().process_children(f)
         self.parameters[:] = map(f, self.parameters)
         self.return_parameters[:] = map(f, self.return_parameters)
-        self.body = f(self.body)
+        if self.body:
+            self.body = f(self.body)
 
     def add_param(self, t: Union[TypeName, AnnotatedTypeName], idf: Union[str, Identifier], ref_storage_loc: str = 'memory'):
         t = t if isinstance(t, AnnotatedTypeName) else AnnotatedTypeName(t)
@@ -1977,48 +1989,11 @@ class ContractDefinition(NamespaceDefinition):
             res[v.idf.name] = v.annotated_type.type_name
         return res
 
-class SourceUnit(AST):
 
-    def __init__(self,
-            pragma_directives: List[str] = None,
-            import_directives: List[ImportDirective] = None,
-            contracts: List[ContractDefinition] = None,
-            interfaces: [] = None,
-            libraries: [] = None,
-            function_definitions: [] = None,
-            constants: [] = None,
-            struct_definitions: [] = None,
-            enum_definitions: [] = None,
-            user_defined_value_types: [] = None,
-            error_definitions: [] = None,
-            sba: AST = None):
-        super().__init__()
-        self.pragma_directives = pragma_directives or []
-        self.import_directives = import_directives or []
-        self.contracts = contracts or []
-        self.interfaces = interfaces or []
-        self.libraries = libraries or []
-        self.function_definitions = function_definitions or []
-        self.contracts = constants or []
-        self.struct_definitions = struct_definitions or []
-        self.enum_definitions = enum_definitions or []
-        self.user_defined_value_types = user_defined_value_types or []
-        self.error_definitions = error_definitions or []
-
-        # sba: sol badguy ast, for generating expression/statement/function_definition from string
-        self.sba = sba
-
-        self.privacy_policy = None
-        self.original_code: List[str] = []
-
-    def process_children(self, f: Callable[[T], T]):
-        self.contracts[:] = map(f, self.contracts)
-
-    def __getitem__(self, key: str):
-        c_identifier = self.names[key]
-        c = c_identifier.parent
-        assert (isinstance(c, ContractDefinition))
-        return c
+class PragmaDirective(AST):
+    def __init__(self, name: str, version: str):
+        self.name = name
+        self.version = version
 
 
 class ImportDirective(AST):
@@ -2028,6 +2003,77 @@ class ImportDirective(AST):
         self.aliases = aliases or {}
         # bond definition of symbols
         self.processed_aliases = {}
+
+
+class InheritanceSpecifier(AST):
+    def __init__(self, path: List[str], args: CallArgumentList):
+        self.path = path
+        self.args = args
+
+    def process_children(self, f):
+        self.args = f(self.args)
+
+
+class InterfaceDefinition(AST):
+    def __init__(self, name: str, inheritanceSpecifiers: List[InheritanceSpecifier], body_elems: List[AST]):
+        self.name = name
+        self.inheritanceSpecifiers = inheritanceSpecifiers or []
+        self.body_elems = body_elems or []
+
+    def process_children(self, f):
+        self.inheritanceSpecifiers[:] = map(f, self.inheritanceSpecifiers)
+        self.body_elems[:] = map(f, self.body_elems)
+
+
+class LibraryDefinition(AST):
+    def __init__(self, name: str, body_elems: List[AST]):
+        self.name = name
+        self.body_elems = body_elems or []
+
+    def process_children(self, f):
+        self.body_elems[:] = map(f, self.body_elems)
+
+
+class SourceUnit(AST):
+
+    def __init__(self, units: List[AST] = None, sba: AST = None):
+        super().__init__()
+        self.units = units or []
+        self.pragma_directives = []
+        self.import_directives = []
+        self.contracts = []
+        self.interfaces = []
+        self.libraries = []
+        self.function_definitions = []
+        # self.struct_definitions = struct_definitions or []
+        # self.enum_definitions = enum_definitions or []
+        # self.user_defined_value_types = user_defined_value_types or []
+        # self.error_definitions = error_definitions or []
+        self.assign_from_units()
+
+        # sba: sol badguy ast, for generating expression/statement/function_definition from string
+        self.sba = sba
+
+        self.privacy_policy = None
+        self.original_code: List[str] = []
+
+    def process_children(self, f: Callable[[T], T]):
+        self.units[:] = map(f, self.units)
+        self.assign_from_units()
+
+    def __getitem__(self, key: str):
+        c_identifier = self.names[key]
+        c = c_identifier.parent
+        assert (isinstance(c, ContractDefinition))
+        return c
+
+    def assign_from_units(self):
+        self.pragma_directives = [x for x in self.units if isinstance(x, PragmaDirective)]
+        self.import_directives = [x for x in self.units if isinstance(x, ImportDirective)]
+        self.contracts = [x for x in self.units if isinstance(x, ContractDefinition)]
+        self.interfaces = [x for x in self.units if isinstance(x, InterfaceDefinition)]
+        self.libraries = [x for x in self.units if isinstance(x, LibraryDefinition)]
+        self.function_definitions = [x for x in self.units if isinstance(x, ConstructorOrFunctionDefinition)]
 
 
 PrivacyLabelExpr = Union[MeExpr, AllExpr, TeeExpr, Identifier]
@@ -2234,23 +2280,19 @@ class CodeVisitor(AstVisitor):
 
     def visitFunctionCallExpr(self, ast: FunctionCallExpr):
         if isinstance(ast.func, BuiltinFunction):
-            args = [self.visit(a) for a in ast.args]
+            args = [self.visit(a) for a in ast.args.args]
             return ast.func.format_string().format(*args)
         else:
             f = self.visit(ast.func)
-            if isinstance(ast.args, list):
-                a = self.visit_list(ast.args, ', ')
-            else:
-                a = self.visit(ast.args)
+            a = self.visit(ast.args)
             return f'{f}({a})'
 
-    def visitNamedArguments(self, ast: NamedArguments) -> str:
-        res = "{"
-        first = True
-        for k, v in ast.args.items():
-            print(f"k:{k}, v:{v}, args:{ast.args}")
-            res += f"{k}: {self.visit(v)}" if first else f", {k}: {self.visit(v)}"
-        return res + "}"
+    def visitNamedArgument(self, ast: NamedArgument) -> str:
+        return f"{ast.key}: {self.visit(ast.value)}"
+
+    def visitCallArgumentList(self, ast: CallArgumentList) -> str:
+        args = self.visit_list(ast.args, ", ")
+        return f"{{{args}}}" if ast.named_arguments else args
 
     def visitPrimitiveCastExpr(self, ast: PrimitiveCastExpr):
         if ast.is_implicit:
@@ -2370,7 +2412,7 @@ class CodeVisitor(AstVisitor):
         op = ast.op
         if ast.lhs.annotated_type is not None and ast.lhs.annotated_type.is_private():
             op = ''
-        rhs = ast.rhs.args[1] if op else ast.rhs
+        rhs = ast.rhs.args.args[1] if op else ast.rhs
 
         if op.startswith('pre'):
             op = op[3:]
@@ -2494,8 +2536,10 @@ class CodeVisitor(AstVisitor):
         return s
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-        b = self.visit_single_or_list(ast.body)
-        return self.function_definition_to_str(ast.idf, ast.parameters, ast.modifiers, ast.return_parameters, b)
+        body = ";"
+        if ast.body:
+            body = self.visit_single_or_list(ast.body)
+        return self.function_definition_to_str(ast.idf, ast.parameters, ast.modifiers, ast.return_parameters, body)
 
     def function_definition_to_str(
             self,
@@ -2589,16 +2633,14 @@ class CodeVisitor(AstVisitor):
             enums,
             structs)
 
-    def handle_pragma(self, pragma: List[str]) -> str:
+    def visitPragmaDirective(self, ast: PragmaDirective) -> str:
         if self.for_solidity:
             return f"pragma solidity {cfg.cloak_solc_version_compatibility.expression};"
-        return self.visit_list(pragma)
+        return f"pragma {ast.name} {ast.version};"
 
     def visitSourceUnit(self, ast: SourceUnit):
-        p = self.handle_pragma(ast.pragma_directives)
-        import_directives = self.visit_list(ast.import_directives)
-        contracts = self.visit_list(ast.contracts)
-        return f"{p}\n\n{import_directives}\n\n{contracts}"
+        lst = self.visit_list(ast.units, "\n\n")
+        return f"{lst}"
 
     def visitNewExpr(self, ast: NewExpr) -> str:
         return f"new {self.visit(ast.target_type)}"
@@ -2617,3 +2659,17 @@ class CodeVisitor(AstVisitor):
         if ast.unitAlias:
             return f'import "{ast.path}" as {ast.unitAlias};'
         return f'import "{ast.path}";'
+
+    def visitInheritanceSpecifier(self, ast: InheritanceSpecifier) -> str:
+        return f"{self.visit_list(ast.path, '.')}({self.visit(ast.args)})"
+
+    def visitInterfaceDefinition(self, ast: InterfaceDefinition) -> str:
+        inheritanceSpecifiers = ""
+        if ast.inheritanceSpecifiers:
+            inheritanceSpecifiers = f" is {self.visit_list(ast.inheritanceSpecifiers, ', ')}"
+        lst = self.visit_list(ast.body_elems)
+        return f"interface {ast.name}{inheritanceSpecifiers} {{\n{indent(lst)}\n}}"
+
+    def visitLibraryDefinition(self, ast: LibraryDefinition) -> str:
+        lst = self.visit_list(ast.body_elems)
+        return f"library {ast.name} {{\n{indent(lst)}\n}}"

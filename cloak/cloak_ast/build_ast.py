@@ -120,24 +120,24 @@ class BuildASTVisitor(SolidityVisitor):
         return ast.Identifier(name)
 
     def visitPragmaDirective(self, ctx: SolidityParser.PragmaDirectiveContext):
-        return f'pragma {self.visit(ctx.pragma())};'
+        return ast_module.PragmaDirective(self.handle_field(ctx.name), ctx.ver.getText())
 
-    def visitVersionPragma(self, ctx: SolidityParser.VersionPragmaContext):
-        version = ctx.ver.getText().strip()
-        spec = NpmSpec(version)
-        name = self.handle_field(ctx.name)
-        if name == 'cloak' and Version(cfg.cloak_version) not in spec:
-            raise SyntaxException(f'Contract requires a different cloak version.\n'
-                                  f'Current version is {cfg.cloak_version} but pragma zkay mandates {version}.',
-                                  ctx.ver, self.code)
-        elif name != 'cloak' and spec != cfg.cloak_solc_version_compatibility:
-            # For backwards compatibility with older zkay versions
-            assert name == 'solidity'
-            raise SyntaxException(f'Contract requires solidity version {spec}, which is not compatible '
-                                  f'with the current zkay version (requires {cfg.cloak_solc_version_compatibility}).',
-                                  ctx.ver, self.code)
+    # def visitVersionPragma(self, ctx: SolidityParser.VersionPragmaContext):
+    #     version = ctx.ver.getText().strip()
+    #     spec = NpmSpec(version)
+    #     name = self.handle_field(ctx.name)
+    #     if name == 'cloak' and Version(cfg.cloak_version) not in spec:
+    #         raise SyntaxException(f'Contract requires a different cloak version.\n'
+    #                               f'Current version is {cfg.cloak_version} but pragma zkay mandates {version}.',
+    #                               ctx.ver, self.code)
+    #     elif name != 'cloak' and spec != cfg.cloak_solc_version_compatibility:
+    #         # For backwards compatibility with older zkay versions
+    #         assert name == 'solidity'
+    #         raise SyntaxException(f'Contract requires solidity version {spec}, which is not compatible '
+    #                               f'with the current zkay version (requires {cfg.cloak_solc_version_compatibility}).',
+    #                               ctx.ver, self.code)
 
-        return f'{name} {version}'
+    #     return f'{name} {version}'
 
     # Visit a parse tree produced by SolidityParser#contractDefinition.
     def visitContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
@@ -159,7 +159,7 @@ class BuildASTVisitor(SolidityVisitor):
             idf, ret_params = self.visit(ctx.idf), self.handle_field(ctx.return_parameters)
             if '$' in idf.name:
                 raise SyntaxException('$ is not allowed in zkay function identifiers', ctx.idf, self.code)
-        params, mods, body = self.handle_field(ctx.parameters), self.handle_field(ctx.modifiers), self.visit(ctx.body)
+        params, mods, body = self.handle_field(ctx.parameters), self.handle_field(ctx.modifiers), self.handle_field(ctx.body)
         return ast.ConstructorOrFunctionDefinition(idf, params, mods, ret_params, body)
 
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
@@ -324,13 +324,13 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitFunctionCallExpr(self, ctx: SolidityParser.FunctionCallExprContext):
         func = self.visit(ctx.expression())
-        args = self.handle_field(ctx.callArgumentList())
+        args = self.visit(ctx.callArgumentList())
 
         if isinstance(func, IdentifierExpr):
             if func.idf.name == 'reveal':
-                if len(args) != 2:
+                if len(args.args) != 2:
                     raise SyntaxException(f'Invalid number of arguments for reveal: {args}', ctx.args, self.code)
-                return ReclassifyExpr(args[0], args[1])
+                return ReclassifyExpr(args.args[0], args.args[1])
 
         return FunctionCallExpr(func, args)
 
@@ -427,10 +427,11 @@ class BuildASTVisitor(SolidityVisitor):
                 f = e.func
                 if isinstance(f, IdentifierExpr):
                     if f.idf.name == 'require':
-                        if len(e.args) == 1:
-                            return ast.RequireStatement(e.args[0],)
-                        if len(e.args) == 2:
-                            return ast.RequireStatement(e.args[0], comment=e.args[1])
+                        args = e.args.args
+                        if len(args) == 1:
+                            return ast.RequireStatement(args[0],)
+                        if len(args) == 2:
+                            return ast.RequireStatement(args[0], comment=args[1])
                         raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
 
             assert isinstance(e, ast.Expression)
@@ -465,17 +466,11 @@ class BuildASTVisitor(SolidityVisitor):
         return ctx.getText()
 
     def visitSourceUnit(self, ctx: SolidityParser.SourceUnitContext):
-        su = ast_module.SourceUnit()
         if ctx.sba():
-            su.sba = self.visit(ctx.sba())
-            return su
-        if ctx.pragmaDirective():
-            su.pragma_directives = self.handle_field(ctx.pragmaDirective())
-        if ctx.importDirective():
-            su.import_directives = self.handle_field(ctx.importDirective())
-        if ctx.contractDefinition():
-            su.contracts = self.handle_field(ctx.contractDefinition())
-        return su
+            sba = self.visit(ctx.sba())
+            return ast_module.SourceUnit(sba=sba)
+        units = self.handle_field(ctx.children)[:-1]
+        return ast_module.SourceUnit(units=units)
 
     def visitPath(self, ctx: SolidityParser.PathContext):
         return ctx.getText()
@@ -484,12 +479,30 @@ class BuildASTVisitor(SolidityVisitor):
         return self.handle_field(ctx.getChild(1))
 
     def visitNamedArgument(self, ctx: SolidityParser.NamedArgumentContext):
-        return {ctx.name.name.text: self.visit(ctx.value)}
+        return ast_module.NamedArgument(ctx.name.name.text, self.visit(ctx.value))
 
     def visitCallArgumentList(self, ctx: SolidityParser.CallArgumentListContext):
         if ctx.namedArgument():
-            args = {}
-            for v in self.handle_field(ctx.namedArgument()):
-                args.update(v)
-            return ast_module.NamedArguments(args)
-        return self.handle_field(ctx.expression())
+            return ast_module.CallArgumentList(self.handle_field(ctx.namedArgument()), True)
+        return ast_module.CallArgumentList(self.handle_field(ctx.expression()), False)
+
+    def visitIdentifierPath(self, ctx: SolidityParser.IdentifierPathContext):
+        return [i.name.text for i in ctx.identifier()]
+
+    def visitInheritanceSpecifier(self, ctx: SolidityParser.InheritanceSpecifierContext):
+        path = self.visit(ctx.identifierPath())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.InheritanceSpecifier(path, args)
+
+    def visitInterfaceDefinition(self, ctx: SolidityParser.InterfaceDefinitionContext):
+        name = self.visit(ctx.name)
+        inheritanceSpecifiers = []
+        if ctx.inheritanceSpecifierList():
+            inheritanceSpecifiers = self.handle_field(ctx.inheritanceSpecifierList().inheritanceSpecifier())
+        body_elems = self.handle_field(ctx.contractBodyElement())
+        return ast_module.InterfaceDefinition(name, inheritanceSpecifiers, body_elems)
+
+    def visitLibraryDefinition(self, ctx: SolidityParser.LibraryDefinitionContext):
+        name = self.visit(ctx.name)
+        body_elems = self.handle_field(ctx.contractBodyElement())
+        return ast_module.LibraryDefinition(name, body_elems)

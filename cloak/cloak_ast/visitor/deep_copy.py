@@ -169,3 +169,9 @@ class DeepCopyVisitor(AstVisitor):
 
     def visitBytesTypeName(self, ast: ast_module.BytesTypeName):
         return ast_module.BytesTypeName(ast.name)
+
+    def visitNamedArgument(self, ast: ast_module.NamedArgument):
+        return ast_module.NamedArgument(ast.key, self.visit(ast.value))
+
+    def visitCallArgumentList(self, ast: ast_module.CallArgumentList):
+        return ast_module.CallArgumentList(self.copy_field(ast.args), ast.named_arguments)
