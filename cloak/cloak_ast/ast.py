@@ -1762,9 +1762,25 @@ class FunctionPrivacyType(IntEnum):
     TEE = 3
 
 
+class ModifierInvocation(AST):
+    def __init__(self, path: List[str], args: CallArgumentList):
+        super().__init__()
+        self.path = path or []
+        self.args = args
+
+    def process_children(self, f):
+        self.args[:] = map(f, args)
+
+
+class OverrideSpecifier(AST):
+    def __init__(self, paths: List[List[str]]):
+        super().__init__()
+        self.paths = paths
+
+
 class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
-    def __init__(self, idf: Optional[Identifier], parameters: List[Parameter], modifiers: List[str],
+    def __init__(self, idf: Optional[Identifier], parameters: List[Parameter], modifiers: List[Union[str, AST]],
             return_parameters: Optional[List[Parameter]], body: Optional[Block] = None):
         assert (idf is not None and idf.name != 'constructor') or not return_parameters
         if idf is None:
@@ -1863,6 +1879,7 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
     def process_children(self, f: Callable[[T], T]):
         super().process_children(f)
         self.parameters[:] = map(f, self.parameters)
+        self.modifiers[:] = map(lambda x: x if isinstance(x, str) else f(x), self.modifiers)
         self.return_parameters[:] = map(f, self.return_parameters)
         if self.body:
             self.body = f(self.body)
@@ -2554,7 +2571,7 @@ class CodeVisitor(AstVisitor):
         else:
             definition = 'constructor'
         p = self.visit_list(parameters, ', ')
-        m = ' '.join(modifiers)
+        m = ' '.join(map(lambda x: x if isinstance(x, str) else self.visit(x), modifiers))
         if m != '':
             m = f' {m}'
         r = self.visit_list(return_parameters, ', ')
@@ -2673,3 +2690,9 @@ class CodeVisitor(AstVisitor):
     def visitLibraryDefinition(self, ast: LibraryDefinition) -> str:
         lst = self.visit_list(ast.body_elems)
         return f"library {ast.name} {{\n{indent(lst)}\n}}"
+
+    def visitModifierInvocation(self, ast: ModifierInvocation):
+        return f"{'.'.join(ast.path)}({self.visit(ast.args)})"
+
+    def visitOverrideSpecifier(self, ast: OverrideSpecifier):
+        return self.visit_list(map('.'.join, ast.paths), ", ")

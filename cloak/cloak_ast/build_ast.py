@@ -163,10 +163,33 @@ class BuildASTVisitor(SolidityVisitor):
         return ast.ConstructorOrFunctionDefinition(idf, params, mods, ret_params, body)
 
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
-        return self.handle_fdef(ctx)
+        name = self.handle_field(ctx.getChild(1))
+        if isinstance(name, str):
+            name = ast_module.Identifier(name)
+        ps = self.handle_field(ctx.parameters)
+        modifiers = []
+        if ctx.visibility():
+            modifiers.append(ctx.visibility(0).getText())
+        if ctx.stateMutability():
+            modifiers.append(ctx.stateMutability(0).getText())
+        if ctx.modifierInvocation():
+            modifiers += self.handle_field(self.visitModifierInvocation())
+        if ctx.virtual:
+            modifiers.append("virtual")
+        if ctx.overrideSpecifier():
+            modifiers.append(self.visit(ctx.overrideSpecifier(0)))
+        rts = self.handle_field(ctx.return_parameters)
+        body = self.handle_field(ctx.body)
+        return ast_module.ConstructorOrFunctionDefinition(name, ps, modifiers, rts, body)
 
     def visitConstructorDefinition(self, ctx:SolidityParser.ConstructorDefinitionContext):
-        return self.handle_fdef(ctx)
+        ps = self.handle_field(ctx.parameters)
+        modifiers = []
+        if ctx.modifierInvocation():
+            modifiers += self.handle_field(ctx.modifierInvocation())
+        modifiers += self.handle_field(ctx.modifiers)
+        body = self.visit(ctx.body)
+        return ast_module.ConstructorOrFunctionDefinition(None, ps, modifiers, [], body)
 
     def visitEnumDefinition(self, ctx:SolidityParser.EnumDefinitionContext):
         idf = self.visit(ctx.idf)
@@ -506,3 +529,12 @@ class BuildASTVisitor(SolidityVisitor):
         name = self.visit(ctx.name)
         body_elems = self.handle_field(ctx.contractBodyElement())
         return ast_module.LibraryDefinition(name, body_elems)
+
+    def visitModifierInvocation(self, ctx: SolidityParser.ModifierInvocationContext):
+        path = self.visit(ctx.identifierPath())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.ModifierInvocation(path, args)
+
+    def visitOverrideSpecifier(self, ctx: SolidityParser.OverrideSpecifierContext):
+        paths = self.handle_field(ctx.identifierPath())
+        return ast_module.OverrideSpecifier(paths)

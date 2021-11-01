@@ -35,7 +35,7 @@ sourceUnit: (
     | contractDefinition
     | interfaceDefinition
     | libraryDefinition
-    // | functionDefinition
+    | functionDefinition
     // | constantVariableDeclaration
     // | structDefinition
     // | enumDefinition
@@ -113,7 +113,7 @@ inheritanceSpecifier: name=identifierPath arguments=callArgumentList?;
 contractBodyElement:
     constructorDefinition
     | functionDefinition
-    // TODO | modifierDefinition
+    | modifierDefinition
     // TODO | fallbackFunctionDefinition
     // TODO | receiveFunctionDefinition
     // TODO | structDefinition
@@ -160,61 +160,63 @@ stateVariableDeclaration
 constantVariableDeclaration:
     annotated_type=annotatedTypeName 'constant' idf=identifier '=' expr=expression ';';
 
-constructorDefinition
-  : 'constructor' parameters=parameterList modifiers=modifierList body=block ;
+/**
+ * Definition of a constructor.
+ * Must always supply an implementation.
+ * Note that specifying internal or public visibility is deprecated.
+ */
+constructorDefinition:
+    'constructor' parameters=parameterList
+    (modifierInvocation | modifiers+='payable' | modifiers+='internal' | modifiers+='public')*
+    body=block;
 
-// CHANGED:
-// - identifier is now required
-// - empty body is now disallowed
-// - inlined returnParameters
-functionDefinition
-  : 'function'
-    idf=identifier
+/**
+ * The definition of contract, library and interface functions.
+ * Depending on the context in which the function is defined, further restrictions may apply,
+ * e.g. functions in interfaces have to be unimplemented, i.e. may not contain a body block.
+ */
+functionDefinition:
+    'function' (identifier | 'fallback' | 'receive')
     parameters=parameterList
-    modifiers=modifierList
+    (visibility | stateMutability | modifierInvocation | virtual='virtual' | overrideSpecifier)*
     return_parameters=returnParameters?
-    ( ';' | body=block)
+    (';' | body=block)
     ;
+
+/**
+ * The definition of a modifier.
+ * Note that within the body block of a modifier, the underscore cannot be used as identifier,
+ * but is used as placeholder statement for the body of a function to which the modifier is applied.
+ */
+modifierDefinition:
+    'modifier' name=identifier
+    parameters=parameterList
+    ( virtual='virtual' | overrideSpecifier)*
+    (';' | body=block);
 
 returnParameters
 : 'returns' return_parameters=parameterList ;
 
-// REMOVED:
-// - modifierInvocation
-// - ExternalKeyword
-//
-// function modifiers
-// - state mutability: see below
-// - external: part of the contract interface. Can be called from other contracts and via transactions
-// - public: part of the contract interface. Can be called internally or via messages
-// - internal: can only be accessed internally (from the current contract or contracts deriving from it)
-// - private: only visible for the contract they are defined in
-modifierList
-  : ( modifiers+=modifier )* ;
-
-modifier
-  : stateMutability | PublicKeyword | InternalKeyword| ExternalKeyword | PrivateKeyword ;
-
-// /**
-//  * Call to a modifier. If the modifier takes no arguments, the argument list can be skipped entirely
-//  * (including opening and closing parentheses).
-//  */
-// modifierInvocation: identifierPath callArgumentList?;
-// /**
-//  * Visibility for functions and function types.
-//  */
-// visibility: 'internal' | 'external' | 'private' | 'public';
-// /**
-//  * State mutability for function types.
-//  * The default mutability 'non-payable' is assumed if no mutability is specified.
-//  */
-// stateMutability: Pure | View | Payable;
-// /**
-//  * An override specifier used for functions, modifiers or state variables.
-//  * In cases where there are ambiguous declarations in several base contracts being overridden,
-//  * a complete list of base contracts has to be given.
-//  */
-// overrideSpecifier: Override (LParen overrides+=identifierPath (Comma overrides+=identifierPath)* RParen)?;
+/**
+ * Call to a modifier. If the modifier takes no arguments, the argument list can be skipped entirely
+ * (including opening and closing parentheses).
+ */
+modifierInvocation: identifierPath callArgumentList?;
+/**
+ * Visibility for functions and function types.
+ */
+visibility: 'internal' | 'external' | 'private' | 'public';
+/**
+ * State mutability for function types.
+ * The default mutability 'non-payable' is assumed if no mutability is specified.
+ */
+stateMutability: 'pure' | 'view' | 'payable';
+/**
+ * An override specifier used for functions, modifiers or state variables.
+ * In cases where there are ambiguous declarations in several base contracts being overridden,
+ * a complete list of base contracts has to be given.
+ */
+overrideSpecifier: 'override' ('(' overrides+=identifierPath (',' overrides+=identifierPath)* ')')?;
 
 
 parameterList
@@ -259,17 +261,6 @@ mapping
 // - calldata: non-modifiable, non-persistent area for function arguments (forced for function parameters of external
 //   functions)
 dataLocation: MemoryKeyword | StorageKeyword | CalldataKeyword;
-
-//
-// state mutability
-// pure: function does not read or modify state
-//       -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#pure-functions
-// constant: deprecated for functions, alias to view
-// view: function does not modify the state
-//       -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#view-functions
-// payable: function may receive Ether
-stateMutability
-  : PayableKeyword | PureKeyword | ViewKeyword ;
 
 block
   : '{' statements+=statement* '}' ;
