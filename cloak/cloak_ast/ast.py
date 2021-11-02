@@ -124,6 +124,10 @@ class AST:
     def __str__(self):
         return self.code()
 
+    def clone(self):
+        from cloak.cloak_ast.visitor.deep_copy import deep_copy
+        return deep_copy(self)
+
 
 class Identifier(AST):
 
@@ -134,9 +138,6 @@ class Identifier(AST):
     @property
     def is_immutable(self):
         return isinstance(self.parent, StateVariableDeclaration) and (self.parent.is_final or self.parent.is_constant)
-
-    def clone(self) -> Identifier:
-        return Identifier(self.name)
 
     def decl_var(self, t: Union[TypeName, AnnotatedTypeName], expr: Optional[Expression] = None):
         if isinstance(t, TypeName):
@@ -618,12 +619,6 @@ class IdentifierExpr(LocationExpr):
     def slice(self, offset: int, size: int, base: Optional[Expression] = None) -> SliceExpr:
         return SliceExpr(self.clone(), base, offset, size)
 
-    def clone(self) -> IdentifierExpr:
-        idf = IdentifierExpr(self.idf.clone()).as_type(self.annotated_type)
-        idf.target = self.target
-        return idf
-
-
 class MemberAccessExpr(LocationExpr):
     def __init__(self, expr: LocationExpr, member: Identifier):
         super().__init__()
@@ -674,9 +669,6 @@ class MeExpr(Expression):
     def is_immutable(self) -> bool:
         return True
 
-    def clone(self) -> MeExpr:
-        return MeExpr()
-
     def __eq__(self, other):
         return isinstance(other, MeExpr)
 
@@ -691,9 +683,6 @@ class AllExpr(Expression):
     def is_immutable(self) -> bool:
         return True
 
-    def clone(self) -> AllExpr:
-        return AllExpr()
-
     def __eq__(self, other):
         return isinstance(other, AllExpr)
 
@@ -707,9 +696,6 @@ class TeeExpr(Expression):
     @property
     def is_immutable(self) -> bool:
         return True
-
-    def clone(self) -> TeeExpr:
-        return TeeExpr()
 
     def __eq__(self, other):
         return isinstance(other, TeeExpr)
@@ -763,11 +749,6 @@ class HybridArgumentIdf(Identifier):
     def get_idf_expr(self, parent=None) -> IdentifierExpr:
         ie = IdentifierExpr(self.clone()).as_type(self.t)
         return ie.override(parent=parent, statement=parent if (parent is None or isinstance(parent, Statement)) else parent.statement)
-
-    def clone(self) -> HybridArgumentIdf:
-        ha = HybridArgumentIdf(self.name, self.t, self.arg_type, self.corresponding_priv_expression)
-        ha.serialized_loc = self.serialized_loc
-        return ha
 
     def _set_serialized_loc(self, idf, base, start_offset):
         assert self.serialized_loc.start_offset == -1
@@ -1112,9 +1093,6 @@ class TypeName(AST):
     def annotate(self, privacy_annotation):
         return AnnotatedTypeName(self, privacy_annotation)
 
-    def clone(self) -> TypeName:
-        raise NotImplementedError()
-
     def __eq__(self, other):
         raise NotImplementedError()
 
@@ -1129,9 +1107,6 @@ class ElementaryTypeName(TypeName, PrimaryExpression):
         super().__init__()
         self.name = name
 
-    def clone(self) -> ElementaryTypeName:
-        return ElementaryTypeName(self.name)
-
     def __eq__(self, other):
         return isinstance(other, ElementaryTypeName) and self.name == other.name
 
@@ -1139,9 +1114,6 @@ class ElementaryTypeName(TypeName, PrimaryExpression):
 class BoolTypeName(ElementaryTypeName):
     def __init__(self, name='bool'):
         super().__init__(name)
-
-    def clone(self) -> BoolTypeName:
-        return BoolTypeName()
 
     @property
     def elem_bitwidth(self):
@@ -1174,9 +1146,6 @@ class BooleanLiteralType(ElementaryTypeName):
 
     def to_abstract_type(self):
         return TypeName.bool_type()
-
-    def clone(self) -> BooleanLiteralType:
-        return BooleanLiteralType(self.value)
 
     def __eq__(self, other):
         return isinstance(other, BooleanLiteralType)
@@ -1268,9 +1237,6 @@ class NumberLiteralType(NumberTypeName):
     def value(self):
         return int(self.name)
 
-    def clone(self) -> NumberLiteralType:
-        return NumberLiteralType(self.value)
-
     def __eq__(self, other):
         return isinstance(other, NumberLiteralType)
 
@@ -1284,9 +1250,6 @@ class IntTypeName(NumberTypeName):
         return super().implicitly_convertible_to(expected) or (
                 isinstance(expected, IntTypeName) and expected.elem_bitwidth >= self.elem_bitwidth)
 
-    def clone(self) -> IntTypeName:
-        return IntTypeName(self.name)
-
 
 class UintTypeName(NumberTypeName):
     def __init__(self, name: str = 'uint'):
@@ -1297,9 +1260,6 @@ class UintTypeName(NumberTypeName):
         return super().implicitly_convertible_to(expected) or (
                 isinstance(expected, UintTypeName) and expected.elem_bitwidth >= self.elem_bitwidth)
 
-    def clone(self) -> UintTypeName:
-        return UintTypeName(self.name)
-
 
 class UserDefinedTypeName(TypeName):
     def __init__(self, names: List[Identifier], target: Optional[NamespaceDefinition] = None):
@@ -1307,17 +1267,11 @@ class UserDefinedTypeName(TypeName):
         self.names = names
         self.target = target
 
-    def clone(self) -> UserDefinedTypeName:
-        return UserDefinedTypeName(self.names.copy(), self.target)
-
     def __eq__(self, other):
         return isinstance(other, UserDefinedTypeName) and all(e[0].name == e[1].name for e in zip(self.target.qualified_name, other.target.qualified_name))
 
 
 class EnumTypeName(UserDefinedTypeName):
-    def clone(self) -> EnumTypeName:
-        return EnumTypeName(self.names.copy(), self.target)
-
     @property
     def elem_bitwidth(self):
         return 256
@@ -1328,9 +1282,6 @@ class EnumValueTypeName(UserDefinedTypeName):
     def elem_bitwidth(self):
         return 256
 
-    def clone(self) -> EnumValueTypeName:
-        return EnumValueTypeName(self.names.copy(), self.target)
-
     def to_abstract_type(self):
         return EnumTypeName(self.names[:-1], self.target.parent)
 
@@ -1339,13 +1290,11 @@ class EnumValueTypeName(UserDefinedTypeName):
 
 
 class StructTypeName(UserDefinedTypeName):
-    def clone(self) -> StructTypeName:
-        return StructTypeName(self.names.copy(), self.target)
+    pass
 
 
 class ContractTypeName(UserDefinedTypeName):
-    def clone(self) -> ContractTypeName:
-        return ContractTypeName(self.names.copy(), self.target)
+    pass
 
 
 class AddressTypeName(UserDefinedTypeName):
@@ -1355,9 +1304,6 @@ class AddressTypeName(UserDefinedTypeName):
     @property
     def elem_bitwidth(self):
         return 160
-
-    def clone(self) -> UserDefinedTypeName:
-        return AddressTypeName()
 
     def __eq__(self, other):
         return isinstance(other, AddressTypeName)
@@ -1374,9 +1320,6 @@ class AddressPayableTypeName(UserDefinedTypeName):
     @property
     def elem_bitwidth(self):
         return 160
-
-    def clone(self) -> UserDefinedTypeName:
-        return AddressPayableTypeName()
 
     def __eq__(self, other):
         return isinstance(other, AddressPayableTypeName)
@@ -1398,10 +1341,6 @@ class Mapping(TypeName):
         if isinstance(self.key_label, Identifier):
             self.key_label = f(self.key_label)
         self.value_type = f(self.value_type)
-
-    def clone(self) -> Mapping:
-        from cloak.cloak_ast.visitor.deep_copy import deep_copy
-        return deep_copy(self)
 
     @property
     def has_key_label(self):
@@ -1445,9 +1384,6 @@ class Array(TypeName):
     def process_children(self, f: Callable[[T], T]):
         self.value_type = f(self.value_type)
         self.expr = f(self.expr)
-
-    def clone(self) -> Array:
-        return Array(self.value_type.clone(), self.expr)
 
     @property
     def size_in_uints(self):
@@ -1538,9 +1474,6 @@ class TupleType(TypeName):
 
         self.check_component_wise(other, privacy_match)
 
-    def clone(self) -> TupleType:
-        return TupleType(list(map(AnnotatedTypeName.clone, self.types)))
-
     @staticmethod
     def empty() -> TupleType:
         return TupleType([])
@@ -1559,10 +1492,6 @@ class FunctionTypeName(TypeName):
     def process_children(self, f: Callable[[T], T]):
         self.parameters[:] = map(f, self.parameters)
         self.return_parameters[:] = map(f, self.return_parameters)
-
-    def clone(self) -> FunctionTypeName:
-        # TODO deep copy if required
-        return FunctionTypeName(self.parameters, self.modifiers, self.return_parameters)
 
     def __eq__(self, other):
         return isinstance(other, FunctionTypeName) and self.parameters == other.parameters and \
@@ -1583,12 +1512,6 @@ class AnnotatedTypeName(AST):
     def process_children(self, f: Callable[[T], T]):
         self.type_name = f(self.type_name)
         self.privacy_annotation = f(self.privacy_annotation)
-
-    def clone(self) -> AnnotatedTypeName:
-        assert self.privacy_annotation is not None
-        at = AnnotatedTypeName(self.type_name.clone(), self.privacy_annotation.clone())
-        at.had_privacy_annotation = self.had_privacy_annotation
-        return at
 
     # @property
     # def zkay_type(self) -> AnnotatedTypeName:
@@ -1769,7 +1692,7 @@ class ModifierInvocation(AST):
         self.args = args
 
     def process_children(self, f):
-        self.args[:] = map(f, args)
+        self.args = f(self.args)
 
 
 class OverrideSpecifier(AST):
@@ -1907,6 +1830,23 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         return FunctionPrivacyType.TEE == self.privacy_type
 
 
+class ModifierDefinition(AST):
+    def __init__(self, name: str, parameters: List[Parameter], virtual: bool = False,
+            overrideSpecifier: Optional[OverrideSpecifier] = None, body: Optional[Block] = None):
+        super().__init__()
+        self.name = name
+        self.parameters = parameters
+        self.virtual = virtual
+        self.overrideSpecifier = overrideSpecifier
+        self.body = body
+
+    def process_children(self, f):
+        self.parameters[:] = map(f, self.parameters)
+        self.overrideSpecifier = f(self.overrideSpecifier)
+        if self.body:
+            self.body = f(self.body)
+
+
 class ConstantVariableDeclaration(IdentifierDeclaration):
     def __init__(annotated_type, idf, expr):
         super().__init__([], annotated_type, idf)
@@ -1962,20 +1902,46 @@ class StructDefinition(NamespaceDefinition):
 
 class ContractDefinition(NamespaceDefinition):
 
-    def __init__(
-            self,
-            idf: Identifier,
-            state_variable_declarations: List[StateVariableDeclaration],
-            constructor_definitions: List[ConstructorOrFunctionDefinition],
-            function_definitions: List[ConstructorOrFunctionDefinition],
-            enum_definitions: List[EnumDefinition],
-            struct_definitions: Optional[List[StructDefinition]] = None):
+    def __init__(self, idf: Identifier, units: List[AST]):
         super().__init__(idf)
-        self.state_variable_declarations = state_variable_declarations
-        self.constructor_definitions = constructor_definitions
-        self.function_definitions = function_definitions
-        self.enum_definitions = enum_definitions
-        self.struct_definitions = [] if struct_definitions is None else struct_definitions
+        self.units = units
+        self.state_variable_declarations: List[StateVariableDeclaration]
+        self.constructor_definitions: List[ConstructorOrFunctionDefinition]
+        self.function_definitions: List[ConstructorOrFunctionDefinition]
+        self.modifier_definitions: List[ModifierDefinition]
+        self.enum_definitions: List[EnumDefinition]
+        self.struct_definitions: List[StructDefinition]
+        self.assign_from_units()
+
+        # extra body parts
+        self.extra_head_parts: Liast[AST] = []
+        self.extra_tail_parts: Liast[AST] = []
+
+    def clean(self):
+        self.state_variable_declarations = []
+        self.constructor_definitions = []
+        self.function_definitions = []
+        self.modifier_definitions = []
+        self.enum_definitions = []
+        self.struct_definitions = []
+
+    def assign_from_units(self):
+        self.clean()
+        for unit in self.units:
+            if isinstance(unit, StateVariableDeclaration):
+                self.state_variable_declarations.append(unit)
+            elif isinstance(unit, ConstructorOrFunctionDefinition) and unit.idf.name == "constructor":
+                self.constructor_definitions.append(unit)
+            elif isinstance(unit, ConstructorOrFunctionDefinition):
+                self.function_definitions.append(unit)
+            elif isinstance(unit, ModifierDefinition):
+                self.modifier_definitions.append(unit)
+            elif isinstance(unit, EnumDefinition):
+                self.enum_definitions.append(unit)
+            elif isinstance(unit, StructDefinition):
+                self.struct_definitions.append(unit)
+            else:
+                raise exceptions.CloakCompilerError(f"invalid unit:{type(unit)}")
 
     def process_children(self, f: Callable[[T], T]):
         super().process_children(f)
@@ -2068,10 +2034,13 @@ class SourceUnit(AST):
         # self.error_definitions = error_definitions or []
         self.assign_from_units()
 
+        self.extra_head_parts: List[AST] = []
+
         # sba: sol badguy ast, for generating expression/statement/function_definition from string
         self.sba = sba
 
         self.privacy_policy = None
+        self.generated_policy: Optional[str] = None
         self.original_code: List[str] = []
 
     def process_children(self, f: Callable[[T], T]):
@@ -2616,39 +2585,11 @@ class CodeVisitor(AstVisitor):
             ret += ' = ' + self.visit(ast.expr)
         return ret + ';'
 
-    @staticmethod
-    def contract_definition_to_str(
-            idf: Identifier,
-            state_vars: List[str],
-            constructors: List[str],
-            functions: List[str],
-            enums: List[str],
-            structs: List[str]):
-
-        i = str(idf)
-        structs = '\n\n'.join(structs)
-        enums = '\n\n'.join(enums)
-        state_vars = '\n'.join(state_vars)
-        constructors = '\n\n'.join(constructors)
-        functions = '\n\n'.join(functions)
-        body = '\n\n'.join(filter(''.__ne__, [structs, enums, state_vars, constructors, functions]))
-        body = indent(body)
-        return f"contract {i} {{\n{body}\n}}"
-
     def visitContractDefinition(self, ast: ContractDefinition):
-        state_vars = [self.visit(e) for e in ast.state_variable_declarations]
-        constructors = [self.visit(e) for e in ast.constructor_definitions]
-        functions = [self.visit(e) for e in ast.function_definitions]
-        enums = [self.visit(e) for e in ast.enum_definitions]
-        structs = [self.visit(e) for e in ast.struct_definitions]
-
-        return self.contract_definition_to_str(
-            ast.idf,
-            state_vars,
-            constructors,
-            functions,
-            enums,
-            structs)
+        extra_head_parts = indent(self.visit_list(ast.extra_head_parts))
+        units = indent(self.visit_list(ast.units))
+        extra_tail_parts = indent(self.visit_list(ast.extra_tail_parts))
+        return f"contract {ast.idf} {{\n{extra_head_parts}\n\n{units}\n\n{extra_tail_parts}\n}}"
 
     def visitPragmaDirective(self, ast: PragmaDirective) -> str:
         if self.for_solidity:
@@ -2656,8 +2597,9 @@ class CodeVisitor(AstVisitor):
         return f"pragma {ast.name} {ast.version};"
 
     def visitSourceUnit(self, ast: SourceUnit):
+        extra_head_parts = self.visit_list(ast.extra_head_parts)
         lst = self.visit_list(ast.units, "\n\n")
-        return f"{lst}"
+        return f"{extra_head_parts}\n\n{lst}"
 
     def visitNewExpr(self, ast: NewExpr) -> str:
         return f"new {self.visit(ast.target_type)}"
@@ -2691,8 +2633,16 @@ class CodeVisitor(AstVisitor):
         lst = self.visit_list(ast.body_elems)
         return f"library {ast.name} {{\n{indent(lst)}\n}}"
 
-    def visitModifierInvocation(self, ast: ModifierInvocation):
+    def visitModifierInvocation(self, ast: ModifierInvocation) -> str:
         return f"{'.'.join(ast.path)}({self.visit(ast.args)})"
 
-    def visitOverrideSpecifier(self, ast: OverrideSpecifier):
+    def visitOverrideSpecifier(self, ast: OverrideSpecifier) -> str:
         return self.visit_list(map('.'.join, ast.paths), ", ")
+
+    def visitModifierDefinition(self, ast: ModifierDefinition):
+        ps = self.visit_list(ast.parameters, ", ")
+        virtual = " virtual" if ast.virtual else ""
+        body = ";"
+        if ast.body:
+            body = self.visitBlock(ast.body)
+        return f"modifier {ast.name}({ps}){virtual} {self.visit_list(ast.overrideSpecifier, ', ')} {body}"

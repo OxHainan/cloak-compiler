@@ -3,7 +3,6 @@ import web3
 from typing import Any, OrderedDict
 from cloak.type_check import type_pure
 from cloak.cloak_ast import ast
-from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.visitor.formatter import OwnerFormatter, TypeFormatter
 
 FUNC_INPUTS = "inputs"
@@ -86,7 +85,7 @@ class FunctionPolicy():
                     n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
 
                 if clss == FUNC_INPUTS:
-                    type_name = deep_copy(var.annotated_type.type_name)
+                    type_name = var.annotated_type.type_name.clone()
                     n_elem["structural_type"] = TypeFormatter().visit(type_name)
                     ConcreteTypeNameVisitor().visit(type_name)
                     # for computing function selector

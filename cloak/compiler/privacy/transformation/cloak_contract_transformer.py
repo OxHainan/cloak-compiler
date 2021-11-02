@@ -15,7 +15,6 @@ from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFuncti
     VariableDeclarationStatement, StatementList, ArrayLiteralExpr, MeExpr, StringLiteralExpr, LocationExpr
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
-from cloak.cloak_ast.visitor.deep_copy import deep_copy
 from cloak.cloak_ast.global_defs import GlobalDefs
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.cloak_ast import ast as ast_module
@@ -65,38 +64,19 @@ class CloakTransformer(AstTransformerVisitor):
         :param su: [SIDE EFFECT] source unit where contract should be imported
         """
         import_filename = f'./{cname}.sol'
-        su.import_directives.append(ast_module.ImportDirective(import_filename))
+        su.extra_head_parts.append(ast_module.ImportDirective(import_filename))
 
-    @staticmethod
-    def create_contract_variable(cname: str, default_value: Optional[str] = None) -> StateVariableDeclaration:
-        """Create a public constant state variable with which contract with name 'cname' can be accessed"""
-        source_text = None
-        if default_value is None or default_value == "":
-            default_value = 0
-        else:
-            source_text = default_value
-
-        inst_idf = Identifier(cfg.get_contract_var_name(cname))
-        c_type = ContractTypeName([Identifier(cname)])
-
-        cast_0_to_c = PrimitiveCastExpr(c_type, NumberLiteralExpr(int(default_value, 16), source_text=source_text))
-        var_decl = StateVariableDeclaration(AnnotatedTypeName(
-            c_type), ['public', 'constant'], inst_idf.clone(), cast_0_to_c)
-        return var_decl
-
-    def include_verification_contracts(self, su: SourceUnit, c: ContractDefinition) -> List[StateVariableDeclaration]:
-        """
-        Import all verification contracts for 'c' into 'su' and create state variable declarations for all of them + the pki contract.
-
-        :param su: [SIDE EFFECT] source unit into which contracts should be imported
-        :param c: contract for which verification contracts should be imported
-        :return: list of all constant state variable declarations for the pki contract + all the verification contracts
-        """
-        c.contract_var_decls = [
-            self.create_contract_variable(cfg.service_contract_name, cfg.blockchain_service_address),
+    def add_extra_head_parts(self, su: SourceUnit, c: ContractDefinition):
+        # Add constant state variables for tee external contracts
+        code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
+        policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
+        c.extra_head_parts += [
+            Comment("CloakService Variable"),
+            SOL(f"CloakService constant CloakService_inst = CloakService({cfg.blockchain_service_address});"),
+            SOL(f"address tee_addr = CloakService_inst.getTEEAddress();"),
+            SOL(f"uint constant teeCHash = {code_hash_hb.hex()};"),
+            SOL(f"uint constant teePHash = {policy_hash_hb.hex()};"),
         ]
-
-        return c.contract_var_decls
 
     def visitSourceUnit(self, ast: SourceUnit):
         self.import_contract(cfg.service_contract_name, ast)
@@ -114,70 +94,14 @@ class CloakTransformer(AstTransformerVisitor):
 
         * transforms state variables, function bodies and signatures
         * import verification contracts
-        * adds data structs for each function with verification \
-          (to store circuit I/O, to bypass solidity stack limit and allow for easy assignment of array variables),
         * creates external wrapper functions for all public functions which require verification
-        * adds circuit IO serialization/deserialization code from/to zk_data struct to all functions which require verification.
 
         :param su: [SIDE EFFECTS] Source unit of which this contract is part of
         :param c: [SIDE EFFECTS] The contract to transform
         :return: The contract itself
         """
-
-        # Get list of static owner labels for this contract
-        c.global_owners = [Expression.me_expr(), Expression.tee_expr()]
-        for var in c.state_variable_declarations:
-            if isinstance(var, StateVariableDeclaration):
-                if var.annotated_type.is_address() and (var.is_final or var.is_constant):
-                    c.global_owners.append(var.idf)
-
-        # Backup untransformed function bodies
-        c.all_fcts = c.constructor_definitions + c.function_definitions
-        # for fct in c.all_fcts:
-        #     fct.original_body = deep_copy(
-        #         fct.body, with_types=True, with_analysis=True)
-
-        c.fcts_is_tee = [fct for fct in c.all_fcts if fct.is_tee()]
-        """Abstract circuits for all functions which require verification"""
-        c.new_fcts, c.new_constr = [], []
-        for fct in c.all_fcts:
-            assert isinstance(fct, ConstructorOrFunctionDefinition)
-            if fct.is_constructor:
-                c.new_constr.append(fct)
-
-        self.include_verification_contracts(su, c)
-
+        self.add_extra_head_parts(su, c)
         c = self.transform_tee_functions(su, c)
-
-        c.state_variable_declarations = [Comment('User state variables')]\
-            + c.state_variable_declarations
-
-        # Add constant state variables for tee external contracts
-        code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
-        print(code_hash_hb.hex())
-        code_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                  Identifier(
-                                                      cfg.tee_code_hash_name),
-                                                  NumberLiteralExpr(int(code_hash_hb.hex(), base=16)))
-        policy_hash_hb = web3.Web3.keccak(json.dumps(su.privacy_policy, cls=PrivacyPolicyEncoder, indent=2).encode())
-        print(policy_hash_hb.hex())
-        policy_hash_decl = StateVariableDeclaration(AnnotatedTypeName.uint_all(), ['public', 'constant'],
-                                                    Identifier(
-                                                        cfg.tee_policy_hash_name),
-                                                    NumberLiteralExpr(int(policy_hash_hb.hex(), base=16)))
-        tee_addr_var = StateVariableDeclaration(AnnotatedTypeName.address_all(), ['public'], Identifier('tee'),
-                                                IdentifierExpr(f'{cfg.service_contract_name}_inst').call(cfg.tee_get_addr_function_name, []))
-        c.state_variable_declarations = [Comment('TEE helper variables'), code_hash_decl, policy_hash_decl, tee_addr_var, Comment()]\
-            + c.state_variable_declarations
-
-
-        # Add helper contracts
-        c.state_variable_declarations = [Comment()]\
-            + Comment.comment_list('Helper Contracts', c.contract_var_decls)\
-            + c.state_variable_declarations
-
-        c.constructor_definitions = c.new_constr
-        c.function_definitions = [fct for fct in c.new_fcts if fct.body and fct.body.statements]
 
         return c
 
@@ -199,16 +123,16 @@ class CloakTransformer(AstTransformerVisitor):
         :return: The contract itself
         """
 
-        var_decl_trafo = TeeVarDeclTransformer()
         """Transformer for state variable declarations and parameters"""
+        var_decl_trafo = TeeVarDeclTransformer().visit_list(c.state_variable_declarations)
 
-        # Transform types of normal state variables
-        c.state_variable_declarations = var_decl_trafo.visit_list(
-            c.state_variable_declarations)
+        # remove all origin function except constructor
+        is_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function
+        c.units[:] = filter(lambda u: not is_function(u), c.units)
+        c.function_definitions = []
 
         # append get_states and set_states
-        self.append_get_states(su, c)
-        self.append_set_states(su, c)
+        c.extra_tail_parts += [self.get_states(su, c), self.set_states(su, c)]
 
         return c
 
@@ -295,7 +219,7 @@ class CloakTransformer(AstTransformerVisitor):
         params = "bytes[] memory data"
         if is_cipher:
             guard = """
-                require(msg.sender == tee, 'msg.sender is not tee');
+                require(msg.sender == tee_addr, 'msg.sender is not tee');
                 require(proof[0] == teeCHash, 'code hash error');
                 require(proof[1] == teePHash, 'policy hash error');
                 uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
@@ -361,10 +285,3 @@ class CloakTransformer(AstTransformerVisitor):
                     mapping_type += f"data_idx = data_idx + 2 + keys_count * {factor};\n"
 
         return mapping_type, idx
-
-
-    def append_get_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
-        c.new_fcts.append(self.get_states(su, c))
-
-    def append_set_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True):
-        c.new_fcts.append(self.set_states(su, c))

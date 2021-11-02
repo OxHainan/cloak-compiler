@@ -4,16 +4,8 @@
 // Original source: https://github.com/solidityj/solidity-antlr4/blob/master/Solidity.g4
 // changes are marked with REMOVED or CHANGED
 //
-// - removed language features:
-//   - imports (importDeclaration, importDirective)
-//      -> https://solidity.readthedocs.io/en/v0.4.24/layout-of-source-files.html#importing-other-source-files
-//   - interfaces, libraries
-//   - inheritance (inheritanceSpecifier)
-//      -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#inheritance
 //   - using for (usingForDeclaration)
 //      -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#using-for
-//   - function modifiers / modifier definitions (modifierDefinition, modifierInvocation)
-//      -> https://solidity.readthedocs.io/en/v0.4.24/common-patterns.html#restricting-access
 //   - events (eventDefinition,eventParameterList,eventParameter)
 //      -> https://solidity.readthedocs.io/en/v0.4.21/contracts.html#events
 //   - struct (structDefinition)
@@ -44,7 +36,7 @@ sourceUnit: (
 )* EOF
     | sba EOF;
 
-sba: 'SOL' (expression | statement | contractBodyElement ) EOF;
+sba: 'SOL' (expression | statement | contractBodyElement) EOF;
 
 pragmaDirective
   : 'pragma' name=('cloak' | 'solidity') ver=version ';' ;
@@ -153,6 +145,16 @@ stateVariableDeclaration
   : ( keywords+=FinalKeyword )* annotated_type=annotatedTypeName
     ( keywords+=ConstantKeyword )*
     idf=identifier ('=' expr=expression)? ';' ;
+
+/**
+ * The declaration of a state variable.
+ */
+// stateVariableDeclaration:
+//     type=annotatedTypeName
+//     ('public' | 'private' | 'internal' | 'constant' | overrideSpecifier | 'immutable')*
+//     name=identifier
+//     (Assign initialValue=expression)?
+//     Semicolon;
 
 // 
 // The declaration of a constant variable.
@@ -403,8 +405,8 @@ MeKeyword : 'me' ;
 AllKeyword : 'all' ;
 TeeKeyword : 'tee' ;
 
-annotatedTypeName
-  : type_name=typeName ('@' privacy_annotation=expression)? ;
+annotatedTypeName:
+    type_name=typeName ('@' privacy_annotation=expression)? ;
 
 // REMOVED:
 // - 'from'

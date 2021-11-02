@@ -83,7 +83,8 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
     process_ast(cloak_ast)
 
     with print_step("Generate privacy policy"):
-        _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')
+        cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2)
+        _dump_to_output(cloak_ast.generated_policy, output_dir, f'policy.json')
 
     # Write private contract file
     with print_step('Write private solidity code'):

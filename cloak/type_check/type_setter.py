@@ -7,7 +7,7 @@ from cloak.cloak_ast.ast import AST, CodeVisitor, IdentifierExpr, ReturnStatemen
     LocationExpr, NewExpr, TupleExpr, ConstructorOrFunctionDefinition, WhileStatement, ForStatement, NumberLiteralType, \
     BooleanLiteralType, EnumValue, EnumTypeName, EnumDefinition, EnumValueTypeName, PrimitiveCastExpr, \
     UserDefinedTypeName, get_privacy_expr_from_label, issue_compiler_warning, AllExpr, ContractDefinition, FunctionPrivacyType
-from cloak.cloak_ast.visitor.deep_copy import deep_copy, replace_expr
+from cloak.cloak_ast.visitor.deep_copy import replace_expr
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 
 def set_type(ast):

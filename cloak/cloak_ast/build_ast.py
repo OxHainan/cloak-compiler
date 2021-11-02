@@ -142,15 +142,8 @@ class BuildASTVisitor(SolidityVisitor):
     # Visit a parse tree produced by SolidityParser#contractDefinition.
     def visitContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
         identifier = self.visit(ctx.idf)
-        if '$' in identifier.name:
-            raise SyntaxException('$ is not allowed in zkay contract identifiers', ctx.idf, self.code)
-        parts = [self.visit(c) for c in ctx.parts]
-        state_vars = [p for p in parts if isinstance(p, StateVariableDeclaration)]
-        cfdefs = [p for p in parts if isinstance(p, ast.ConstructorOrFunctionDefinition)]
-        constructors = [p for p in cfdefs if p.is_constructor]
-        functions = [p for p in cfdefs if p.is_function]
-        enums = [p for p in parts if isinstance(p, ast.EnumDefinition)]
-        return ContractDefinition(identifier, state_vars, constructors, functions, enums)
+        units = [self.visit(c) for c in ctx.parts]
+        return ContractDefinition(identifier, units)
 
     def handle_fdef(self, ctx):
         if isinstance(ctx, SolidityParser.ConstructorDefinitionContext):
@@ -173,7 +166,7 @@ class BuildASTVisitor(SolidityVisitor):
         if ctx.stateMutability():
             modifiers.append(ctx.stateMutability(0).getText())
         if ctx.modifierInvocation():
-            modifiers += self.handle_field(self.visitModifierInvocation())
+            modifiers += self.handle_field(ctx.modifierInvocation())
         if ctx.virtual:
             modifiers.append("virtual")
         if ctx.overrideSpecifier():
@@ -232,9 +225,6 @@ class BuildASTVisitor(SolidityVisitor):
         for idx in range(0, len(contents), 2):
             elements.append(self.visit(contents[idx]))
         return ast.TupleExpr(elements)
-
-    def visitModifier(self, ctx: SolidityParser.ModifierContext):
-        return ctx.getText()
 
     def visitAnnotatedTypeName(self, ctx: SolidityParser.AnnotatedTypeNameContext):
         pa = None
@@ -538,3 +528,11 @@ class BuildASTVisitor(SolidityVisitor):
     def visitOverrideSpecifier(self, ctx: SolidityParser.OverrideSpecifierContext):
         paths = self.handle_field(ctx.identifierPath())
         return ast_module.OverrideSpecifier(paths)
+
+    def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
+        name = ctx.name.getText()
+        ps = self.handle_field(ctx.parameters)
+        virtual = ctx.virtual is not None
+        overrideSpecifier = self.handle_field(ctx.overrideSpecifier())
+        body = self.handle_field(ctx.body)
+        return ast_module.ModifierDefinition(name, ps, virtual, overrideSpecifier, body)
