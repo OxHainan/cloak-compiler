@@ -55,7 +55,7 @@ class BuildASTVisitor(SolidityVisitor):
         t = t.replace('Context', '')
 
         # may be able to return the result for a SINGLE, UNNAMED CHILD without wrapping it in an object
-        direct_unnamed = ['ContractBodyElement', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
+        direct_unnamed = ['ContractBodyElement', 'StateMutability', 'Visibility', 'Statement', 'SimpleStatement', 'PrimaryExpression']
         if t in direct_unnamed:
             if ctx.getChildCount() != 1:
                 raise TypeError(t + ' does not have a single, unnamed child')
@@ -145,44 +145,23 @@ class BuildASTVisitor(SolidityVisitor):
         units = [self.visit(c) for c in ctx.parts]
         return ContractDefinition(identifier, units)
 
-    def handle_fdef(self, ctx):
-        if isinstance(ctx, SolidityParser.ConstructorDefinitionContext):
-            idf, ret_params = None, None
-        else:
-            idf, ret_params = self.visit(ctx.idf), self.handle_field(ctx.return_parameters)
-            if '$' in idf.name:
-                raise SyntaxException('$ is not allowed in zkay function identifiers', ctx.idf, self.code)
-        params, mods, body = self.handle_field(ctx.parameters), self.handle_field(ctx.modifiers), self.handle_field(ctx.body)
-        return ast.ConstructorOrFunctionDefinition(idf, params, mods, ret_params, body)
-
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
         name = self.handle_field(ctx.getChild(1))
         if isinstance(name, str):
             name = ast_module.Identifier(name)
         ps = self.handle_field(ctx.parameters)
-        modifiers = []
-        if ctx.visibility():
-            modifiers.append(ctx.visibility(0).getText())
-        if ctx.stateMutability():
-            modifiers.append(ctx.stateMutability(0).getText())
-        if ctx.modifierInvocation():
-            modifiers += self.handle_field(ctx.modifierInvocation())
-        if ctx.virtual:
-            modifiers.append("virtual")
-        if ctx.overrideSpecifier():
-            modifiers.append(self.visit(ctx.overrideSpecifier(0)))
+        modifiers = self.get_modifiers(ctx, modifiers=True, visibility=True, stateMutability=True, \
+                modifierInvocation=True, overrideSpecifier=True)
         rts = self.handle_field(ctx.return_parameters)
         body = self.handle_field(ctx.body)
-        return ast_module.ConstructorOrFunctionDefinition(name, ps, modifiers, rts, body)
+        return ast_module.ConstructorOrFunctionDefinition(name, ps, modifiers, rts, body, "function")
 
     def visitConstructorDefinition(self, ctx:SolidityParser.ConstructorDefinitionContext):
+        idf = ast_module.Identifier("constructor")
         ps = self.handle_field(ctx.parameters)
-        modifiers = []
-        if ctx.modifierInvocation():
-            modifiers += self.handle_field(ctx.modifierInvocation())
-        modifiers += self.handle_field(ctx.modifiers)
+        modifiers = self.get_modifiers(ctx, modifiers=True, modifierInvocation=True)
         body = self.visit(ctx.body)
-        return ast_module.ConstructorOrFunctionDefinition(None, ps, modifiers, [], body)
+        return ast_module.ConstructorOrFunctionDefinition(idf, ps, modifiers, [], body, "constructor")
 
     def visitEnumDefinition(self, ctx:SolidityParser.EnumDefinitionContext):
         idf = self.visit(ctx.idf)
@@ -536,3 +515,34 @@ class BuildASTVisitor(SolidityVisitor):
         overrideSpecifier = self.handle_field(ctx.overrideSpecifier())
         body = self.handle_field(ctx.body)
         return ast_module.ModifierDefinition(name, ps, virtual, overrideSpecifier, body)
+
+    def get_modifiers(self, ctx, modifiers=False, visibility=False,
+            stateMutability=False, modifierInvocation=False, overrideSpecifier=False):
+        res = []
+        if modifiers and ctx.modifiers:
+            res += self.handle_field(ctx.modifiers)
+        if visibility and ctx.visibility():
+            res += self.handle_field(ctx.visibility())
+        if stateMutability and ctx.stateMutability():
+            res += self.handle_field(ctx.stateMutability())
+        if modifierInvocation and ctx.modifierInvocation():
+            res += self.handle_field(ctx.modifierInvocation())
+        if overrideSpecifier and ctx.overrideSpecifier():
+            res += self.handle_field(ctx.overrideSpecifier())
+        return res
+
+    def visitFallbackFunctionDefinition(self, ctx: SolidityParser.FallbackFunctionDefinitionContext):
+        idf = ast_module.Identifier("fallback")
+        kind = "fallback"
+        parameters = self.handle_field(ctx.parameters)
+        return_parameters = self.handle_field(ctx.return_parameters)
+        body = self.handle_field(ctx.body)
+        modifiers = self.get_modifiers(ctx, modifiers=True, stateMutability=True, modifierInvocation=True, overrideSpecifier=True)
+        return ast_module.ConstructorOrFunctionDefinition(idf, parameters, modifiers, return_parameters, body, kind)
+
+    def visitReceiveFunctionDefinition(self, ctx: SolidityParser.ReceiveFunctionDefinitionContext):
+        idf = ast_module.Identifier("receive")
+        kind = "receive"
+        body = self.handle_field(ctx.body)
+        modifiers = self.get_modifiers(ctx, modifiers=True, modifierInvocation=True, overrideSpecifier=True)
+        return ast_module.ConstructorOrFunctionDefinition(idf, [], modifiers, [], body, kind)

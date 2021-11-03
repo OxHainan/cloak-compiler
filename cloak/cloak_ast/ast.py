@@ -1703,12 +1703,11 @@ class OverrideSpecifier(AST):
 
 class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
-    def __init__(self, idf: Optional[Identifier], parameters: List[Parameter], modifiers: List[Union[str, AST]],
-            return_parameters: Optional[List[Parameter]], body: Optional[Block] = None):
-        assert (idf is not None and idf.name != 'constructor') or not return_parameters
-        if idf is None:
-            idf = Identifier('constructor')
+    def __init__(self, idf: Identifier, parameters: List[Parameter], modifiers: List[Union[str, AST]],
+            return_parameters: Optional[List[Parameter]], body: Optional[Block] = None, kind: str = "function"):
+        assert idf
         super().__init__(idf)
+        self.kind = kind
         self.parameters = parameters
         self.modifiers = modifiers
         self.body = body
@@ -1790,11 +1789,11 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
     @property
     def is_constructor(self) -> bool:
-        return self.idf.name == 'constructor'
+        return self.kind == "constructor"
 
     @property
     def is_function(self) -> bool:
-        return not self.is_constructor
+        return self.kind == "function"
 
     def _update_fct_type(self):
         self.annotated_type = AnnotatedTypeName(FunctionTypeName(self.parameters, self.modifiers, self.return_parameters))
@@ -2522,33 +2521,21 @@ class CodeVisitor(AstVisitor):
         return s
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+        definition = ast.kind
+        if ast.kind == 'function':
+            definition += f' {ast.idf.name}'
+        ps = self.visit_list(ast.parameters, ', ')
+        modifiers = ' '.join(map(lambda x: x if isinstance(x, str) else self.visit(x), ast.modifiers))
+        if modifiers != '':
+            modifiers = f' {modifiers}'
+        rs = self.visit_list(ast.return_parameters, ', ')
+        if rs != '':
+            rs = f' returns ({rs})'
         body = ";"
         if ast.body:
             body = self.visit_single_or_list(ast.body)
-        return self.function_definition_to_str(ast.idf, ast.parameters, ast.modifiers, ast.return_parameters, body)
 
-    def function_definition_to_str(
-            self,
-            idf: Identifier,
-            parameters: List[Union[Parameter, str]],
-            modifiers: List[str],
-            return_parameters: List[Parameter],
-            body: str):
-        if idf.name != 'constructor':
-            i = self.visit(idf)
-            definition = f'function {i}'
-        else:
-            definition = 'constructor'
-        p = self.visit_list(parameters, ', ')
-        m = ' '.join(map(lambda x: x if isinstance(x, str) else self.visit(x), modifiers))
-        if m != '':
-            m = f' {m}'
-        r = self.visit_list(return_parameters, ', ')
-        if r != '':
-            r = f' returns ({r})'
-
-        f = f"{definition}({p}){m}{r} {body}"
-        return f
+        return f"{definition}({ps}){modifiers}{rs} {body}"
 
     def visitEnumValue(self, ast: EnumValue):
         return self.visit(ast.idf)

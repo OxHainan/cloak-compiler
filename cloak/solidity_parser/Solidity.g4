@@ -106,8 +106,8 @@ contractBodyElement:
     constructorDefinition
     | functionDefinition
     | modifierDefinition
-    // TODO | fallbackFunctionDefinition
-    // TODO | receiveFunctionDefinition
+    | fallbackFunctionDefinition
+    | receiveFunctionDefinition
     // TODO | structDefinition
     | enumDefinition
     // TODO | userDefinedValueTypeDefinition
@@ -180,7 +180,7 @@ constructorDefinition:
 functionDefinition:
     'function' (identifier | 'fallback' | 'receive')
     parameters=parameterList
-    (visibility | stateMutability | modifierInvocation | virtual='virtual' | overrideSpecifier)*
+    (visibility | stateMutability | modifierInvocation | modifiers+='virtual' | overrideSpecifier)*
     return_parameters=returnParameters?
     (';' | body=block)
     ;
@@ -194,6 +194,23 @@ modifierDefinition:
     'modifier' name=identifier
     parameters=parameterList
     ( virtual='virtual' | overrideSpecifier)*
+    (';' | body=block);
+
+/**
+ * Definition of the special fallback function.
+ */
+fallbackFunctionDefinition:
+    'fallback' parameters=parameterList?
+    (modifiers+='external' | stateMutability | modifierInvocation | modifiers+='virtual' | overrideSpecifier)*
+    return_parameters=returnParameters?
+    (';' | body=block);
+
+/**
+ * Definition of the special receive function.
+ */
+receiveFunctionDefinition:
+    'receive' '(' ')'
+    (modifiers+='external' | modifiers+='payable' | modifierInvocation | modifiers+='virtual' | overrideSpecifier)*
     (';' | body=block);
 
 returnParameters
