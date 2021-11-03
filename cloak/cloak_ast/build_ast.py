@@ -546,3 +546,13 @@ class BuildASTVisitor(SolidityVisitor):
         body = self.handle_field(ctx.body)
         modifiers = self.get_modifiers(ctx, modifiers=True, modifierInvocation=True, overrideSpecifier=True)
         return ast_module.ConstructorOrFunctionDefinition(idf, [], modifiers, [], body, kind)
+
+    def visitStructMember(self, ctx: SolidityParser.StructMemberContext):
+        idf = self.visit(ctx.name)
+        type_name = self.visit(ctx.typeName())
+        return ast_module.VariableDeclaration([], ast_module.AnnotatedTypeName(type_name), idf)
+
+    def visitStructDefinition(self, ctx: SolidityParser.StructDefinitionContext):
+        idf = self.visit(ctx.name)
+        members = self.handle_field(ctx.structMember())
+        return ast_module.StructDefinition(idf, members)

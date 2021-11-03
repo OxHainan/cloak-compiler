@@ -2027,7 +2027,7 @@ class SourceUnit(AST):
         self.interfaces = []
         self.libraries = []
         self.function_definitions = []
-        # self.struct_definitions = struct_definitions or []
+        self.struct_definitions = []
         # self.enum_definitions = enum_definitions or []
         # self.user_defined_value_types = user_defined_value_types or []
         # self.error_definitions = error_definitions or []
@@ -2059,6 +2059,7 @@ class SourceUnit(AST):
         self.interfaces = [x for x in self.units if isinstance(x, InterfaceDefinition)]
         self.libraries = [x for x in self.units if isinstance(x, LibraryDefinition)]
         self.function_definitions = [x for x in self.units if isinstance(x, ConstructorOrFunctionDefinition)]
+        self.struct_definitions = [x for x in self.units if isinstance(x, StructDefinition)]
 
 
 PrivacyLabelExpr = Union[MeExpr, AllExpr, TeeExpr, Identifier]
@@ -2553,11 +2554,8 @@ class CodeVisitor(AstVisitor):
         return cmp
 
     def visitStructDefinition(self, ast: StructDefinition):
-        # Define struct with members in order of descending size (to get maximum space savings through packing)
-        members_by_descending_size = sorted(ast.members, key=cmp_to_key(self.__cmp_type_size), reverse=True)
-
-        body = '\n'.join([f'{self.visit(member)};' for member in members_by_descending_size])
-        return f'struct {self.visit(ast.idf)} {{\n{indent(body)}\n}}'
+        members = self.visit_list(ast.members, ";\n") + ";"
+        return f'struct {self.visit(ast.idf)} {{\n{indent(members)}\n}}'
 
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
         keywords = [k for k in ast.keywords if self.display_final or k != 'final']

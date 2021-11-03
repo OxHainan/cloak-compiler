@@ -8,8 +8,6 @@
 //      -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#using-for
 //   - events (eventDefinition,eventParameterList,eventParameter)
 //      -> https://solidity.readthedocs.io/en/v0.4.21/contracts.html#events
-//   - struct (structDefinition)
-// - moved stateVariableAccessModifiers to separate rule
 // - user defined type names (userDefinedTypeName)
 // - function type name (functionTypeName, functionTypeParameterList, functionTypeParameter), needed for higher-order functions
 
@@ -29,7 +27,7 @@ sourceUnit: (
     | libraryDefinition
     | functionDefinition
     // | constantVariableDeclaration
-    // | structDefinition
+    | structDefinition
     // | enumDefinition
     // | userDefinedValueTypeDefinition
     // | errorDefinition
@@ -108,7 +106,7 @@ contractBodyElement:
     | modifierDefinition
     | fallbackFunctionDefinition
     | receiveFunctionDefinition
-    // TODO | structDefinition
+    | structDefinition
     | enumDefinition
     // TODO | userDefinedValueTypeDefinition
     | stateVariableDeclaration
@@ -212,6 +210,15 @@ receiveFunctionDefinition:
     'receive' '(' ')'
     (modifiers+='external' | modifiers+='payable' | modifierInvocation | modifiers+='virtual' | overrideSpecifier)*
     (';' | body=block);
+
+/**
+ * Definition of a struct. Can occur at top-level within a source unit or within a contract, library or interface.
+ */
+structDefinition: 'struct' name=identifier '{' structMember+ '}';
+/**
+ * The declaration of a named struct member.
+ */
+structMember: typeName name=identifier ';';
 
 returnParameters
 : 'returns' return_parameters=parameterList ;
