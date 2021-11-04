@@ -124,10 +124,6 @@ class AST:
     def __str__(self):
         return self.code()
 
-    def clone(self):
-        from cloak.cloak_ast.visitor.deep_copy import deep_copy
-        return deep_copy(self)
-
 
 class Identifier(AST):
 
@@ -138,12 +134,6 @@ class Identifier(AST):
     @property
     def is_immutable(self):
         return isinstance(self.parent, StateVariableDeclaration) and (self.parent.is_final or self.parent.is_constant)
-
-    def decl_var(self, t: Union[TypeName, AnnotatedTypeName], expr: Optional[Expression] = None):
-        if isinstance(t, TypeName):
-            t = AnnotatedTypeName(t)
-        storage_loc = '' if t.type_name.is_primitive_type() else 'memory'
-        return VariableDeclarationStatement(VariableDeclaration([], t, self.clone(), storage_loc), expr)
 
 
 class Comment(AST):
@@ -184,33 +174,33 @@ class Expression(AST):
         me.statement = stmt
         return me
 
-    def explicitly_converted(self: T, expected: TypeName) -> Union[T, FunctionCallExpr]:
-        if expected == TypeName.bool_type() and not self.instanceof_data_type(TypeName.bool_type()):
-            ret = FunctionCallExpr(BuiltinFunction('!='), [self, NumberLiteralExpr(0)])
-        elif expected.is_numeric and self.instanceof_data_type(TypeName.bool_type()):
-            ret = FunctionCallExpr(BuiltinFunction('ite'), [self, NumberLiteralExpr(1), NumberLiteralExpr(0)])
-        else:
-            t = self.annotated_type.type_name
+    # def explicitly_converted(self: T, expected: TypeName) -> Union[T, FunctionCallExpr]:
+    #     if expected == TypeName.bool_type() and not self.instanceof_data_type(TypeName.bool_type()):
+    #         ret = FunctionCallExpr(BuiltinFunction('!='), [self, NumberLiteralExpr(0)])
+    #     elif expected.is_numeric and self.instanceof_data_type(TypeName.bool_type()):
+    #         ret = FunctionCallExpr(BuiltinFunction('ite'), [self, NumberLiteralExpr(1), NumberLiteralExpr(0)])
+    #     else:
+    #         t = self.annotated_type.type_name
 
-            if t == expected:
-                return self
+    #         if t == expected:
+    #             return self
 
-            # Explicit casts
-            cast = False
-            if isinstance(t, NumberTypeName) and isinstance(expected, (NumberTypeName, AddressTypeName, AddressPayableTypeName, EnumTypeName)):
-                cast = True
-            elif isinstance(t, AddressTypeName) and isinstance(expected, NumberTypeName):
-                cast = True
-            elif isinstance(t, AddressPayableTypeName) and isinstance(expected, (NumberTypeName, AddressTypeName)):
-                cast = True
-            elif isinstance(t, EnumTypeName) and isinstance(expected, NumberTypeName):
-                cast = True
+    #         # Explicit casts
+    #         cast = False
+    #         if isinstance(t, NumberTypeName) and isinstance(expected, (NumberTypeName, AddressTypeName, AddressPayableTypeName, EnumTypeName)):
+    #             cast = True
+    #         elif isinstance(t, AddressTypeName) and isinstance(expected, NumberTypeName):
+    #             cast = True
+    #         elif isinstance(t, AddressPayableTypeName) and isinstance(expected, (NumberTypeName, AddressTypeName)):
+    #             cast = True
+    #         elif isinstance(t, EnumTypeName) and isinstance(expected, NumberTypeName):
+    #             cast = True
 
-            assert cast
-            return PrimitiveCastExpr(expected, self).as_type(expected)
+    #         assert cast
+    #         return PrimitiveCastExpr(expected, self).as_type(expected)
 
-        ret.annotated_type = AnnotatedTypeName(expected.clone(), self.annotated_type.privacy_annotation.clone())
-        return ret
+    #     ret.annotated_type = AnnotatedTypeName(expected.clone(), self.annotated_type.privacy_annotation.clone())
+    #     return ret
 
     def __init__(self):
         super().__init__()
@@ -581,11 +571,11 @@ class LocationExpr(TupleOrLocationExpr):
         if member is None:
             return FunctionCallExpr(self, args)
         else:
-            member = Identifier(member) if isinstance(member, str) else member.clone()
+            member = Identifier(member) if isinstance(member, str) else member
             return FunctionCallExpr(MemberAccessExpr(self, member), args)
 
     def dot(self, member: Union[str, Identifier]) -> MemberAccessExpr:
-        member = Identifier(member) if isinstance(member, str) else member.clone()
+        member = Identifier(member) if isinstance(member, str) else member
         return MemberAccessExpr(self, member)
 
     def index(self, item: Union[int, Expression]) -> IndexExpr:
@@ -617,7 +607,7 @@ class IdentifierExpr(LocationExpr):
         self.idf = f(self.idf)
 
     def slice(self, offset: int, size: int, base: Optional[Expression] = None) -> SliceExpr:
-        return SliceExpr(self.clone(), base, offset, size)
+        return SliceExpr(self, base, offset, size)
 
 class MemberAccessExpr(LocationExpr):
     def __init__(self, expr: LocationExpr, member: Identifier):
@@ -715,81 +705,6 @@ class ReclassifyExpr(Expression):
         self.privacy = f(self.privacy)
 
 
-class HybridArgType(IntEnum):
-    PRIV_CIRCUIT_VAL = 0
-    PUB_CIRCUIT_ARG = 1
-    PUB_CONTRACT_VAL = 2
-    TMP_CIRCUIT_VAL = 3
-
-
-class HybridArgumentIdf(Identifier):
-    def __init__(self, name: str, t: TypeName, arg_type: HybridArgType, corresponding_priv_expression: Optional[Expression] = None):
-        super().__init__(name)
-        self.t = t  # transformed type of this idf
-        if isinstance(t, BooleanLiteralType):
-            self.t = TypeName.bool_type()
-        elif isinstance(t, NumberLiteralType):
-            self.t = t.to_abstract_type()
-        elif isinstance(t, EnumValueTypeName):
-            self.t = t.to_abstract_type()
-        self.arg_type = arg_type
-        self.corresponding_priv_expression = corresponding_priv_expression
-        self.serialized_loc: SliceExpr = SliceExpr(IdentifierExpr(''), None, -1, -1)
-
-    def get_loc_expr(self, parent=None) -> Union[LocationExpr, NumberLiteralExpr, BooleanLiteralExpr]:
-        if self.arg_type == HybridArgType.TMP_CIRCUIT_VAL and isinstance(self.corresponding_priv_expression.annotated_type.type_name, BooleanLiteralType):
-            return BooleanLiteralExpr(self.corresponding_priv_expression.annotated_type.type_name.value)
-        elif self.arg_type == HybridArgType.TMP_CIRCUIT_VAL and isinstance(self.corresponding_priv_expression.annotated_type.type_name, NumberLiteralType):
-            return NumberLiteralExpr(self.corresponding_priv_expression.annotated_type.type_name.value)
-        else:
-            assert self.arg_type == HybridArgType.PUB_CIRCUIT_ARG
-            ma = IdentifierExpr(cfg.zk_data_var_name).dot(self).as_type(self.t)
-            return ma.override(parent=parent, statement=parent if (parent is None or isinstance(parent, Statement)) else parent.statement)
-
-    def get_idf_expr(self, parent=None) -> IdentifierExpr:
-        ie = IdentifierExpr(self.clone()).as_type(self.t)
-        return ie.override(parent=parent, statement=parent if (parent is None or isinstance(parent, Statement)) else parent.statement)
-
-    def _set_serialized_loc(self, idf, base, start_offset):
-        assert self.serialized_loc.start_offset == -1
-        self.serialized_loc.arr = IdentifierExpr(idf)
-        self.serialized_loc.base = base
-        self.serialized_loc.start_offset = start_offset
-        self.serialized_loc.size = self.t.size_in_uints
-
-    def deserialize(self, source_idf: str, base: Optional[Expression], start_offset: int) -> AssignmentStatement:
-        self._set_serialized_loc(source_idf, base, start_offset)
-
-        src = IdentifierExpr(source_idf).as_type(Array(AnnotatedTypeName.uint_all()))
-        if isinstance(self.t, Array):
-            return SliceExpr(self.get_loc_expr(), None, 0, self.t.size_in_uints).assign(self.serialized_loc)
-        elif base is not None:
-            return self.get_loc_expr().assign(src.index(base.binop('+', NumberLiteralExpr(start_offset))).explicitly_converted(self.t))
-        else:
-            return self.get_loc_expr().assign(src.index(start_offset).explicitly_converted(self.t))
-
-    def serialize(self, target_idf: str, base: Optional[Expression], start_offset: int) -> AssignmentStatement:
-        self._set_serialized_loc(target_idf, base, start_offset)
-
-        tgt = IdentifierExpr(target_idf).as_type(Array(AnnotatedTypeName.uint_all()))
-        if isinstance(self.t, Array):
-            return self.serialized_loc.assign(SliceExpr(self.get_loc_expr(), None, 0, self.t.size_in_uints))
-        else:
-            expr = self.get_loc_expr()
-            if self.t.is_signed_numeric:
-                # Cast to same size uint to prevent sign extension
-                expr = expr.explicitly_converted(UintTypeName(f'uint{self.t.elem_bitwidth}'))
-            elif self.t.is_numeric and self.t.elem_bitwidth == 256:
-                expr = expr.binop('%', IdentifierExpr(cfg.zk_field_prime_var_name)).as_type(self.t)
-            else:
-                expr = expr.explicitly_converted(TypeName.uint_type())
-
-            if base is not None:
-                return tgt.clone().index(base.binop('+', NumberLiteralExpr(start_offset))).assign(expr)
-            else:
-                return tgt.clone().index(start_offset).assign(expr)
-
-
 class Statement(AST):
 
     def __init__(self):
@@ -802,21 +717,6 @@ class Statement(AST):
 
         # set by circuit helper
         self.pre_statements = []
-
-
-class CircuitDirectiveStatement(Statement):
-    """Invisible statement with instructions for offchain simulator"""
-    pass
-
-
-class CircuitComputationStatement(CircuitDirectiveStatement):
-    def __init__(self, var: HybridArgumentIdf):
-        super().__init__()
-        self.idf = var.clone()
-
-
-class EnterPrivateKeyStatement(CircuitDirectiveStatement):
-    pass
 
 
 class IfStatement(Statement):
@@ -1535,9 +1435,9 @@ class AnnotatedTypeName(AST):
         p_actual = self.privacy_annotation.privacy_annotation_label()
         if p_expected and p_actual:
             if p_expected == p_actual or (analysis is not None and analysis.same_partition(p_expected, p_actual)):
-                return self.privacy_annotation.clone()
+                return self.privacy_annotation
             elif self.privacy_annotation.is_all_expr():
-                return other.privacy_annotation.clone()
+                return other.privacy_annotation
         else:
             return None
 
@@ -1659,7 +1559,7 @@ class Parameter(IdentifierDeclaration):
         super().__init__(keywords, annotated_type, idf, storage_location)
 
     def copy(self) -> Parameter:
-        return Parameter(self.keywords, self.annotated_type.clone(), self.idf.clone() if self.idf else None, self.storage_location)
+        return Parameter(self.keywords, self.annotated_type, self.idf if self.idf else None, self.storage_location)
 
     def with_changed_storage(self, match_storage: str, new_storage: str) -> Parameter:
         if self.storage_location == match_storage:
@@ -1808,7 +1708,7 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
     def add_param(self, t: Union[TypeName, AnnotatedTypeName], idf: Union[str, Identifier], ref_storage_loc: str = 'memory'):
         t = t if isinstance(t, AnnotatedTypeName) else AnnotatedTypeName(t)
-        idf = Identifier(idf) if isinstance(idf, str) else idf.clone()
+        idf = Identifier(idf) if isinstance(idf, str) else idf
         storage_loc = '' if t.type_name.is_primitive_type() else ref_storage_loc
         self.parameters.append(Parameter([], t, idf, storage_loc))
         self._update_fct_type()
@@ -1831,17 +1731,17 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
 
 class ModifierDefinition(AST):
     def __init__(self, name: str, parameters: List[Parameter], virtual: bool = False,
-            overrideSpecifier: Optional[OverrideSpecifier] = None, body: Optional[Block] = None):
+            overrideSpecifiers: List[OverrideSpecifier] = None, body: Optional[Block] = None):
         super().__init__()
         self.name = name
         self.parameters = parameters
         self.virtual = virtual
-        self.overrideSpecifier = overrideSpecifier
+        self.overrideSpecifiers = overrideSpecifiers
         self.body = body
 
     def process_children(self, f):
         self.parameters[:] = map(f, self.parameters)
-        self.overrideSpecifier = f(self.overrideSpecifier)
+        self.overrideSpecifiers[:] = map(f, self.overrideSpecifiers)
         if self.body:
             self.body = f(self.body)
 
@@ -1889,6 +1789,40 @@ class EnumDefinition(NamespaceDefinition):
         self.values[:] = map(f, self.values)
 
 
+class UserDefinedValueTypeDefinition(NamespaceDefinition):
+    def __init__(self, idf: Identifier, underlying_type: ElementaryTypeName):
+        super().__init__(idf)
+        self.underlying_type = underlying_type
+
+    def process_children(self, f: Callable[[T], T]):
+        super().process_children(f)
+        self.underlying_type = f(self.underlying_type)
+
+
+class EventParameter(AST):
+    def __init__(self, annotated_type: AnnotatedTypeName, indexed: Optional[str] = None, name: Optional[Identifier] = None):
+        super().__init__()
+        self.annotated_type = annotated_type
+        self.indexed = indexed
+        self.name = name
+
+    def process_children(self, f: Callable[[T], T]):
+        self.annotated_type = f(self.annotated_type)
+        if self.name:
+            self.name = f(self.name)
+
+
+class EventDefinition(NamespaceDefinition):
+    def __init__(self, idf: Identifier, parameters: Optional[EventParameter], anonymous: Optional[str] = None):
+        super().__init__(idf)
+        self.parameters = parameters or []
+        self.anonymous = anonymous
+
+    def process_children(self, f: Callable[[T], T]):
+        super().process_children(f)
+        self.parameters[:] = map(f, self.parameters)
+
+
 class StructDefinition(NamespaceDefinition):
     def __init__(self, idf: Identifier, members: List[VariableDeclaration]):
         super().__init__(idf)
@@ -1910,6 +1844,8 @@ class ContractDefinition(NamespaceDefinition):
         self.modifier_definitions: List[ModifierDefinition]
         self.enum_definitions: List[EnumDefinition]
         self.struct_definitions: List[StructDefinition]
+        self.user_defined_value_types: List[UserDefinedValueTypeDefinition]
+        self.event_definitions: List[UserDefinedValueTypeDefinition]
         self.assign_from_units()
 
         # extra body parts
@@ -1923,6 +1859,8 @@ class ContractDefinition(NamespaceDefinition):
         self.modifier_definitions = []
         self.enum_definitions = []
         self.struct_definitions = []
+        self.user_defined_value_types = []
+        self.event_definitions = []
 
     def assign_from_units(self):
         self.clean()
@@ -1939,6 +1877,10 @@ class ContractDefinition(NamespaceDefinition):
                 self.enum_definitions.append(unit)
             elif isinstance(unit, StructDefinition):
                 self.struct_definitions.append(unit)
+            elif isinstance(unit, UserDefinedValueTypeDefinition):
+                self.user_defined_value_types.append(unit)
+            elif isinstance(unit, EventDefinition):
+                self.event_definitions.append(unit)
             else:
                 raise exceptions.CloakCompilerError(f"invalid unit:{type(unit)}")
 
@@ -1949,6 +1891,9 @@ class ContractDefinition(NamespaceDefinition):
         self.state_variable_declarations[:] = map(f, self.state_variable_declarations)
         self.constructor_definitions[:] = map(f, self.constructor_definitions)
         self.function_definitions[:] = map(f, self.function_definitions)
+        # TODO:
+        # self.units[:] = map(f, self.units)
+        # self.assign_from_units
 
     def __getitem__(self, key: str):
         if key == 'constructor':
@@ -2028,8 +1973,9 @@ class SourceUnit(AST):
         self.libraries = []
         self.function_definitions = []
         self.struct_definitions = []
-        # self.enum_definitions = enum_definitions or []
-        # self.user_defined_value_types = user_defined_value_types or []
+        self.enum_definitions = []
+        self.user_defined_value_types = []
+        self.constant_variables = []
         # self.error_definitions = error_definitions or []
         self.assign_from_units()
 
@@ -2060,6 +2006,9 @@ class SourceUnit(AST):
         self.libraries = [x for x in self.units if isinstance(x, LibraryDefinition)]
         self.function_definitions = [x for x in self.units if isinstance(x, ConstructorOrFunctionDefinition)]
         self.struct_definitions = [x for x in self.units if isinstance(x, StructDefinition)]
+        self.enum_definitions = [x for x in self.units if isinstance(x, EnumDefinition)]
+        self.user_defined_value_types = [x for x in self.units if isinstance(x, UserDefinedValueTypeDefinition)]
+        self.constant_variables = [x for x in self.units if isinstance(x, VariableDeclarationStatement)]
 
 
 PrivacyLabelExpr = Union[MeExpr, AllExpr, TeeExpr, Identifier]
@@ -2069,9 +2018,9 @@ TargetDefinition = Union[IdentifierDeclaration, NamespaceDefinition]
 def get_privacy_expr_from_label(plabel: PrivacyLabelExpr):
     """Turn privacy label into expression (i.e. Identifier -> IdentifierExpr, Me and All stay the same)."""
     if isinstance(plabel, Identifier):
-        return IdentifierExpr(plabel.clone(), AnnotatedTypeName.address_all()).override(target=plabel.parent)
+        return IdentifierExpr(plabel, AnnotatedTypeName.address_all()).override(target=plabel.parent)
     else:
-        return plabel.clone()
+        return plabel
 
 
 class InstanceTarget(tuple):
@@ -2087,7 +2036,7 @@ class InstanceTarget(tuple):
                 target_key[0] = expr.target
             elif isinstance(expr, MemberAccessExpr):
                 target_key[0] = expr.expr.target
-                target_key[1] = expr.member.clone()
+                target_key[1] = expr.member
             else:
                 assert isinstance(expr, IndexExpr)
                 target_key[0] = expr.get_leftmost_identifier().target
@@ -2423,9 +2372,6 @@ class CodeVisitor(AstVisitor):
             rhs = self.visit(rhs)
             return fstr.format(lhs, op, rhs)
 
-    def visitCircuitDirectiveStatement(self, ast: CircuitDirectiveStatement):
-        return None
-
     def handle_block(self, ast: StatementList):
         s = self.visit_list(ast.statements)
         s = indent(s)
@@ -2630,4 +2576,16 @@ class CodeVisitor(AstVisitor):
         body = ";"
         if ast.body:
             body = self.visitBlock(ast.body)
-        return f"modifier {ast.name}({ps}){virtual} {self.visit_list(ast.overrideSpecifier, ', ')} {body}"
+        return f"modifier {ast.name}({ps}){virtual} {self.visit_list(ast.overrideSpecifiers, ', ')} {body}"
+
+    def visitUserDefinedValueTypeDefinition(self, ast: UserDefinedValueTypeDefinition):
+        return f"type {self.visit(ast.idf)} is {self.visit(ast.underlying_type)};"
+
+    def visitEventParameter(self, ast: EventParameter):
+        indexed = " indexed" if ast.indexed else ""
+        name = f" {self.visit(ast.name)}" if ast.name else ""
+        return f"{self.visit(ast.annotated_type)}{indexed}{name}"
+
+    def visitEventDefinition(self, ast: EventDefinition):
+        anonymous = f" anonymous" if ast.anonymous else ""
+        return f"event {self.visit(ast.idf)}({self.visit_list(ast.parameters, ', ')}){anonymous};"

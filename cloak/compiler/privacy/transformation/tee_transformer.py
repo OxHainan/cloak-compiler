@@ -12,11 +12,10 @@ from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
 from cloak.compiler.solidity.fake_solidity_generator import WS_PATTERN, ID_PATTERN
 from cloak.config import cfg
 from cloak.cloak_ast.analysis.contains_private_checker import contains_private_expr
-from cloak.cloak_ast.ast import ExpressionStatement, Identifier, ReclassifyExpr, Expression, IfStatement, StatementList, HybridArgType, BlankLine, \
+from cloak.cloak_ast.ast import ExpressionStatement, Identifier, ReclassifyExpr, Expression, IfStatement, StatementList, BlankLine, \
     IdentifierExpr, Parameter, VariableDeclaration, AnnotatedTypeName, StateVariableDeclaration, Mapping, MeExpr, TypeName, \
     RequireStatement, Array, AssignmentStatement, Block, Comment, LiteralExpr, IndexExpr, FunctionCallExpr, BuiltinFunction, TupleExpr, \
     NumberLiteralExpr, MemberAccessExpr, WhileStatement, BreakStatement, ContinueStatement, ForStatement, DoWhileStatement, BytesTypeName
-from cloak.cloak_ast.visitor.deep_copy import replace_expr
 
 
 class TeeVarDeclTransformer(AstTransformerVisitor):
@@ -35,7 +34,7 @@ class TeeVarDeclTransformer(AstTransformerVisitor):
         if ast.is_private():
             t = Array(BytesTypeName(), 3)
         else:
-            t = self.visit(ast.type_name.clone())
+            t = self.visit(ast.type_name)
         return AnnotatedTypeName(t)
 
     def visitVariableDeclaration(self, ast: VariableDeclaration):
@@ -82,7 +81,7 @@ class TeeExpressionTransformer(AstTransformerVisitor):
     @staticmethod
     def visitMeExpr(ast: MeExpr):
         """Replace me with msg.sender."""
-        return replace_expr(ast, IdentifierExpr('msg').dot('sender')).as_type(AnnotatedTypeName.address_all())
+        return IdentifierExpr('msg').dot('sender')
 
     def visitLiteralExpr(self, ast: LiteralExpr):
         """Rule (7), don't modify constants."""
@@ -94,7 +93,7 @@ class TeeExpressionTransformer(AstTransformerVisitor):
 
     def visitIndexExpr(self, ast: IndexExpr):
         """Rule (9), transform location and index expressions separately."""
-        return replace_expr(ast, self.visit(ast.arr).index(self.visit(ast.key)))
+        return self.visit(ast.arr).index(self.visit(ast.key))
 
     def visitMemberAccessExpr(self, ast: MemberAccessExpr):
         return self.visit_children(ast)

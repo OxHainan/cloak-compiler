@@ -36,6 +36,11 @@ def SOL(code: str) -> ast.AST:
     return full_ast.sba
 
 
+# for deep copy
+def rebuild_ast(ast: ast_module.AST) -> ast_module.AST:
+    return SOL(ast.code())
+
+
 class BuildASTVisitor(SolidityVisitor):
 
     def __init__(self, tokens: CommonTokenStream, code: str):
@@ -512,9 +517,9 @@ class BuildASTVisitor(SolidityVisitor):
         name = ctx.name.getText()
         ps = self.handle_field(ctx.parameters)
         virtual = ctx.virtual is not None
-        overrideSpecifier = self.handle_field(ctx.overrideSpecifier())
+        overrideSpecifiers = self.handle_field(ctx.overrideSpecifier())
         body = self.handle_field(ctx.body)
-        return ast_module.ModifierDefinition(name, ps, virtual, overrideSpecifier, body)
+        return ast_module.ModifierDefinition(name, ps, virtual, overrideSpecifiers, body)
 
     def get_modifiers(self, ctx, modifiers=False, visibility=False,
             stateMutability=False, modifierInvocation=False, overrideSpecifier=False):
@@ -556,3 +561,25 @@ class BuildASTVisitor(SolidityVisitor):
         idf = self.visit(ctx.name)
         members = self.handle_field(ctx.structMember())
         return ast_module.StructDefinition(idf, members)
+
+    def visitUserDefinedValueTypeDefinition(self, ctx: SolidityParser.UserDefinedValueTypeDefinitionContext):
+        idf = self.visit(ctx.name)
+        underlying_type = self.visit(ctx.elementaryTypeName())
+        return ast_module.UserDefinedValueTypeDefinition(idf, underlying_type)
+
+    def visitConstantVariableDeclaration(self, ctx: SolidityParser.ConstantVariableDeclarationContext):
+        t = self.visit(ctx.annotated_type)
+        idf = self.visit(ctx.idf)
+        return ast_module.StateVariableDeclaration(t, ['constant'], idf, self.visit(ctx.expr))
+
+    def visitEventParameter(self, ctx: SolidityParser.EventParameterContext):
+        t = self.visit(ctx.annotatedTypeName())
+        indexed = self.handle_field(ctx.IndexedKeyword())
+        name = self.handle_field(ctx.name)
+        return ast_module.EventParameter(t, indexed, name)
+
+    def visitEventDefinition(self, ctx: SolidityParser.EventDefinitionContext):
+        idf = self.visit(ctx.name)
+        parameters = self.handle_field(ctx.parameters)
+        anonymous = self.handle_field(ctx.AnonymousKeyword())
+        return ast_module.EventDefinition(idf, parameters, anonymous)

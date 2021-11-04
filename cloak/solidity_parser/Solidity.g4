@@ -6,9 +6,6 @@
 //
 //   - using for (usingForDeclaration)
 //      -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#using-for
-//   - events (eventDefinition,eventParameterList,eventParameter)
-//      -> https://solidity.readthedocs.io/en/v0.4.21/contracts.html#events
-// - user defined type names (userDefinedTypeName)
 // - function type name (functionTypeName, functionTypeParameterList, functionTypeParameter), needed for higher-order functions
 
 
@@ -26,10 +23,10 @@ sourceUnit: (
     | interfaceDefinition
     | libraryDefinition
     | functionDefinition
-    // | constantVariableDeclaration
+    | constantVariableDeclaration
     | structDefinition
-    // | enumDefinition
-    // | userDefinedValueTypeDefinition
+    | enumDefinition
+    | userDefinedValueTypeDefinition
     // | errorDefinition
 )* EOF
     | sba EOF;
@@ -108,9 +105,9 @@ contractBodyElement:
     | receiveFunctionDefinition
     | structDefinition
     | enumDefinition
-    // TODO | userDefinedValueTypeDefinition
+    | userDefinedValueTypeDefinition
     | stateVariableDeclaration
-    // TODO | eventDefinition
+    | eventDefinition
     // TODO | errorDefinition
     // TODO | usingDirective
     ;
@@ -153,12 +150,6 @@ stateVariableDeclaration
 //     name=identifier
 //     (Assign initialValue=expression)?
 //     Semicolon;
-
-// 
-// The declaration of a constant variable.
-// 
-constantVariableDeclaration:
-    annotated_type=annotatedTypeName 'constant' idf=identifier '=' expr=expression ';';
 
 /**
  * Definition of a constructor.
@@ -260,6 +251,31 @@ enumValue
 enumDefinition
   : 'enum' idf=identifier '{' values+=enumValue? (',' values+=enumValue)* '}' ;
 
+/**
+ * Definition of a user defined value type. Can occur at top-level within a source unit or within a contract, library or interface.
+ */
+userDefinedValueTypeDefinition:
+    'type' name=identifier 'is' elementaryTypeName ';';
+
+/**
+ * The declaration of a constant variable.
+ */ 
+constantVariableDeclaration:
+    annotated_type=annotatedTypeName 'constant' idf=identifier '=' expr=expression ';';
+
+/**
+ * Parameter of an event.
+ */
+eventParameter: annotatedTypeName 'indexed'? name=identifier?;
+/**
+ * Definition of an event. Can occur in contracts, libraries or interfaces.
+ */
+eventDefinition:
+    'event' name=identifier
+    '(' (parameters+=eventParameter (',' parameters+=eventParameter)*)? ')'
+    'anonymous'?
+    ';';
+
 variableDeclaration
   : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
@@ -291,20 +307,21 @@ dataLocation: MemoryKeyword | StorageKeyword | CalldataKeyword;
 block
   : '{' statements+=statement* '}' ;
 
-// REMOVED:
-// - inlineAssemblyStatement
-// - throwStatement
-// - emitStatement
-statement
-  : ifStatement
-  | whileStatement
-  | forStatement
-  | block
-  | doWhileStatement
-  | continueStatement
-  | breakStatement
-  | returnStatement
-  | simpleStatement ;
+statement:
+    block
+    | simpleStatement
+    | ifStatement
+    | forStatement
+    | whileStatement
+    | doWhileStatement
+    | continueStatement
+    | breakStatement
+    // | tryStatement
+    | returnStatement
+    | emitStatement
+    // | revertStatement
+    // | assemblyStatement
+    ;
 
 expressionStatement
   : expr=expression ';' ;
@@ -331,8 +348,12 @@ breakStatement
   : 'break' ';' ;
 
 
-returnStatement
-  : 'return' expr=expression? ';' ;
+returnStatement: 'return' expr=expression? ';' ;
+
+/**
+ * An emit statement. The contained expression needs to refer to an event.
+ */
+emitStatement: 'emit' expression callArgumentList ';';
 
 // REMOVED:
 // - 'var' identifierList
