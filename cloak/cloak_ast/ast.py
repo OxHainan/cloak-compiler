@@ -792,6 +792,18 @@ class ReturnStatement(Statement):
         self.expr = f(self.expr)
 
 
+class EmitStatement(Statement):
+    def __init__(self, expr: Expression, args: Optional[CallArgumentList] = None):
+        super().__init__()
+        self.expr = expr
+        self.args = args = args
+
+    def process_children(self, f):
+        self.expr = f(self.expr)
+        if self.args:
+            self.args = f(self.args)
+
+
 class SimpleStatement(Statement):
     pass
 
@@ -1845,7 +1857,7 @@ class ContractDefinition(NamespaceDefinition):
         self.enum_definitions: List[EnumDefinition]
         self.struct_definitions: List[StructDefinition]
         self.user_defined_value_types: List[UserDefinedValueTypeDefinition]
-        self.event_definitions: List[UserDefinedValueTypeDefinition]
+        self.event_definitions: List[EventDefinition]
         self.assign_from_units()
 
         # extra body parts
@@ -1891,6 +1903,7 @@ class ContractDefinition(NamespaceDefinition):
         self.state_variable_declarations[:] = map(f, self.state_variable_declarations)
         self.constructor_definitions[:] = map(f, self.constructor_definitions)
         self.function_definitions[:] = map(f, self.function_definitions)
+        self.event_definitions[:] = map(f, self.event_definitions)
         # TODO:
         # self.units[:] = map(f, self.units)
         # self.assign_from_units
@@ -2589,3 +2602,6 @@ class CodeVisitor(AstVisitor):
     def visitEventDefinition(self, ast: EventDefinition):
         anonymous = f" anonymous" if ast.anonymous else ""
         return f"event {self.visit(ast.idf)}({self.visit_list(ast.parameters, ', ')}){anonymous};"
+
+    def visitEmitStatement(self, ast: EmitStatement):
+        return f"emit {self.visit(ast.expr)}({self.visit(ast.args)});"

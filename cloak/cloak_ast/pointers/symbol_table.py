@@ -7,6 +7,7 @@ from cloak.cloak_ast.ast import AST, FunctionCallExpr, SourceUnit, ContractDefin
 from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_member, get_array_builtin_function
 from cloak.cloak_ast.pointers.pointer_exceptions import UnknownIdentifierException
 from cloak.cloak_ast.visitor.visitor import AstVisitor
+from cloak.cloak_ast import ast as ast_module
 
 
 def fill_symbol_table(ast):
@@ -74,7 +75,8 @@ class SymbolTableFiller(AstVisitor):
             funcs[f.idf.name] = f.idf
         structs = {s.idf.name: s.idf for s in ast.struct_definitions}
         enums = {e.idf.name: e.idf for e in ast.enum_definitions}
-        ast.names = merge_dicts(state_vars, funcs, structs, enums)
+        events = {e.idf.name: e.idf for e in ast.event_definitions}
+        ast.names = merge_dicts(state_vars, funcs, structs, enums, events)
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         ast.names = {p.idf.name: p.idf for p in ast.parameters}

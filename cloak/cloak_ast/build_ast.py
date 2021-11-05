@@ -583,3 +583,6 @@ class BuildASTVisitor(SolidityVisitor):
         parameters = self.handle_field(ctx.parameters)
         anonymous = self.handle_field(ctx.AnonymousKeyword())
         return ast_module.EventDefinition(idf, parameters, anonymous)
+
+    def visitEmitStatement(self, ctx: SolidityParser.EmitStatementContext):
+        return ast_module.EmitStatement(self.visit(ctx.expression()), self.handle_field(ctx.callArgumentList()))
