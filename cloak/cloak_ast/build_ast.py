@@ -514,12 +514,12 @@ class BuildASTVisitor(SolidityVisitor):
         return ast_module.OverrideSpecifier(paths)
 
     def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
-        name = ctx.name.getText()
+        idf = self.handle_field(ctx.name)
         ps = self.handle_field(ctx.parameters)
         virtual = ctx.virtual is not None
         overrideSpecifiers = self.handle_field(ctx.overrideSpecifier())
         body = self.handle_field(ctx.body)
-        return ast_module.ModifierDefinition(name, ps, virtual, overrideSpecifiers, body)
+        return ast_module.ModifierDefinition(idf, ps, virtual, overrideSpecifiers, body)
 
     def get_modifiers(self, ctx, modifiers=False, visibility=False,
             stateMutability=False, modifierInvocation=False, overrideSpecifier=False):
@@ -586,3 +586,18 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitEmitStatement(self, ctx: SolidityParser.EmitStatementContext):
         return ast_module.EmitStatement(self.visit(ctx.expression()), self.handle_field(ctx.callArgumentList()))
+
+    def visitErrorParameter(self, ctx: SolidityParser.ErrorParameterContext):
+        t = self.visit(ctx.typ)
+        name = self.handle_field(ctx.name)
+        return ast_module.ErrorParameter(t, name)
+
+    def visitErrorDefinition(self, ctx: SolidityParser.ErrorDefinitionContext):
+        idf = self.visit(ctx.name)
+        ps = self.handle_field(ctx.parameters)
+        return ast_module.ErrorDefinition(idf, ps)
+
+    def visitUsingDirective(self, ctx: SolidityParser.UsingDirectiveContext):
+        path = self.visit(ctx.identifierPath())
+        t = self.visit(ctx.typeName())
+        return ast_module.UsingDirective(path, t)

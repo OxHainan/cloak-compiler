@@ -129,7 +129,6 @@ class CloakTransformer(AstTransformerVisitor):
         # remove all origin function except constructor
         is_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function
         c.units[:] = filter(lambda u: not is_function(u), c.units)
-        c.function_definitions = []
 
         # append get_states and set_states
         c.extra_tail_parts += [self.get_states(su, c), self.set_states(su, c)]

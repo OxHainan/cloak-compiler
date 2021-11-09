@@ -1741,17 +1741,17 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         return FunctionPrivacyType.TEE == self.privacy_type
 
 
-class ModifierDefinition(AST):
-    def __init__(self, name: str, parameters: List[Parameter], virtual: bool = False,
+class ModifierDefinition(NamespaceDefinition):
+    def __init__(self, idf: Identifier, parameters: List[Parameter], virtual: bool = False,
             overrideSpecifiers: List[OverrideSpecifier] = None, body: Optional[Block] = None):
-        super().__init__()
-        self.name = name
+        super().__init__(idf)
         self.parameters = parameters
         self.virtual = virtual
         self.overrideSpecifiers = overrideSpecifiers
         self.body = body
 
     def process_children(self, f):
+        super().process_children(f)
         self.parameters[:] = map(f, self.parameters)
         self.overrideSpecifiers[:] = map(f, self.overrideSpecifiers)
         if self.body:
@@ -1825,7 +1825,7 @@ class EventParameter(AST):
 
 
 class EventDefinition(NamespaceDefinition):
-    def __init__(self, idf: Identifier, parameters: Optional[EventParameter], anonymous: Optional[str] = None):
+    def __init__(self, idf: Identifier, parameters: List[EventParameter], anonymous: Optional[str] = None):
         super().__init__(idf)
         self.parameters = parameters or []
         self.anonymous = anonymous
@@ -1833,6 +1833,37 @@ class EventDefinition(NamespaceDefinition):
     def process_children(self, f: Callable[[T], T]):
         super().process_children(f)
         self.parameters[:] = map(f, self.parameters)
+
+
+class ErrorParameter(AST):
+    def __init__(self, annotated_type: AnnotatedTypeName, name: Optional[Identifier] = None):
+        super().__init__()
+        self.annotated_type = annotated_type
+        self.name = name
+
+    def process_children(self, f: Callable[[T], T]):
+        self.annotated_type = f(self.annotated_type)
+        if self.name:
+            self.name = f(self.name)
+
+
+class ErrorDefinition(NamespaceDefinition):
+    def __init__(self, idf: Identifier, parameters: List[Parameter]):
+        super().__init__(idf)
+        self.parameters = parameters or []
+
+    def process_children(self, f):
+        super().process_children(f)
+        self.parameters[:] = map(f, self.parameters)
+
+
+class UsingDirective(AST):
+    def __init__(self, path: List[str], type_name: Optional[TypeName] = None):
+        self.path = path
+        self.type_name = type_name
+
+    def process_children(self, f):
+        self.type_name = f(self.type_name)
 
 
 class StructDefinition(NamespaceDefinition):
@@ -1850,83 +1881,32 @@ class ContractDefinition(NamespaceDefinition):
     def __init__(self, idf: Identifier, units: List[AST]):
         super().__init__(idf)
         self.units = units
-        self.state_variable_declarations: List[StateVariableDeclaration]
-        self.constructor_definitions: List[ConstructorOrFunctionDefinition]
-        self.function_definitions: List[ConstructorOrFunctionDefinition]
-        self.modifier_definitions: List[ModifierDefinition]
-        self.enum_definitions: List[EnumDefinition]
-        self.struct_definitions: List[StructDefinition]
-        self.user_defined_value_types: List[UserDefinedValueTypeDefinition]
-        self.event_definitions: List[EventDefinition]
-        self.assign_from_units()
 
         # extra body parts
         self.extra_head_parts: Liast[AST] = []
         self.extra_tail_parts: Liast[AST] = []
 
-    def clean(self):
-        self.state_variable_declarations = []
-        self.constructor_definitions = []
-        self.function_definitions = []
-        self.modifier_definitions = []
-        self.enum_definitions = []
-        self.struct_definitions = []
-        self.user_defined_value_types = []
-        self.event_definitions = []
+    @property
+    def function_definitions(self):
+        return [u for u in self.units if isinstance(u, ConstructorOrFunctionDefinition) and u.kind == "function"]
 
-    def assign_from_units(self):
-        self.clean()
-        for unit in self.units:
-            if isinstance(unit, StateVariableDeclaration):
-                self.state_variable_declarations.append(unit)
-            elif isinstance(unit, ConstructorOrFunctionDefinition) and unit.idf.name == "constructor":
-                self.constructor_definitions.append(unit)
-            elif isinstance(unit, ConstructorOrFunctionDefinition):
-                self.function_definitions.append(unit)
-            elif isinstance(unit, ModifierDefinition):
-                self.modifier_definitions.append(unit)
-            elif isinstance(unit, EnumDefinition):
-                self.enum_definitions.append(unit)
-            elif isinstance(unit, StructDefinition):
-                self.struct_definitions.append(unit)
-            elif isinstance(unit, UserDefinedValueTypeDefinition):
-                self.user_defined_value_types.append(unit)
-            elif isinstance(unit, EventDefinition):
-                self.event_definitions.append(unit)
-            else:
-                raise exceptions.CloakCompilerError(f"invalid unit:{type(unit)}")
+    @property
+    def constructor_definitions(self):
+        return [u for u in self.units if isinstance(u, ConstructorOrFunctionDefinition) and u.kind == "constructor"]
+
+    @property
+    def state_variable_declarations(self):
+        return [u for u in self.units if isinstance(u, StateVariableDeclaration)]
 
     def process_children(self, f: Callable[[T], T]):
         super().process_children(f)
-        self.enum_definitions[:] = map(f, self.enum_definitions)
-        self.struct_definitions[:] = map(f, self.struct_definitions)
-        self.state_variable_declarations[:] = map(f, self.state_variable_declarations)
-        self.constructor_definitions[:] = map(f, self.constructor_definitions)
-        self.function_definitions[:] = map(f, self.function_definitions)
-        self.event_definitions[:] = map(f, self.event_definitions)
-        # TODO:
-        # self.units[:] = map(f, self.units)
-        # self.assign_from_units
-
-    def __getitem__(self, key: str):
-        if key == 'constructor':
-            if len(self.constructor_definitions) == 0:
-                # return empty constructor
-                c = ConstructorOrFunctionDefinition(None, [], [], None, Block([]))
-                c.parent = self
-                return c
-            elif len(self.constructor_definitions) == 1:
-                return self.constructor_definitions[0]
-            else:
-                raise ValueError('Multiple constructors exist')
-        else:
-            d_identifier = self.names[key]
-            return d_identifier.parent
+        self.units[:] = map(f, self.units)
 
     def states_types(self) -> Dict[str, TypeName]:
         res = {}
-        for v in self.state_variable_declarations:
-            res[v.idf.name] = v.annotated_type.type_name
+        for v in self.units:
+            if isinstance(v, StateVariableDeclaration):
+                res[v.idf.name] = v.annotated_type.type_name
         return res
 
 
@@ -1979,18 +1959,6 @@ class SourceUnit(AST):
     def __init__(self, units: List[AST] = None, sba: AST = None):
         super().__init__()
         self.units = units or []
-        self.pragma_directives = []
-        self.import_directives = []
-        self.contracts = []
-        self.interfaces = []
-        self.libraries = []
-        self.function_definitions = []
-        self.struct_definitions = []
-        self.enum_definitions = []
-        self.user_defined_value_types = []
-        self.constant_variables = []
-        # self.error_definitions = error_definitions or []
-        self.assign_from_units()
 
         self.extra_head_parts: List[AST] = []
 
@@ -2001,27 +1969,18 @@ class SourceUnit(AST):
         self.generated_policy: Optional[str] = None
         self.original_code: List[str] = []
 
+    @property
+    def contracts(self):
+        return [u for u in self.units if isinstance(u, ContractDefinition)]
+
     def process_children(self, f: Callable[[T], T]):
         self.units[:] = map(f, self.units)
-        self.assign_from_units()
 
     def __getitem__(self, key: str):
         c_identifier = self.names[key]
         c = c_identifier.parent
         assert (isinstance(c, ContractDefinition))
         return c
-
-    def assign_from_units(self):
-        self.pragma_directives = [x for x in self.units if isinstance(x, PragmaDirective)]
-        self.import_directives = [x for x in self.units if isinstance(x, ImportDirective)]
-        self.contracts = [x for x in self.units if isinstance(x, ContractDefinition)]
-        self.interfaces = [x for x in self.units if isinstance(x, InterfaceDefinition)]
-        self.libraries = [x for x in self.units if isinstance(x, LibraryDefinition)]
-        self.function_definitions = [x for x in self.units if isinstance(x, ConstructorOrFunctionDefinition)]
-        self.struct_definitions = [x for x in self.units if isinstance(x, StructDefinition)]
-        self.enum_definitions = [x for x in self.units if isinstance(x, EnumDefinition)]
-        self.user_defined_value_types = [x for x in self.units if isinstance(x, UserDefinedValueTypeDefinition)]
-        self.constant_variables = [x for x in self.units if isinstance(x, VariableDeclarationStatement)]
 
 
 PrivacyLabelExpr = Union[MeExpr, AllExpr, TeeExpr, Identifier]
@@ -2589,7 +2548,7 @@ class CodeVisitor(AstVisitor):
         body = ";"
         if ast.body:
             body = self.visitBlock(ast.body)
-        return f"modifier {ast.name}({ps}){virtual} {self.visit_list(ast.overrideSpecifiers, ', ')} {body}"
+        return f"modifier {self.visit(ast.idf)}({ps}){virtual} {self.visit_list(ast.overrideSpecifiers, ', ')} {body}"
 
     def visitUserDefinedValueTypeDefinition(self, ast: UserDefinedValueTypeDefinition):
         return f"type {self.visit(ast.idf)} is {self.visit(ast.underlying_type)};"
@@ -2605,3 +2564,16 @@ class CodeVisitor(AstVisitor):
 
     def visitEmitStatement(self, ast: EmitStatement):
         return f"emit {self.visit(ast.expr)}({self.visit(ast.args)});"
+
+    def visitErrorParameter(self, ast: ErrorParameter):
+        name = f" {self.visit(ast.name)}" if ast.name else ""
+        return f"{self.visit(ast.annotated_type)}{name}"
+
+    def visitErrorDefinition(self, ast: ErrorDefinition):
+        ps = self.visit_list(ast.parameters, ', ')
+        return f"error {self.visit(ast.idf)}({ps});"
+
+    def visitUsingDirective(self, ast: UsingDirective):
+        t = self.visit(ast.type_name) if ast.type_name else "*"
+        path = self.visit_list(ast.path, '.')
+        return f"using {path} for {t};"

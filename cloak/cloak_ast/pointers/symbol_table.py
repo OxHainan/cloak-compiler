@@ -8,6 +8,7 @@ from cloak.cloak_ast.global_defs import GlobalDefs, GlobalVars, array_length_mem
 from cloak.cloak_ast.pointers.pointer_exceptions import UnknownIdentifierException
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.cloak_ast import ast as ast_module
+from cloak.cloak_ast.build_ast import rebuild_ast
 
 
 def fill_symbol_table(ast):
@@ -64,7 +65,11 @@ class SymbolTableFiller(AstVisitor):
 
     def visitSourceUnit(self, ast: SourceUnit):
         ast.names = {c.idf.name: c.idf for c in ast.contracts}
+        # TODO: names = {u.idf.name: u.idf for u in ast.units if isinstance(u, NamespaceDefinition)}
         ast.names.update(self.get_builtin_globals())
+
+    def visitLibraryDefinition(self, ast: ast_module.LibraryDefinition):
+        ast.names = {u.idf.name: u.idf for u in ast.body_elems if isinstance(u, NamespaceDefinition)}
 
     def visitContractDefinition(self, ast: ContractDefinition):
         state_vars = {d.idf.name: d.idf for d in ast.state_variable_declarations if not isinstance(d, Comment)}
@@ -73,13 +78,15 @@ class SymbolTableFiller(AstVisitor):
             if f.idf.name in funcs:
                 raise UnknownIdentifierException(f'Cloak does not currently support method overloading.', f)
             funcs[f.idf.name] = f.idf
-        structs = {s.idf.name: s.idf for s in ast.struct_definitions}
-        enums = {e.idf.name: e.idf for e in ast.enum_definitions}
-        events = {e.idf.name: e.idf for e in ast.event_definitions}
-        ast.names = merge_dicts(state_vars, funcs, structs, enums, events)
+        names = {u.idf.name: u.idf for u in ast.units if isinstance(u, NamespaceDefinition)}
+        ast.names = merge_dicts(state_vars, names)
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         ast.names = {p.idf.name: p.idf for p in ast.parameters}
+
+    def visitModifierDefinition(self, ast: ast_module.ModifierDefinition):
+        ast.names = {p.idf.name: p.idf for p in ast.parameters}
+        ast.names.update({'_': ast_module.Identifier('_')})
 
     def visitStructDefinition(self, ast: StructDefinition):
         ast.names = {m.idf.name: m.idf for m in ast.members}
@@ -171,6 +178,8 @@ class SymbolTableLinker(AstVisitor):
         return False
 
     def visitIdentifierExpr(self, ast: IdentifierExpr):
+        if ast.idf.name == "_":
+            return
         decl = self.find_identifier_declaration(ast)
         ast.target = decl
         assert (ast.target is not None)
@@ -201,7 +210,7 @@ class SymbolTableLinker(AstVisitor):
             else:
                 assert isinstance(t, UserDefinedTypeName)
                 if t.target is None:
-                    t = t.clone()
+                    t = rebuild_ast(t)
                     t.parent = ast
                     self.visit(t)
                 if t.target is not None:

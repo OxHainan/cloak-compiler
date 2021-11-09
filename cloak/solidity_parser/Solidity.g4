@@ -27,7 +27,7 @@ sourceUnit: (
     | structDefinition
     | enumDefinition
     | userDefinedValueTypeDefinition
-    // | errorDefinition
+    | errorDefinition
 )* EOF
     | sba EOF;
 
@@ -108,8 +108,8 @@ contractBodyElement:
     | userDefinedValueTypeDefinition
     | stateVariableDeclaration
     | eventDefinition
-    // TODO | errorDefinition
-    // TODO | usingDirective
+    | errorDefinition
+    | usingDirective
     ;
 
 //@doc:inline
@@ -276,6 +276,24 @@ eventDefinition:
     'anonymous'?
     ';';
 
+/**
+ * Parameter of an error.
+ */
+errorParameter: typ=annotatedTypeName name=identifier?;
+/**
+ * Definition of an error.
+ */
+errorDefinition:
+    'error' name=identifier
+    '(' (parameters+=errorParameter (',' parameters+=errorParameter)*)? ')'
+    ';';
+
+/**
+ * Using directive to bind library functions to types.
+ * Can occur within contracts and libraries.
+ */
+usingDirective: 'using' identifierPath 'for' ('*' | typeName) ';';
+
 variableDeclaration
   : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
@@ -396,8 +414,8 @@ Ufixed
 // - added me and all
 // REMOVED:
 // - ('after' | 'delete') expression
-expression
-  : MeKeyword # MeExpr
+expression:
+  MeKeyword # MeExpr
   | AllKeyword # AllExpr
   | TeeKeyword # TeeExpr
   | expr=expression op=('++' | '--') # PostCrementExpr
