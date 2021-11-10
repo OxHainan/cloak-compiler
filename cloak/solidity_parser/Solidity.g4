@@ -4,8 +4,6 @@
 // Original source: https://github.com/solidityj/solidity-antlr4/blob/master/Solidity.g4
 // changes are marked with REMOVED or CHANGED
 //
-//   - using for (usingForDeclaration)
-//      -> https://solidity.readthedocs.io/en/v0.4.24/contracts.html#using-for
 // - function type name (functionTypeName, functionTypeParameterList, functionTypeParameter), needed for higher-order functions
 
 
@@ -236,8 +234,7 @@ stateMutability: 'pure' | 'view' | 'payable';
 overrideSpecifier: 'override' ('(' overrides+=identifierPath (',' overrides+=identifierPath)* ')')?;
 
 
-parameterList
-  : '(' ( params+=parameter (',' params+=parameter)* )? ')' ;
+parameterList: '(' ( params+=parameter (',' params+=parameter)* )? ')' ;
 
 // identifier is optional because parameters can be used to specify the return value
 // CHANGED:
@@ -334,10 +331,10 @@ statement:
     | doWhileStatement
     | continueStatement
     | breakStatement
-    // | tryStatement
+    | tryStatement
     | returnStatement
     | emitStatement
-    // | revertStatement
+    | revertStatement
     // | assemblyStatement
     ;
 
@@ -365,6 +362,14 @@ continueStatement
 breakStatement
   : 'break' ';' ;
 
+/**
+ * A try statement. The contained expression needs to be an external function call or a contract creation.
+ */
+tryStatement: 'try' expression ('returns' '(' return_parameters=parameterList ')')? block catchClause+;
+/**
+ * The catch clause of a try statement.
+ */
+catchClause: 'catch' identifier? arguments=parameterList? block;
 
 returnStatement: 'return' expr=expression? ';' ;
 
@@ -372,6 +377,10 @@ returnStatement: 'return' expr=expression? ';' ;
  * An emit statement. The contained expression needs to refer to an event.
  */
 emitStatement: 'emit' expression callArgumentList ';';
+/**
+ * A revert statement. The contained expression needs to refer to an error.
+ */
+revertStatement: 'revert' expression callArgumentList ';';
 
 // REMOVED:
 // - 'var' identifierList
@@ -449,6 +458,46 @@ expression:
   // REMOVED: literal
   | ( elementaryTypeName ) # PrimaryExpression
   ;
+
+/**
+ * Complex expression.
+ * Can be an index access, an index range access, a member access, a function call (with optional function call options),
+ * a type conversion, an unary or binary expression, a comparison or assignment, a ternary expression,
+ * a new-expression (i.e. a contract creation or the allocation of a dynamic memory array),
+ * a tuple, an inline array or a primary expression (i.e. an identifier, literal or type name).
+ */
+// expression:
+//     expression LBrack index=expression? RBrack # IndexAccess
+//     | expression LBrack start=expression? Colon end=expression? RBrack # IndexRangeAccess
+//     | expression Period (identifier | Address) # MemberAccess
+//     | expression LBrace (namedArgument (Comma namedArgument)*)? RBrace # FunctionCallOptions
+//     | expression callArgumentList # FunctionCall
+//     | Payable callArgumentList # PayableConversion
+//     | Type LParen typeName RParen # MetaType
+//     | (Inc | Dec | Not | BitNot | Delete | Sub) expression # UnaryPrefixOperation
+//     | expression (Inc | Dec) # UnarySuffixOperation
+//     |<assoc=right> expression Exp expression # ExpOperation
+//     | expression (Mul | Div | Mod) expression # MulDivModOperation
+//     | expression (Add | Sub) expression # AddSubOperation
+//     | expression (Shl | Sar | Shr) expression # ShiftOperation
+//     | expression BitAnd expression # BitAndOperation
+//     | expression BitXor expression # BitXorOperation
+//     | expression BitOr expression # BitOrOperation
+//     | expression (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual) expression # OrderComparison
+//     | expression (Equal | NotEqual) expression # EqualityComparison
+//     | expression And expression # AndOperation
+//     | expression Or expression # OrOperation
+//     |<assoc=right> expression Conditional expression Colon expression # Conditional
+//     |<assoc=right> expression assignOp expression # Assignment
+//     | New typeName # NewExpression
+//     | tupleExpression # Tuple
+//     | inlineArrayExpression # InlineArray
+//     | (
+//         identifier
+//         | literal
+//         | elementaryTypeName[false]
+//       ) # PrimaryExpression
+// ;
 
 tupleExpression
   : '(' ( expression? ( ',' expression? )* ) ')' ;

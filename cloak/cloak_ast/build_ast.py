@@ -601,3 +601,21 @@ class BuildASTVisitor(SolidityVisitor):
         path = self.visit(ctx.identifierPath())
         t = self.visit(ctx.typeName())
         return ast_module.UsingDirective(path, t)
+
+    def visitCatchClause(self, ctx: SolidityParser.CatchClauseContext):
+        idf = self.handle_field(ctx.identifier())
+        args = self.handle_field(ctx.arguments)
+        body = self.visit(ctx.block())
+        return ast_module.CatchClause(idf, args, body)
+
+    def visitTryStatement(self, ctx: SolidityParser.TryStatementContext):
+        expr = self.visit(ctx.expression())
+        rts = self.handle_field(ctx.return_parameters)
+        body = self.visit(ctx.block())
+        ccs = self.handle_field(ctx.catchClause())
+        return ast_module.TryStatement(expr, rts, body, ccs)
+
+    def visitRevertStatement(self, ctx: SolidityParser.RevertStatementContext):
+        expr = self.visit(ctx.expression())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.RevertStatement(expr, args)

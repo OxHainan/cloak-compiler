@@ -778,6 +778,28 @@ class BreakStatement(Statement):
     pass
 
 
+class CatchClause(AST):
+    def __init__(self, idf: Optional[Identifier], args: List[Parameter], body: Block):
+        super().__init__()
+        self.idf = idf
+        self.args = args or []
+        self.body = body
+
+    # def process_children(self, f):
+    #     self.idf = f(self.idf)
+    #     self.args[:] = map(f, self.args)
+    #     self.body = f(self.body)
+
+
+class TryStatement(Statement):
+    def __init__(self, expr: Expression, returnParameters: List[Parameter], body: Block, catchClauses: List[CatchClause]):
+        super().__init__()
+        self.expr = expr
+        self.returnParameters = returnParameters or []
+        self.body = body
+        self.catchClauses = catchClauses
+
+
 class ContinueStatement(Statement):
     pass
 
@@ -802,6 +824,13 @@ class EmitStatement(Statement):
         self.expr = f(self.expr)
         if self.args:
             self.args = f(self.args)
+
+
+class RevertStatement(Statement):
+    def __init__(self, expr: Expression, args: CallArgumentList):
+        super().__init__()
+        self.expr = expr
+        self.args = args
 
 
 class SimpleStatement(Statement):
@@ -2577,3 +2606,21 @@ class CodeVisitor(AstVisitor):
         t = self.visit(ast.type_name) if ast.type_name else "*"
         path = self.visit_list(ast.path, '.')
         return f"using {path} for {t};"
+
+    def visitCatchClause(self, ast: CatchClause):
+        idf = f" self.visit(ast.idf)" if ast.idf else ""
+        args = f"({self.visit_list(ast.args, ', ')})" if ast.args else ""
+        body = self.visitBlock(ast.body)
+        return f"catch{idf}{args}{body}"
+
+    def visitTryStatement(self, ast: TryStatement):
+        expr = self.visit(ast.expr)
+        rts = f"returns ({self.visit_list(ast.returnParameters)})" if ast.returnParameters else ""
+        body = self.visitBlock(ast.body)
+        ccs = self.visit_list(ast.catchClauses, ' ')
+        return f"try {expr} {rts}{body} {ccs}"
+
+    def visitRevertStatement(self, ast: RevertStatement):
+        expr = self.visit(ast.expr)
+        args = self.visit(ast.args)
+        return f"revert {expr}({args});"
