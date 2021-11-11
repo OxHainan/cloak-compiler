@@ -414,51 +414,6 @@ Fixed
 Ufixed
   : 'ufixed' | ( 'ufixed' [0-9]+ 'x' [0-9]+ ) ;
 
-// CHANGED: INLINED: primaryExpression
-// REMOVED from primaryExpression:
-// - HexLiteral
-// - elementaryTypeNameExpression ('[' ']')? (for type casts)
-// CHANGED from primaryExpression:
-// - identifier ('[' ']')? -> identifier
-// - added me and all
-// REMOVED:
-// - ('after' | 'delete') expression
-expression:
-  MeKeyword # MeExpr
-  | AllKeyword # AllExpr
-  | TeeKeyword # TeeExpr
-  | expr=expression op=('++' | '--') # PostCrementExpr
-  | arr=expression '[' index=expression? ']' # IndexExpr
-  | elem_type=elementaryTypeName '(' expr=expression ')' # PrimitiveCastExpr
-  | expression callArgumentList # FunctionCallExpr
-  | expr=expression '.' member=identifier # MemberAccessExpr
-  | op=('++' | '--') expr=expression # PreCrementExpr
-  | op=('+' | '-') expr=expression # SignExpr
-  | '!' expr=expression # NotExpr
-  | '~' expr=expression # BitwiseNotExpr
-  | lhs=expression op='**' rhs=expression # PowExpr
-  | lhs=expression op=('*' | '/' | '%') rhs=expression # MultDivModExpr
-  | lhs=expression op=('+' | '-') rhs=expression # PlusMinusExpr
-  | lhs=expression op=('<<' | '>>') rhs=expression # BitShiftExpr
-  | lhs=expression op='&' rhs=expression # BitwiseAndExpr
-  | lhs=expression op='^' rhs=expression # BitwiseXorExpr
-  | lhs=expression op='|' rhs=expression # BitwiseOrExpr
-  | lhs=expression op=('<' | '>' | '<=' | '>=') rhs=expression # CompExpr
-  | lhs=expression op=('==' | '!=') rhs=expression # EqExpr
-  | lhs=expression op='&&' rhs=expression # AndExpr
-  | lhs=expression op='||' rhs=expression # OrExpr
-  | cond=expression '?' then_expr=expression ':' else_expr=expression # IteExpr
-  | lhs=expression op=('=' | '|=' | '^=' | '&=' | '<<=' | '>>=' | '+=' | '-=' | '*=' | '/=' | '%=') rhs=expression # AssignmentExpr
-  | BooleanLiteral # BooleanLiteralExpr
-  | numberLiteral # NumberLiteralExpr
-  | StringLiteral # StringLiteralExpr
-  | expr=tupleExpression # TupleExpr
-  | 'new' target_type=typeName # NewExpr
-  | idf=identifier # IdentifierExpr
-  // REMOVED: literal
-  | ( elementaryTypeName ) # PrimaryExpression
-  ;
-
 /**
  * Complex expression.
  * Can be an index access, an index range access, a member access, a function call (with optional function call options),
@@ -466,50 +421,49 @@ expression:
  * a new-expression (i.e. a contract creation or the allocation of a dynamic memory array),
  * a tuple, an inline array or a primary expression (i.e. an identifier, literal or type name).
  */
-// expression:
-//     expression LBrack index=expression? RBrack # IndexAccess
-//     | expression LBrack start=expression? Colon end=expression? RBrack # IndexRangeAccess
-//     | expression Period (identifier | Address) # MemberAccess
-//     | expression LBrace (namedArgument (Comma namedArgument)*)? RBrace # FunctionCallOptions
-//     | expression callArgumentList # FunctionCall
-//     | Payable callArgumentList # PayableConversion
-//     | Type LParen typeName RParen # MetaType
-//     | (Inc | Dec | Not | BitNot | Delete | Sub) expression # UnaryPrefixOperation
-//     | expression (Inc | Dec) # UnarySuffixOperation
-//     |<assoc=right> expression Exp expression # ExpOperation
-//     | expression (Mul | Div | Mod) expression # MulDivModOperation
-//     | expression (Add | Sub) expression # AddSubOperation
-//     | expression (Shl | Sar | Shr) expression # ShiftOperation
-//     | expression BitAnd expression # BitAndOperation
-//     | expression BitXor expression # BitXorOperation
-//     | expression BitOr expression # BitOrOperation
-//     | expression (LessThan | GreaterThan | LessThanOrEqual | GreaterThanOrEqual) expression # OrderComparison
-//     | expression (Equal | NotEqual) expression # EqualityComparison
-//     | expression And expression # AndOperation
-//     | expression Or expression # OrOperation
-//     |<assoc=right> expression Conditional expression Colon expression # Conditional
-//     |<assoc=right> expression assignOp expression # Assignment
-//     | New typeName # NewExpression
-//     | tupleExpression # Tuple
-//     | inlineArrayExpression # InlineArray
-//     | (
-//         identifier
-//         | literal
-//         | elementaryTypeName[false]
-//       ) # PrimaryExpression
-// ;
+expression:
+    MeKeyword # MeExpr
+    | AllKeyword # AllExpr
+    | TeeKeyword # TeeExpr
+    | arr=expression '[' index=expression? ']' # IndexExpr
+    | arr=expression '[' start=expression? ':' end=expression? ']' # RangeIndexExpr
+    | expr=expression '.' (identifier | 'address') # MemberAccessExpr
+    | expression '{' (namedArgument (',' namedArgument)*)? '}' # FunctionCallOptions
+    | expression callArgumentList # FunctionCallExpr
+    | Payable callArgumentList # PayableConversion
+    | 'type' '(' typeName ')' # MetaType
+    | expr=expression op=('++' | '--') # PostCrementExpr
+    | op=('++' | '--') expr=expression # PreCrementExpr
+    | op=('+' | '-') expr=expression # SignExpr
+    | '!' expr=expression # NotExpr
+    | '~' expr=expression # BitwiseNotExpr
+    |<assoc=right> lhs=expression op='**' rhs=expression # PowExpr
+    | lhs=expression op=('*' | '/' | '%') rhs=expression # MultDivModExpr
+    | lhs=expression op=('+' | '-') rhs=expression # PlusMinusExpr
+    | lhs=expression op=('<<' | '>>') rhs=expression # BitShiftExpr
+    | lhs=expression op='&' rhs=expression # BitwiseAndExpr
+    | lhs=expression op='^' rhs=expression # BitwiseXorExpr
+    | lhs=expression op='|' rhs=expression # BitwiseOrExpr
+    | lhs=expression op=('<' | '>' | '<=' | '>=') rhs=expression # CompExpr
+    | lhs=expression op=('==' | '!=') rhs=expression # EqExpr
+    | lhs=expression op='&&' rhs=expression # AndExpr
+    | lhs=expression op='||' rhs=expression # OrExpr
+    |<assoc=right> cond=expression '?' then_expr=expression ':' else_expr=expression # IteExpr
+    | lhs=expression op=('=' | '|=' | '^=' | '&=' | '<<=' | '>>=' | '+=' | '-=' | '*=' | '/=' | '%=') rhs=expression # AssignmentExpr
+    | 'new' target_type=typeName # NewExpr
+    | expr=tupleExpression # TupleExpr
+    | '[' (expression ( ',' expression)* ) ']' # InlineArrayExpr
+    | idf=identifier # IdentifierExpr
+    | BooleanLiteral # BooleanLiteralExpr
+    | (DecimalNumber | HexNumber) NumberUnit? # NumberLiteralExpr
+    | StringLiteral # StringLiteralExpr
+    | elementaryTypeName # PrimaryExpression
+    ;
 
-tupleExpression
-  : '(' ( expression? ( ',' expression? )* ) ')' ;
+tupleExpression: '(' ( expression? ( ',' expression? )* ) ')' ;
 
 elementaryTypeNameExpression
   : elementaryTypeName ;
-
-// REMOVED:
-// - NumberUnit
-// - HexNumber
-numberLiteral
-  : DecimalNumber | HexNumber ;
 
 // CHANGED: ADDED RULES FOR PRIVACY ANNOTATIONS
 
@@ -579,7 +533,7 @@ ContinueKeyword : 'continue' ;
 ExternalKeyword : 'external' ;
 IndexedKeyword : 'indexed' ;
 InternalKeyword : 'internal' ;
-PayableKeyword : 'payable' ;
+Payable : 'payable' ;
 PrivateKeyword : 'private' ;
 PublicKeyword : 'public' ;
 PureKeyword : 'pure' ;
@@ -623,3 +577,5 @@ COMMENT
 
 LINE_COMMENT
   : '//' ~[\r\n]* -> channel(HIDDEN) ;
+
+NumberUnit: 'wei' | 'gwei' | 'ether' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'years';

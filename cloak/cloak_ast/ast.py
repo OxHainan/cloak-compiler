@@ -450,15 +450,21 @@ class CallArgumentList(AST):
         self.args[:] = map(f, self.args)
 
 
+class FunctionCallOptions(Expression):
+    def __init__(self, expr: Expression, args: List[NamedArgument]):
+        self.expr = expr
+        self.args = args or []
+
+
 class FunctionCallExpr(Expression):
 
-    def __init__(self, func: Expression, args: Union[CallArgumentList], sec_start_offset: Optional[int] = 0):
+    def __init__(self, func: Expression, args: CallArgumentList, functionCallOptions: bool = False):
         super().__init__()
         self.func = func
         self.args = args
         if isinstance(args, list):
             self.args = CallArgumentList(args, False)
-        self.sec_start_offset = sec_start_offset
+        self.functionCallOptions = functionCallOptions
 
     @property
     def is_cast(self):
@@ -467,6 +473,11 @@ class FunctionCallExpr(Expression):
     def process_children(self, f: Callable[[T], T]):
         self.func = f(self.func)
         self.args = f(self.args)
+
+
+class MetaTypeExpr(Expression):
+    def __init__(self, typeName: TypeName):
+        self.typeName = typeName
 
 
 class NewExpr(Expression):
@@ -503,12 +514,13 @@ class BooleanLiteralExpr(LiteralExpr):
 
 class NumberLiteralExpr(LiteralExpr):
 
-    def __init__(self, value: int, was_hex: bool = False, source_text: Optional[str] = None):
+    def __init__(self, value: int, was_hex: bool = False, source_text: Optional[str] = None, unit: Optional[str] = None):
         super().__init__()
         self.value = value
         self.annotated_type = AnnotatedTypeName(NumberLiteralType(self.value))
         self.was_hex = was_hex
         self.source_text = source_text
+        self.unit = unit
 
 
 class StringLiteralExpr(LiteralExpr):
@@ -559,6 +571,12 @@ class TupleExpr(TupleOrLocationExpr):
 
     def assign(self, val: Expression) -> AssignmentStatement:
         return AssignmentStatement(self, val)
+
+
+class InlineArrayExpr(Expression):
+    def __init__(self, exprs: List[Expression]):
+        super().__init__()
+        self.exprs = exprs
 
 
 class LocationExpr(TupleOrLocationExpr):
@@ -641,6 +659,13 @@ class IndexExpr(LocationExpr):
         if not isinstance(var, IdentifierExpr):
             raise exceptions.CloakCompilerError(f"the leftmost expression of {self} is not identifier expression")
         return var
+
+
+class RangeIndexExpr(LocationExpr):
+    def __init__(self, arr: LocationExpr, start: Optional[Expression], end: Optional[Expression]):
+        self.arr = arr
+        self.start = start
+        self.end = end
 
 
 class SliceExpr(LocationExpr):
@@ -2218,10 +2243,9 @@ class CodeVisitor(AstVisitor):
         if isinstance(ast.func, BuiltinFunction):
             args = [self.visit(a) for a in ast.args.args]
             return ast.func.format_string().format(*args)
-        else:
-            f = self.visit(ast.func)
-            a = self.visit(ast.args)
-            return f'{f}({a})'
+        f = self.visit(ast.func)
+        a = self.visit(ast.args) if ast.functionCallOptions else f"({self.visit(ast.args)})"
+        return f'{f}{a}'
 
     def visitNamedArgument(self, ast: NamedArgument) -> str:
         return f"{ast.key}: {self.visit(ast.value)}"
@@ -2243,7 +2267,9 @@ class CodeVisitor(AstVisitor):
         if ast.source_text is not None:
             return ast.source_text
         else:
-            return hex(ast.value) if ast.was_hex else str(ast.value)
+            unit = ast.unit if ast.unit else ""
+            value = hex(ast.value) if ast.was_hex else str(ast.value)
+            return f"{value} {unit}"
 
     def visitStringLiteralExpr(self, ast: StringLiteralExpr):
         return f'\'{ast.value}\''
@@ -2624,3 +2650,15 @@ class CodeVisitor(AstVisitor):
         expr = self.visit(ast.expr)
         args = self.visit(ast.args)
         return f"revert {expr}({args});"
+
+    def visitRangeIndexExpr(self, ast: RangeIndexExpr):
+        arr = self.visit(ast.arr)
+        start = self.visit(ast.start) if ast.start else ""
+        end = self.visit(ast.end) if ast.end else ""
+        return f"arr[{start}:{end}]"
+
+    def visitMetaTypeExpr(self, ast: MetaTypeExpr):
+        return f"type({self.visti(ast.typeName)})"
+
+    def visitInlineArrayExpr(self, ast: InlineArrayExpr):
+        return f"[{self.visit_list(ast.exprs, ', ')}]"

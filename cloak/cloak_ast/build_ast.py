@@ -183,8 +183,14 @@ class BuildASTVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#NumberLiteralExpr.
     def visitNumberLiteralExpr(self, ctx: SolidityParser.NumberLiteralExprContext):
-        v = int(ctx.getText().replace('_', ''), 0)
-        return NumberLiteralExpr(v, ctx.getText().startswith(('0x', '0X')), ctx.getText())
+        unit = ctx.NumberUnit.getText() if ctx.NumberUnit() else None
+        if ctx.HexNumber():
+            was_hex = True
+            value = int(ctx.HexNumber().getText().replace('_', ''), 16)
+        else:
+            was_hex = False
+            value = int(ctx.DecimalNumber().getText().replace('_', ''))
+        return NumberLiteralExpr(value, was_hex, ctx.getText())
 
     # Visit a parse tree produced by SolidityParser#BooleanLiteralExpr.
     def visitBooleanLiteralExpr(self, ctx: SolidityParser.BooleanLiteralExprContext):
@@ -619,3 +625,29 @@ class BuildASTVisitor(SolidityVisitor):
         expr = self.visit(ctx.expression())
         args = self.visit(ctx.callArgumentList())
         return ast_module.RevertStatement(expr, args)
+
+    def visitRangeIndexExpr(self, ctx: SolidityParser.RangeIndexExprContext):
+        arr = self.visit(ctx.arr)
+        start = self.handle_field(ctx.start)
+        end = self.handle_field(ctx.end)
+        return ast_module.RangeIndexExpr(arr, start, end)
+
+    def visitMemberAccessExpr(self, ctx: SolidityParser.MemberAccessExprContext):
+        expr = self.visit(ctx.expr)
+        member = self.visit(ctx.identifier()) if ctx.identifier() else ast_module.Identifier("address")
+        return ast_module.MemberAccessExpr(expr, member)
+
+    def visitFunctionCallOptions(self, ctx: SolidityParser.FunctionCallOptionsContext):
+        expr = self.visit(ctx.expression())
+        args = self.handle_field(ctx.namedArgument())
+        return ast_module.FunctionCallExpr(expr, args, True)
+
+    def visitPayableConversion(self, ctx: SolidityParser.PayableConversionContext):
+        idf = ast_module.Identifier("payable")
+        return FunctionCallExpr(IdentifierExpr(idf), self.visit(ctx.callArgumentList()))
+
+    def visitMetaType(self, ctx: SolidityParser.MetaTypeContext):
+        return ast_module.MetaTypeExpr(self.visit(ctx.typeName()))
+
+    def visitInlineArrayExpr(self, ctx: SolidityParser.InlineArrayExprContext):
+        return ast_module.InlineArrayExpr(self.handle_field(ctx.expression()))
