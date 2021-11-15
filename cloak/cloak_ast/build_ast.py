@@ -651,3 +651,12 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitInlineArrayExpr(self, ctx: SolidityParser.InlineArrayExprContext):
         return ast_module.InlineArrayExpr(self.handle_field(ctx.expression()))
+
+    def visitAssemblyStatement(self, ctx: SolidityParser.AssemblyStatementContext):
+        return ast_module.AssemblyStatement(self.extract_original_text(ctx))
+
+    def extract_original_text(self, ctx):
+        token_source = ctx.start.getTokenSource()
+        input_stream = token_source.inputStream
+        start, stop  = ctx.start.start, ctx.stop.stop
+        return input_stream.getText(start, stop)

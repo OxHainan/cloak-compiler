@@ -858,6 +858,12 @@ class RevertStatement(Statement):
         self.args = args
 
 
+class AssemblyStatement(Statement):
+    def __init__(self, text: str):
+        super().__init__()
+        self.text = text
+
+
 class SimpleStatement(Statement):
     pass
 
@@ -2662,3 +2668,6 @@ class CodeVisitor(AstVisitor):
 
     def visitInlineArrayExpr(self, ast: InlineArrayExpr):
         return f"[{self.visit_list(ast.exprs, ', ')}]"
+
+    def visitAssemblyStatement(self, ast: AssemblyStatement):
+        return ast.text

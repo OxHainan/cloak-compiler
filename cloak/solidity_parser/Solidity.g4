@@ -29,7 +29,7 @@ sourceUnit: (
 )* EOF
     | sba EOF;
 
-sba: 'SOL' (expression | statement | contractBodyElement) EOF;
+sba: 'SOL' (typeName | expression | statement | contractBodyElement) EOF;
 
 pragmaDirective
   : 'pragma' name=('cloak' | 'solidity') ver=version ';' ;
@@ -335,7 +335,7 @@ statement:
     | returnStatement
     | emitStatement
     | revertStatement
-    // | assemblyStatement
+    | assemblyStatement
     ;
 
 expressionStatement
@@ -381,6 +381,12 @@ emitStatement: 'emit' expression callArgumentList ';';
  * A revert statement. The contained expression needs to refer to an error.
  */
 revertStatement: 'revert' expression callArgumentList ';';
+/**
+ * An inline assembly block.
+ * The contents of an inline assembly block use a separate scanner/lexer, i.e. the set of keywords and
+ * allowed identifiers is different inside an inline assembly block.
+ */
+assemblyStatement: 'assembly' '"evmasm"'? '{' yulStatement* '}';
 
 // REMOVED:
 // - 'var' identifierList
@@ -474,6 +480,76 @@ TeeKeyword : 'tee' ;
 annotatedTypeName:
     type_name=typeName ('@' privacy_annotation=expression)? ;
 
+/**
+ * A Yul statement within an inline assembly block.
+ * continue and break statements are only valid within for loops.
+ * leave statements are only valid within function bodies.
+ */
+yulStatement:
+    yulBlock
+    | yulVariableDeclaration
+    | yulAssignment
+    | yulFunctionCall
+    | yulIfStatement
+    | yulForStatement
+    | yulSwitchStatement
+    | 'leave'
+    | 'break'
+    | 'continue'
+    | yulFunctionDefinition;
+
+yulBlock: '{' yulStatement* '}';
+
+/**
+ * The declaration of one or more Yul variables with optional initial value.
+ * If multiple variables are declared, only a function call is a valid initial value.
+ */
+yulVariableDeclaration:
+    ('let' variables+=Identifier (':=' yulExpression)?)
+    | ('let' variables+=Identifier (',' variables+=Identifier)* (':=' yulFunctionCall)?);
+
+/**
+ * Any expression can be assigned to a single Yul variable, whereas
+ * multi-assignments require a function call on the right-hand side.
+ */
+yulAssignment: yulPath ':=' yulExpression | (yulPath (',' yulPath)+) ':=' yulFunctionCall;
+
+yulIfStatement: 'if' cond=yulExpression body=yulBlock;
+
+yulForStatement: 'for' init=yulBlock cond=yulExpression post=yulBlock body=yulBlock;
+
+//@doc:inline
+yulSwitchCase: 'case' yulLiteral yulBlock;
+/**
+ * A Yul switch statement can consist of only a default-case (deprecated) or
+ * one or more non-default cases optionally followed by a default-case.
+ */
+yulSwitchStatement:
+    'switch' yulExpression
+    (
+        (yulSwitchCase+ ('default' yulBlock)?)
+        | ('default' yulBlock)
+    );
+
+yulFunctionDefinition:
+    'function' Identifier
+    '(' (arguments+=Identifier (',' arguments+=Identifier)*)? ')'
+    ('->' Identifier (',' Identifier)*)?
+    body=yulBlock;
+
+/**
+ * While only identifiers without dots can be declared within inline assembly,
+ * paths containing dots can refer to declarations outside the inline assembly block.
+ */
+yulPath: Identifier ('.' Identifier)*;
+/**
+ * A call to a function with return values can only occur as right-hand side of an assignment or
+ * a variable declaration.
+ */
+yulFunctionCall: (Identifier | YulEVMBuiltin) '(' (yulExpression (',' yulExpression)*)? ')';
+yulLiteral: DecimalNumber | StringLiteral | HexNumber | BooleanLiteral | HexString;
+yulExpression: yulPath | yulFunctionCall | yulLiteral;
+
 // REMOVED:
 // - 'from'
 // - 'calldata'
@@ -561,6 +637,14 @@ StringLiteral
   : '"' DoubleQuotedStringCharacter* '"'
   | '\'' SingleQuotedStringCharacter* '\'' ;
 
+// Note that this will also be used for Yul hex string literals.
+/**
+ * Hex strings need to consist of an even number of hex digits that may be grouped using underscores.
+ */
+HexString: 'hex' (('"' EvenHexDigits? '"') | ('\'' EvenHexDigits? '\''));
+//@doc:inline
+fragment EvenHexDigits: HexCharacter HexCharacter ('_'? HexCharacter HexCharacter)*;
+
 fragment
 DoubleQuotedStringCharacter
   : ~["\r\n\\] | ('\\' .) ;
@@ -579,3 +663,19 @@ LINE_COMMENT
   : '//' ~[\r\n]* -> channel(HIDDEN) ;
 
 NumberUnit: 'wei' | 'gwei' | 'ether' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'years';
+
+/**
+ * Builtin functions in the EVM Yul dialect.
+ */
+YulEVMBuiltin:
+    'stop' | 'add' | 'sub' | 'mul' | 'div' | 'sdiv' | 'mod' | 'smod' | 'exp' | 'not'
+    | 'lt' | 'gt' | 'slt' | 'sgt' | 'eq' | 'iszero' | 'and' | 'or' | 'xor' | 'byte'
+    | 'shl' | 'shr' | 'sar' | 'addmod' | 'mulmod' | 'signextend' | 'keccak256'
+    | 'pop' | 'mload' | 'mstore' | 'mstore8' | 'sload' | 'sstore' | 'msize' | 'gas'
+    | 'address' | 'balance' | 'selfbalance' | 'caller' | 'callvalue' | 'calldataload'
+    | 'calldatasize' | 'calldatacopy' | 'extcodesize' | 'extcodecopy' | 'returndatasize'
+    | 'returndatacopy' | 'extcodehash' | 'create' | 'create2' | 'call' | 'callcode'
+    | 'delegatecall' | 'staticcall' | 'return' | 'revert' | 'selfdestruct' | 'invalid'
+    | 'log0' | 'log1' | 'log2' | 'log3' | 'log4' | 'chainid' | 'origin' | 'gasprice'
+    | 'blockhash' | 'coinbase' | 'timestamp' | 'number' | 'difficulty' | 'gaslimit'
+    | 'basefee';
