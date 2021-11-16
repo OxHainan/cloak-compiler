@@ -1233,6 +1233,13 @@ class UintTypeName(NumberTypeName):
                 isinstance(expected, UintTypeName) and expected.elem_bitwidth >= self.elem_bitwidth)
 
 
+class FunctionTypeName(TypeName):
+    def __init__(self, parameters: List[Parameter], modifiers: List[str], return_parameters: List[Parameter]):
+        self.parameters = parameters or []
+        self.modifiers = modifiers or []
+        self.return_parameters = return_parameters or []
+
+
 class UserDefinedTypeName(TypeName):
     def __init__(self, names: List[Identifier], target: Optional[NamespaceDefinition] = None):
         super().__init__()
@@ -1830,9 +1837,11 @@ class ConstantVariableDeclaration(IdentifierDeclaration):
 
 class StateVariableDeclaration(IdentifierDeclaration):
 
-    def __init__(self, annotated_type: AnnotatedTypeName, keywords: List[str], idf: Identifier, expr: Optional[Expression]):
+    def __init__(self, annotated_type: AnnotatedTypeName, keywords: List[str], idf: Identifier,
+            expr: Optional[Expression], overrideSpecifier: Optional[OverrideSpecifier] = None):
         super().__init__(keywords, annotated_type, idf)
         self.expr = expr
+        self.overrideSpecifier = overrideSpecifier
 
     def process_children(self, f: Callable[[T], T]):
         super().process_children(f)
@@ -2544,7 +2553,8 @@ class CodeVisitor(AstVisitor):
         if k != '':
             k = f'{k} '
         i = self.visit(ast.idf)
-        ret = f"{f}{t} {k}{i}".strip()
+        overrideSpecifier = f' {self.visit(ast.overrideSpecifier)}' if ast.overrideSpecifier else ''
+        ret = f"{f}{t} {k}{overrideSpecifier}{i}".strip()
         if ast.expr:
             ret += ' = ' + self.visit(ast.expr)
         return ret + ';'
@@ -2671,3 +2681,9 @@ class CodeVisitor(AstVisitor):
 
     def visitAssemblyStatement(self, ast: AssemblyStatement):
         return ast.text
+
+    def visitFunctionTypeName(self, ast: FunctionTypeName):
+        ps = self.visit_list(ast.parameters, ', ')
+        modifiers = self.visit_list(ast.modifiers, ' ')
+        rts = f"returns ({self.visit_list(ast.return_parameters, ', ')})" if ast.return_parameters else ""
+        return f"function({ps}) {modifiers} {rts}"

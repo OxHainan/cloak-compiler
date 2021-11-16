@@ -1,13 +1,6 @@
 // Copyright 2016-2019 Federico Bond <federicobond@gmail.com>
 // Licensed under the MIT license. See LICENSE file in the project root for details.
 
-// Original source: https://github.com/solidityj/solidity-antlr4/blob/master/Solidity.g4
-// changes are marked with REMOVED or CHANGED
-//
-// - function type name (functionTypeName, functionTypeParameterList, functionTypeParameter), needed for higher-order functions
-
-
-
 grammar Solidity;
 
 /**
@@ -134,20 +127,25 @@ identifierPath: identifier ('.' identifier)*;
 // - internal: only this contract and contracts deriving from it can access (default for state variables)
 // - private: can be accessed only from this contract
 // - constant: constant at compile-time: https://solidity.readthedocs.io/en/v0.4.24/contracts.html#constant-state-variables
-stateVariableDeclaration
-  : ( keywords+=FinalKeyword )* annotated_type=annotatedTypeName
-    ( keywords+=ConstantKeyword )*
-    idf=identifier ('=' expr=expression)? ';' ;
+// stateVariableDeclaration
+//   : ( keywords+=FinalKeyword )* annotated_type=annotatedTypeName
+//     ( keywords+=ConstantKeyword )*
+//     idf=identifier ('=' expr=expression)? ';' ;
 
 /**
  * The declaration of a state variable.
  */
-// stateVariableDeclaration:
-//     type=annotatedTypeName
-//     ('public' | 'private' | 'internal' | 'constant' | overrideSpecifier | 'immutable')*
-//     name=identifier
-//     (Assign initialValue=expression)?
-//     Semicolon;
+stateVariableDeclaration:
+    (keywords+='final')* annotated_type=annotatedTypeName
+    ( keywords+='public'
+    | keywords+='private'
+    | keywords+='internal'
+    | keywords+='constant'
+    | overrideSpecifier
+    | keywords+='immutable')*
+    idf=identifier
+    ('=' expr=expression)?
+    ';';
 
 /**
  * Definition of a constructor.
@@ -300,10 +298,18 @@ variableDeclaration
 // - arrays: allows fixed size (T[k]) and dynamic size (T[])
 typeName
   : elementaryTypeName
+  | functionTypeName
   | userDefinedTypeName
   | value_type=typeName '[' expr=expression? ']'
   | mapping
   ;
+
+functionTypeName:
+    'function'
+    parameters=parameterList?
+    (visibility | stateMutability)*
+    return_parameters=returnParameters?
+    ;
 
 userDefinedTypeName
   : names+=identifier ( '.' names+=identifier )* ;
@@ -311,12 +317,6 @@ userDefinedTypeName
 mapping
   : 'mapping' '(' key_type=elementaryTypeName ( '!' key_label=identifier )? '=>' value_type=annotatedTypeName ')' ;
 
-// REMOVED (only allow default)
-// storage location
-// - memory: Not persisting (default for function parameters)
-// - storage: Where the state variables are held. (default for local variables, forced for state variables)
-// - calldata: non-modifiable, non-persistent area for function arguments (forced for function parameters of external
-//   functions)
 dataLocation: MemoryKeyword | StorageKeyword | CalldataKeyword;
 
 block

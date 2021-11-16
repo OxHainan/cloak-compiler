@@ -660,3 +660,19 @@ class BuildASTVisitor(SolidityVisitor):
         input_stream = token_source.inputStream
         start, stop  = ctx.start.start, ctx.stop.stop
         return input_stream.getText(start, stop)
+
+    def visitStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
+        t = self.visit(ctx.annotated_type)
+        ks = self.handle_field(ctx.keywords)
+        overrideSpecifier = None
+        if ctx.overrideSpecifier():
+            overrideSpecifier = self.visit(ctx.overrideSpecifier(0))
+        idf = self.visit(ctx.idf)
+        expr = self.handle_field(ctx.expr)
+        return ast_module.StateVariableDeclaration(t, ks, idf, expr)
+
+    def visitFunctionTypeName(self, ctx: SolidityParser.FunctionTypeNameContext):
+        ps = self.handle_field(ctx.parameters)
+        rts = self.handle_field(ctx.return_parameters)
+        modifiers = self.get_modifiers(ctx, visibility=True, stateMutability=True)
+        return ast_module.FunctionTypeName(ps, modifiers, rts)
