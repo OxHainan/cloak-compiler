@@ -1,4 +1,4 @@
-<img  width="280" src="https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/_static/logo.png" alt="cloak-logo" align="left">
+<img  width="280" src="https://cloak-docs.readthedocs.io/en/latest/_static/logo.png" alt="cloak-logo" align="left">
 
 <h1 align="center">
     <a>
@@ -16,12 +16,12 @@
   <a href="https://www.codefactor.io/repository/github/oxhainan/cloak-compiler">
     <img src="https://www.codefactor.io/repository/github/oxhainan/cloak-compiler/badge" alt="CodeFactor." />
   </a>
-  <a href="https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/contribute.html">
+  <a href="https://cloak-docs.readthedocs.io/en/latest/started/contribute.html">
     <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs welcome!" />
   </a>
 </p>
 
-Cloak-compiler is an implementation of [Cloak Language](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/develop-cloak-smart-contract/cloak-language.html).
+Cloak-compiler is an implementation of [Cloak Language](https://cloak-docs.readthedocs.io/en/latest/develop-cloak-smart-contract/cloak-language.html).
 
 ## What is Cloak?
 Cloak is a pluggable and configurable framework for developing and deploying confidential smart contracts. To this end, Cloak allows users to specify privacy invariants (what is private data and to who is the data private) in a declarative way. Then, it automatically generate runtime with verifiably enforced privacy and deploy it to the existing EVM-enabled platforms (e.g., Ethereum) and TEE devices to enable the confidential smart contract.
@@ -37,17 +37,17 @@ The Cloak is an ongoing project aiming to become a chain-agnostic privacy infras
 This is a prototype implementation not intended for use in production. 
 
 ## 📖 Usage
-* [Install cloak-compiler](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#installation)
-* [Cloak Example](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-by-examples)
-* [Compile Cloak Contract](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#compile-cloak-contract)
-* [Use cloak-client to process Cloak transaction](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/quick-start.html#cloak-web3)
-* [Full Document](https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/index.html)
+* [Install cloak-compiler](https://cloak-docs.readthedocs.io/en/latest/started/quick-start.html#installation)
+* [Cloak Example](https://cloak-docs.readthedocs.io/en/latest/started/quick-start.html#cloak-by-examples)
+* [Compile Cloak Contract](https://cloak-docs.readthedocs.io/en/latest/started/quick-start.html#compile-cloak-contract)
+* [Use cloak-client to process Cloak transaction](https://cloak-docs.readthedocs.io/en/latest/started/quick-start.html#cloak-web3)
+* [Full Document](https://cloak-docs.readthedocs.io/en/latest/index.html)
 
 ## 📖 Documentation
 
 The full documentation for Cloak can found on our [Cloak documentation][cloak-docs]
 
-[cloak-docs]: https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/#
+[cloak-docs]: https://cloak-docs.readthedocs.io/en/latest/#
 
 ## 👏 How to Contribute
 
@@ -59,19 +59,19 @@ Read below to learn how you can take part in improving Cloak TEE.
 Cloak TEE has adopted a Code of Conduct that we expect project participants to adhere to.
 Please read the [full text][code] so that you can understand what actions will and will not be tolerated.
 
-[code]: https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/contribute.html#documentation-style-guide
+[code]: https://cloak-docs.readthedocs.io/en/latest/started/contribute.html#documentation-style-guide
 
 ### [Contributing Guide][contribute]
 
 Read our [**Call for Contributions**][contribute] to learn about our development process, how to propose bugfixed and improvements, and how to build and test your changes to Cloak.
 
-[contribute]: https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/started/contribute.html#all-contributions-counts
+[contribute]: https://cloak-docs.readthedocs.io/en/latest/started/contribute.html#all-contributions-counts
 
 ### [Open Source Roadmap][roadmap]
 
 You can learn more about our vision for Cloak Networks in the [**Roadmap**][roadmap].
 
-[roadmap]: https://oxhainan-cloak-docs.readthedocs-hosted.com/en/latest/roadmap/index.html#roadmap
+[roadmap]: https://cloak-docs.readthedocs.io/en/latest/roadmap/index.html#roadmap
 
 ### Submit Issues
 
