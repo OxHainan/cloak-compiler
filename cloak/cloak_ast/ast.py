@@ -1971,6 +1971,21 @@ class ContractDefinition(NamespaceDefinition):
         super().process_children(f)
         self.units[:] = map(f, self.units)
 
+    def __getitem__(self, key: str):
+        if key == 'constructor':
+            if len(self.constructor_definitions) == 0:
+                # return empty constructor
+                c = ConstructorOrFunctionDefinition(None, [], [], None, Block([]))
+                c.parent = self
+                return c
+            elif len(self.constructor_definitions) == 1:
+                return self.constructor_definitions[0]
+            else:
+                raise ValueError('Multiple constructors exist')
+        else:
+            d_identifier = self.names[key]
+            return d_identifier.parent
+
     def states_types(self) -> Dict[str, TypeName]:
         res = {}
         for v in self.units:
@@ -2282,9 +2297,9 @@ class CodeVisitor(AstVisitor):
         if ast.source_text is not None:
             return ast.source_text
         else:
-            unit = ast.unit if ast.unit else ""
+            unit = f" {ast.unit}" if ast.unit else ""
             value = hex(ast.value) if ast.was_hex else str(ast.value)
-            return f"{value} {unit}"
+            return f"{value}{unit}"
 
     def visitStringLiteralExpr(self, ast: StringLiteralExpr):
         return f'\'{ast.value}\''
