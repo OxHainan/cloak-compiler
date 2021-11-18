@@ -24,7 +24,6 @@ from cloak.utils.progress_printer import print_step
 from cloak.utils.timer import time_measure
 from cloak.cloak_ast.process_ast import process_ast, check_with_solc
 from cloak.cloak_ast.build_ast import build_ast
-from cloak.cloak_ast.visitor.solidity_visitor import to_solidity
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
 
@@ -83,7 +82,8 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
     process_ast(cloak_ast)
 
     with print_step("Generate privacy policy"):
-        _dump_to_output(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2), output_dir, f'policy.json')
+        cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2)
+        _dump_to_output(cloak_ast.generated_policy, output_dir, f'policy.json')
 
     # Write private contract file
     with print_step('Write private solidity code'):
@@ -106,7 +106,7 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
     # Write public contract file
     with print_step('Write public solidity code'):
         output_filename = 'public_contract.sol'
-        solidity_code_output = _dump_to_output(to_solidity(ast), output_dir, output_filename)
+        solidity_code_output = _dump_to_output(ast.code(True), output_dir, output_filename)
 
 
 def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=False) -> str:

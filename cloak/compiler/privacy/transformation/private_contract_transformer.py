@@ -19,5 +19,7 @@ class PrivateContractTransformer(AstTransformerVisitor):
     def visitSourceUnit(self, su: ast.SourceUnit):
         su.privacy_policy = self.pp
         for cd in su.contracts:
-            cd.function_definitions.append(CloakTransformer.get_states(su, cd, False))
-            cd.function_definitions.append(CloakTransformer.set_states(su, cd, False))
+            cd.extra_tail_parts += [
+                CloakTransformer.get_states(su, cd, False),
+                CloakTransformer.set_states(su, cd, False),
+            ]

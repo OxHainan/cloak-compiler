@@ -162,7 +162,7 @@ class EvalOrderUBChecker(AstVisitor):
         if isinstance(ast.func, BuiltinFunction):
             if ast.func.has_shortcircuiting():
                 return
-        self.visit_child_expressions(ast, ast.args)
+        self.visit_child_expressions(ast, ast.args.args)
 
     def visitExpression(self, ast: Expression):
         self.visit_child_expressions(ast, ast.children())

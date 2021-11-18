@@ -36,6 +36,11 @@ def SOL(code: str) -> ast.AST:
     return full_ast.sba
 
 
+# for deep copy
+def rebuild_ast(ast: ast_module.AST) -> ast_module.AST:
+    return SOL(ast.code())
+
+
 class BuildASTVisitor(SolidityVisitor):
 
     def __init__(self, tokens: CommonTokenStream, code: str):
@@ -55,7 +60,7 @@ class BuildASTVisitor(SolidityVisitor):
         t = t.replace('Context', '')
 
         # may be able to return the result for a SINGLE, UNNAMED CHILD without wrapping it in an object
-        direct_unnamed = ['ContractBodyElement', 'StateMutability', 'Statement', 'SimpleStatement', 'PrimaryExpression']
+        direct_unnamed = ['ContractBodyElement', 'StateMutability', 'Visibility', 'Statement', 'SimpleStatement', 'PrimaryExpression']
         if t in direct_unnamed:
             if ctx.getChildCount() != 1:
                 raise TypeError(t + ' does not have a single, unnamed child')
@@ -120,53 +125,48 @@ class BuildASTVisitor(SolidityVisitor):
         return ast.Identifier(name)
 
     def visitPragmaDirective(self, ctx: SolidityParser.PragmaDirectiveContext):
-        return f'pragma {self.visit(ctx.pragma())};'
+        return ast_module.PragmaDirective(self.handle_field(ctx.name), ctx.ver.getText())
 
-    def visitVersionPragma(self, ctx: SolidityParser.VersionPragmaContext):
-        version = ctx.ver.getText().strip()
-        spec = NpmSpec(version)
-        name = self.handle_field(ctx.name)
-        if name == 'cloak' and Version(cfg.cloak_version) not in spec:
-            raise SyntaxException(f'Contract requires a different cloak version.\n'
-                                  f'Current version is {cfg.cloak_version} but pragma zkay mandates {version}.',
-                                  ctx.ver, self.code)
-        elif name != 'cloak' and spec != cfg.cloak_solc_version_compatibility:
-            # For backwards compatibility with older zkay versions
-            assert name == 'solidity'
-            raise SyntaxException(f'Contract requires solidity version {spec}, which is not compatible '
-                                  f'with the current zkay version (requires {cfg.cloak_solc_version_compatibility}).',
-                                  ctx.ver, self.code)
+    # def visitVersionPragma(self, ctx: SolidityParser.VersionPragmaContext):
+    #     version = ctx.ver.getText().strip()
+    #     spec = NpmSpec(version)
+    #     name = self.handle_field(ctx.name)
+    #     if name == 'cloak' and Version(cfg.cloak_version) not in spec:
+    #         raise SyntaxException(f'Contract requires a different cloak version.\n'
+    #                               f'Current version is {cfg.cloak_version} but pragma zkay mandates {version}.',
+    #                               ctx.ver, self.code)
+    #     elif name != 'cloak' and spec != cfg.cloak_solc_version_compatibility:
+    #         # For backwards compatibility with older zkay versions
+    #         assert name == 'solidity'
+    #         raise SyntaxException(f'Contract requires solidity version {spec}, which is not compatible '
+    #                               f'with the current zkay version (requires {cfg.cloak_solc_version_compatibility}).',
+    #                               ctx.ver, self.code)
 
-        return f'{name} {version}'
+    #     return f'{name} {version}'
 
     # Visit a parse tree produced by SolidityParser#contractDefinition.
     def visitContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
         identifier = self.visit(ctx.idf)
-        if '$' in identifier.name:
-            raise SyntaxException('$ is not allowed in zkay contract identifiers', ctx.idf, self.code)
-        parts = [self.visit(c) for c in ctx.parts]
-        state_vars = [p for p in parts if isinstance(p, StateVariableDeclaration)]
-        cfdefs = [p for p in parts if isinstance(p, ast.ConstructorOrFunctionDefinition)]
-        constructors = [p for p in cfdefs if p.is_constructor]
-        functions = [p for p in cfdefs if p.is_function]
-        enums = [p for p in parts if isinstance(p, ast.EnumDefinition)]
-        return ContractDefinition(identifier, state_vars, constructors, functions, enums)
-
-    def handle_fdef(self, ctx):
-        if isinstance(ctx, SolidityParser.ConstructorDefinitionContext):
-            idf, ret_params = None, None
-        else:
-            idf, ret_params = self.visit(ctx.idf), self.handle_field(ctx.return_parameters)
-            if '$' in idf.name:
-                raise SyntaxException('$ is not allowed in zkay function identifiers', ctx.idf, self.code)
-        params, mods, body = self.handle_field(ctx.parameters), self.handle_field(ctx.modifiers), self.visit(ctx.body)
-        return ast.ConstructorOrFunctionDefinition(idf, params, mods, ret_params, body)
+        units = [self.visit(c) for c in ctx.parts]
+        return ContractDefinition(identifier, units)
 
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
-        return self.handle_fdef(ctx)
+        name = self.handle_field(ctx.getChild(1))
+        if isinstance(name, str):
+            name = ast_module.Identifier(name)
+        ps = self.handle_field(ctx.parameters)
+        modifiers = self.get_modifiers(ctx, modifiers=True, visibility=True, stateMutability=True, \
+                modifierInvocation=True, overrideSpecifier=True)
+        rts = self.handle_field(ctx.return_parameters)
+        body = self.handle_field(ctx.body)
+        return ast_module.ConstructorOrFunctionDefinition(name, ps, modifiers, rts, body, "function")
 
     def visitConstructorDefinition(self, ctx:SolidityParser.ConstructorDefinitionContext):
-        return self.handle_fdef(ctx)
+        idf = ast_module.Identifier("constructor")
+        ps = self.handle_field(ctx.parameters)
+        modifiers = self.get_modifiers(ctx, modifiers=True, modifierInvocation=True)
+        body = self.visit(ctx.body)
+        return ast_module.ConstructorOrFunctionDefinition(idf, ps, modifiers, [], body, "constructor")
 
     def visitEnumDefinition(self, ctx:SolidityParser.EnumDefinitionContext):
         idf = self.visit(ctx.idf)
@@ -183,8 +183,14 @@ class BuildASTVisitor(SolidityVisitor):
 
     # Visit a parse tree produced by SolidityParser#NumberLiteralExpr.
     def visitNumberLiteralExpr(self, ctx: SolidityParser.NumberLiteralExprContext):
-        v = int(ctx.getText().replace('_', ''), 0)
-        return NumberLiteralExpr(v, ctx.getText().startswith(('0x', '0X')), ctx.getText())
+        unit = ctx.NumberUnit.getText() if ctx.NumberUnit() else None
+        if ctx.HexNumber():
+            was_hex = True
+            value = int(ctx.HexNumber().getText().replace('_', ''), 16)
+        else:
+            was_hex = False
+            value = int(ctx.DecimalNumber().getText().replace('_', ''))
+        return NumberLiteralExpr(value, was_hex, ctx.getText())
 
     # Visit a parse tree produced by SolidityParser#BooleanLiteralExpr.
     def visitBooleanLiteralExpr(self, ctx: SolidityParser.BooleanLiteralExprContext):
@@ -209,9 +215,6 @@ class BuildASTVisitor(SolidityVisitor):
         for idx in range(0, len(contents), 2):
             elements.append(self.visit(contents[idx]))
         return ast.TupleExpr(elements)
-
-    def visitModifier(self, ctx: SolidityParser.ModifierContext):
-        return ctx.getText()
 
     def visitAnnotatedTypeName(self, ctx: SolidityParser.AnnotatedTypeNameContext):
         pa = None
@@ -324,13 +327,13 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitFunctionCallExpr(self, ctx: SolidityParser.FunctionCallExprContext):
         func = self.visit(ctx.expression())
-        args = self.handle_field(ctx.callArgumentList())
+        args = self.visit(ctx.callArgumentList())
 
         if isinstance(func, IdentifierExpr):
             if func.idf.name == 'reveal':
-                if len(args) != 2:
+                if len(args.args) != 2:
                     raise SyntaxException(f'Invalid number of arguments for reveal: {args}', ctx.args, self.code)
-                return ReclassifyExpr(args[0], args[1])
+                return ReclassifyExpr(args.args[0], args.args[1])
 
         return FunctionCallExpr(func, args)
 
@@ -427,10 +430,11 @@ class BuildASTVisitor(SolidityVisitor):
                 f = e.func
                 if isinstance(f, IdentifierExpr):
                     if f.idf.name == 'require':
-                        if len(e.args) == 1:
-                            return ast.RequireStatement(e.args[0],)
-                        if len(e.args) == 2:
-                            return ast.RequireStatement(e.args[0], comment=e.args[1])
+                        args = e.args.args
+                        if len(args) == 1:
+                            return ast.RequireStatement(args[0],)
+                        if len(args) == 2:
+                            return ast.RequireStatement(args[0], comment=args[1])
                         raise SyntaxException(f'Invalid number of arguments for require: {e.args}', ctx.expr, self.code)
 
             assert isinstance(e, ast.Expression)
@@ -465,17 +469,11 @@ class BuildASTVisitor(SolidityVisitor):
         return ctx.getText()
 
     def visitSourceUnit(self, ctx: SolidityParser.SourceUnitContext):
-        su = ast_module.SourceUnit()
         if ctx.sba():
-            su.sba = self.visit(ctx.sba())
-            return su
-        if ctx.pragmaDirective():
-            su.pragma_directives = self.handle_field(ctx.pragmaDirective())
-        if ctx.importDirective():
-            su.import_directives = self.handle_field(ctx.importDirective())
-        if ctx.contractDefinition():
-            su.contracts = self.handle_field(ctx.contractDefinition())
-        return su
+            sba = self.visit(ctx.sba())
+            return ast_module.SourceUnit(sba=sba)
+        units = self.handle_field(ctx.children)[:-1]
+        return ast_module.SourceUnit(units=units)
 
     def visitPath(self, ctx: SolidityParser.PathContext):
         return ctx.getText()
@@ -484,12 +482,197 @@ class BuildASTVisitor(SolidityVisitor):
         return self.handle_field(ctx.getChild(1))
 
     def visitNamedArgument(self, ctx: SolidityParser.NamedArgumentContext):
-        return {ctx.name.name.text: self.visit(ctx.value)}
+        return ast_module.NamedArgument(ctx.name.name.text, self.visit(ctx.value))
 
     def visitCallArgumentList(self, ctx: SolidityParser.CallArgumentListContext):
         if ctx.namedArgument():
-            args = {}
-            for v in self.handle_field(ctx.namedArgument()):
-                args.update(v)
-            return ast_module.NamedArguments(args)
-        return self.handle_field(ctx.expression())
+            return ast_module.CallArgumentList(self.handle_field(ctx.namedArgument()), True)
+        return ast_module.CallArgumentList(self.handle_field(ctx.expression()), False)
+
+    def visitIdentifierPath(self, ctx: SolidityParser.IdentifierPathContext):
+        return [i.name.text for i in ctx.identifier()]
+
+    def visitInheritanceSpecifier(self, ctx: SolidityParser.InheritanceSpecifierContext):
+        path = self.visit(ctx.identifierPath())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.InheritanceSpecifier(path, args)
+
+    def visitInterfaceDefinition(self, ctx: SolidityParser.InterfaceDefinitionContext):
+        name = self.visit(ctx.name)
+        inheritanceSpecifiers = []
+        if ctx.inheritanceSpecifierList():
+            inheritanceSpecifiers = self.handle_field(ctx.inheritanceSpecifierList().inheritanceSpecifier())
+        body_elems = self.handle_field(ctx.contractBodyElement())
+        return ast_module.InterfaceDefinition(name, inheritanceSpecifiers, body_elems)
+
+    def visitLibraryDefinition(self, ctx: SolidityParser.LibraryDefinitionContext):
+        name = self.visit(ctx.name)
+        body_elems = self.handle_field(ctx.contractBodyElement())
+        return ast_module.LibraryDefinition(name, body_elems)
+
+    def visitModifierInvocation(self, ctx: SolidityParser.ModifierInvocationContext):
+        path = self.visit(ctx.identifierPath())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.ModifierInvocation(path, args)
+
+    def visitOverrideSpecifier(self, ctx: SolidityParser.OverrideSpecifierContext):
+        paths = self.handle_field(ctx.identifierPath())
+        return ast_module.OverrideSpecifier(paths)
+
+    def visitModifierDefinition(self, ctx: SolidityParser.ModifierDefinitionContext):
+        idf = self.handle_field(ctx.name)
+        ps = self.handle_field(ctx.parameters)
+        virtual = ctx.virtual is not None
+        overrideSpecifiers = self.handle_field(ctx.overrideSpecifier())
+        body = self.handle_field(ctx.body)
+        return ast_module.ModifierDefinition(idf, ps, virtual, overrideSpecifiers, body)
+
+    def get_modifiers(self, ctx, modifiers=False, visibility=False,
+            stateMutability=False, modifierInvocation=False, overrideSpecifier=False):
+        res = []
+        if modifiers and ctx.modifiers:
+            res += self.handle_field(ctx.modifiers)
+        if visibility and ctx.visibility():
+            res += self.handle_field(ctx.visibility())
+        if stateMutability and ctx.stateMutability():
+            res += self.handle_field(ctx.stateMutability())
+        if modifierInvocation and ctx.modifierInvocation():
+            res += self.handle_field(ctx.modifierInvocation())
+        if overrideSpecifier and ctx.overrideSpecifier():
+            res += self.handle_field(ctx.overrideSpecifier())
+        return res
+
+    def visitFallbackFunctionDefinition(self, ctx: SolidityParser.FallbackFunctionDefinitionContext):
+        idf = ast_module.Identifier("fallback")
+        kind = "fallback"
+        parameters = self.handle_field(ctx.parameters)
+        return_parameters = self.handle_field(ctx.return_parameters)
+        body = self.handle_field(ctx.body)
+        modifiers = self.get_modifiers(ctx, modifiers=True, stateMutability=True, modifierInvocation=True, overrideSpecifier=True)
+        return ast_module.ConstructorOrFunctionDefinition(idf, parameters, modifiers, return_parameters, body, kind)
+
+    def visitReceiveFunctionDefinition(self, ctx: SolidityParser.ReceiveFunctionDefinitionContext):
+        idf = ast_module.Identifier("receive")
+        kind = "receive"
+        body = self.handle_field(ctx.body)
+        modifiers = self.get_modifiers(ctx, modifiers=True, modifierInvocation=True, overrideSpecifier=True)
+        return ast_module.ConstructorOrFunctionDefinition(idf, [], modifiers, [], body, kind)
+
+    def visitStructMember(self, ctx: SolidityParser.StructMemberContext):
+        idf = self.visit(ctx.name)
+        type_name = self.visit(ctx.typeName())
+        return ast_module.VariableDeclaration([], ast_module.AnnotatedTypeName(type_name), idf)
+
+    def visitStructDefinition(self, ctx: SolidityParser.StructDefinitionContext):
+        idf = self.visit(ctx.name)
+        members = self.handle_field(ctx.structMember())
+        return ast_module.StructDefinition(idf, members)
+
+    def visitUserDefinedValueTypeDefinition(self, ctx: SolidityParser.UserDefinedValueTypeDefinitionContext):
+        idf = self.visit(ctx.name)
+        underlying_type = self.visit(ctx.elementaryTypeName())
+        return ast_module.UserDefinedValueTypeDefinition(idf, underlying_type)
+
+    def visitConstantVariableDeclaration(self, ctx: SolidityParser.ConstantVariableDeclarationContext):
+        t = self.visit(ctx.annotated_type)
+        idf = self.visit(ctx.idf)
+        return ast_module.StateVariableDeclaration(t, ['constant'], idf, self.visit(ctx.expr))
+
+    def visitEventParameter(self, ctx: SolidityParser.EventParameterContext):
+        t = self.visit(ctx.annotatedTypeName())
+        indexed = self.handle_field(ctx.IndexedKeyword())
+        name = self.handle_field(ctx.name)
+        return ast_module.EventParameter(t, indexed, name)
+
+    def visitEventDefinition(self, ctx: SolidityParser.EventDefinitionContext):
+        idf = self.visit(ctx.name)
+        parameters = self.handle_field(ctx.parameters)
+        anonymous = self.handle_field(ctx.AnonymousKeyword())
+        return ast_module.EventDefinition(idf, parameters, anonymous)
+
+    def visitEmitStatement(self, ctx: SolidityParser.EmitStatementContext):
+        return ast_module.EmitStatement(self.visit(ctx.expression()), self.handle_field(ctx.callArgumentList()))
+
+    def visitErrorParameter(self, ctx: SolidityParser.ErrorParameterContext):
+        t = self.visit(ctx.typ)
+        name = self.handle_field(ctx.name)
+        return ast_module.ErrorParameter(t, name)
+
+    def visitErrorDefinition(self, ctx: SolidityParser.ErrorDefinitionContext):
+        idf = self.visit(ctx.name)
+        ps = self.handle_field(ctx.parameters)
+        return ast_module.ErrorDefinition(idf, ps)
+
+    def visitUsingDirective(self, ctx: SolidityParser.UsingDirectiveContext):
+        path = self.visit(ctx.identifierPath())
+        t = self.visit(ctx.typeName())
+        return ast_module.UsingDirective(path, t)
+
+    def visitCatchClause(self, ctx: SolidityParser.CatchClauseContext):
+        idf = self.handle_field(ctx.identifier())
+        args = self.handle_field(ctx.arguments)
+        body = self.visit(ctx.block())
+        return ast_module.CatchClause(idf, args, body)
+
+    def visitTryStatement(self, ctx: SolidityParser.TryStatementContext):
+        expr = self.visit(ctx.expression())
+        rts = self.handle_field(ctx.return_parameters)
+        body = self.visit(ctx.block())
+        ccs = self.handle_field(ctx.catchClause())
+        return ast_module.TryStatement(expr, rts, body, ccs)
+
+    def visitRevertStatement(self, ctx: SolidityParser.RevertStatementContext):
+        expr = self.visit(ctx.expression())
+        args = self.visit(ctx.callArgumentList())
+        return ast_module.RevertStatement(expr, args)
+
+    def visitRangeIndexExpr(self, ctx: SolidityParser.RangeIndexExprContext):
+        arr = self.visit(ctx.arr)
+        start = self.handle_field(ctx.start)
+        end = self.handle_field(ctx.end)
+        return ast_module.RangeIndexExpr(arr, start, end)
+
+    def visitMemberAccessExpr(self, ctx: SolidityParser.MemberAccessExprContext):
+        expr = self.visit(ctx.expr)
+        member = self.visit(ctx.identifier()) if ctx.identifier() else ast_module.Identifier("address")
+        return ast_module.MemberAccessExpr(expr, member)
+
+    def visitFunctionCallOptions(self, ctx: SolidityParser.FunctionCallOptionsContext):
+        expr = self.visit(ctx.expression())
+        args = self.handle_field(ctx.namedArgument())
+        return ast_module.FunctionCallExpr(expr, args, True)
+
+    def visitPayableConversion(self, ctx: SolidityParser.PayableConversionContext):
+        idf = ast_module.Identifier("payable")
+        return FunctionCallExpr(IdentifierExpr(idf), self.visit(ctx.callArgumentList()))
+
+    def visitMetaType(self, ctx: SolidityParser.MetaTypeContext):
+        return ast_module.MetaTypeExpr(self.visit(ctx.typeName()))
+
+    def visitInlineArrayExpr(self, ctx: SolidityParser.InlineArrayExprContext):
+        return ast_module.InlineArrayExpr(self.handle_field(ctx.expression()))
+
+    def visitAssemblyStatement(self, ctx: SolidityParser.AssemblyStatementContext):
+        return ast_module.AssemblyStatement(self.extract_original_text(ctx))
+
+    def extract_original_text(self, ctx):
+        token_source = ctx.start.getTokenSource()
+        input_stream = token_source.inputStream
+        start, stop  = ctx.start.start, ctx.stop.stop
+        return input_stream.getText(start, stop)
+
+    def visitStateVariableDeclaration(self, ctx: SolidityParser.StateVariableDeclarationContext):
+        t = self.visit(ctx.annotated_type)
+        ks = self.handle_field(ctx.keywords)
+        overrideSpecifier = None
+        if ctx.overrideSpecifier():
+            overrideSpecifier = self.visit(ctx.overrideSpecifier(0))
+        idf = self.visit(ctx.idf)
+        expr = self.handle_field(ctx.expr)
+        return ast_module.StateVariableDeclaration(t, ks, idf, expr)
+
+    def visitFunctionTypeName(self, ctx: SolidityParser.FunctionTypeNameContext):
+        ps = self.handle_field(ctx.parameters)
+        rts = self.handle_field(ctx.return_parameters)
+        modifiers = self.get_modifiers(ctx, visibility=True, stateMutability=True)
+        return ast_module.FunctionTypeName(ps, modifiers, rts)
