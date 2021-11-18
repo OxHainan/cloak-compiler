@@ -54,7 +54,6 @@ path: StringLiteral;
  */
 symbolAliases: '{' aliases+=importAliases (',' aliases+=importAliases)* '}';
 
-// REMOVED: interface, library, inheritance
 contractDefinition
   : ( 'contract' ) idf=identifier
     '{' parts+=contractBodyElement* '}' ;
@@ -115,22 +114,6 @@ callArgumentList: '(' ((expression (',' expression)*)? | '{' (namedArgument (','
  * Qualified name.
  */
 identifierPath: identifier ('.' identifier)*;
-
-// CHANGED: typeName -> annotatedTypeName
-// REMOVED (only allow default):
-// - PublicKeyword
-// - InternalKeyword
-// - PrivateKeyword
-//
-// state variable modifiers:
-// - public: all can access (default for functions)
-// - internal: only this contract and contracts deriving from it can access (default for state variables)
-// - private: can be accessed only from this contract
-// - constant: constant at compile-time: https://solidity.readthedocs.io/en/v0.4.24/contracts.html#constant-state-variables
-// stateVariableDeclaration
-//   : ( keywords+=FinalKeyword )* annotated_type=annotatedTypeName
-//     ( keywords+=ConstantKeyword )*
-//     idf=identifier ('=' expr=expression)? ';' ;
 
 /**
  * The declaration of a state variable.
@@ -234,9 +217,6 @@ overrideSpecifier: 'override' ('(' overrides+=identifierPath (',' overrides+=ide
 
 parameterList: '(' ( params+=parameter (',' params+=parameter)* )? ')' ;
 
-// identifier is optional because parameters can be used to specify the return value
-// CHANGED:
-// - typeName -> annotatedTypeName
 parameter
   : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier? ;
 
@@ -292,10 +272,6 @@ usingDirective: 'using' identifierPath 'for' ('*' | typeName) ';';
 variableDeclaration
   : (keywords+=FinalKeyword)? annotated_type=annotatedTypeName storage_location=dataLocation? idf=identifier ;
 
-// REMOVED:
-// special types:
-// - address payable: Same as address, but with the additional members transfer and send
-// - arrays: allows fixed size (T[k]) and dynamic size (T[])
 typeName
   : elementaryTypeName
   | functionTypeName
@@ -388,9 +364,6 @@ revertStatement: 'revert' expression callArgumentList ';';
  */
 assemblyStatement: 'assembly' '"evmasm"'? '{' yulStatement* '}';
 
-// REMOVED:
-// - 'var' identifierList
-// - '(' variableDeclarationList ')'
 variableDeclarationStatement
   : variable_declaration=variableDeclaration ( '=' expr=expression )? ';'
   ;
@@ -398,8 +371,6 @@ variableDeclarationStatement
 tupleVariableDeclarationStatement:
     '(' (',')* variableDeclaration (',' (variableDeclaration)?)* ')' '=' expression ';'
     ;
-
-// REMOVED: identifierList
 
 elementaryTypeName
   : name=('address' | 'address payable' | 'bool' | Int | Uint | // Supported types
@@ -470,8 +441,6 @@ tupleExpression: '(' ( expression? ( ',' expression? )* ) ')' ;
 
 elementaryTypeNameExpression
   : elementaryTypeName ;
-
-// CHANGED: ADDED RULES FOR PRIVACY ANNOTATIONS
 
 MeKeyword : 'me' ;
 AllKeyword : 'all' ;
@@ -550,9 +519,6 @@ yulFunctionCall: (Identifier | YulEVMBuiltin) '(' (yulExpression (',' yulExpress
 yulLiteral: DecimalNumber | StringLiteral | HexNumber | BooleanLiteral | HexString;
 yulExpression: yulPath | yulFunctionCall | yulLiteral;
 
-// REMOVED:
-// - 'from'
-// - 'calldata'
 identifier
   : (name=Identifier) ;
 
@@ -581,8 +547,6 @@ fragment
 HexCharacter
   : [0-9A-Fa-f] ;
 
-// REMOVED:
-// - final
 ReservedKeyword
   : 'abstract'
   | 'after'
