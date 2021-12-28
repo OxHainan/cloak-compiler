@@ -59,6 +59,7 @@ def transform_ast(ast: AST, put_enable: bool) -> AST:
     # XYZ link_identifiers(new_ast)
     return new_ast
 
+
 class StateNameCollector(AstVisitor):
     def __init__(self):
         super().__init__()
@@ -131,6 +132,7 @@ class PrivacyRelatedMarker(FunctionVisitor):
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         if ast.name in self.privacy_related_funciton_set:
             ast.is_privacy_related_function = True
+
 class CloakTransformer(AstTransformerVisitor):
     """
     Transformer which transforms contract level AST elements (contract, function definitions, constructor definitions)
@@ -222,9 +224,6 @@ class CloakTransformer(AstTransformerVisitor):
         # remove function except constructor
         if self.put_enable:
             # remove all privacy-related function except constructor
-            for u in c.units:
-                if isinstance(u, ConstructorOrFunctionDefinition):
-                    print('functionCheck', u.name, u.is_privacy_related_function)
             is_privacy_related_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function and u.is_privacy_related_function
             c.units[:] = filter(lambda u: not is_privacy_related_function(u), c.units)
         else:
