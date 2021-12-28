@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # PYTHON_ARGCOMPLETE_OK
+from typing import Any
 import argcomplete, argparse
 import os
 
@@ -89,6 +90,7 @@ def parse_arguments():
     compile_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
     compile_parser.add_argument('--log', action='store_true', help='enable logging')
     compile_parser.add_argument('--solc-version', help=solc_version_help, metavar='<cfg_val>')
+    compile_parser.add_argument('--put-enable', action='store_true', help='enable PUT and reserve public function')
 
     # 'check' parser
     typecheck_parser = subparsers.add_parser('check', parents=[config_parser], help='Only type-check, do not compile.', formatter_class=ShowSuppressedInHelpFormatter)
@@ -220,7 +222,7 @@ def main():
         # compile
         with log_context('inputfile', os.path.basename(a.input)):
             try:
-                frontend.compile_cloak_file(str(input_path), str(output_dir))
+                frontend.compile_cloak_file(str(input_path), str(output_dir), a.put_enable)
             except CloakCompilerError as e:
                 with fail_print():
                     print(f'{e}')

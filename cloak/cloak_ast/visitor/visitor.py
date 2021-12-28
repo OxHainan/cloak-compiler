@@ -41,5 +41,7 @@ class AstVisitor:
         return None
 
     def visitChildren(self, ast):
+        if ast == None:
+            return
         for c in ast.children():
             self.visit(c)

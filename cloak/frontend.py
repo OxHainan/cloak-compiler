@@ -28,7 +28,7 @@ from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
 
 
-def compile_cloak_file(input_file_path: str, output_dir: str, **kwargs):
+def compile_cloak_file(input_file_path: str, output_dir: str, put_enable : bool, **kwargs):
     """
     Parse, type-check and compile the given cloak contract file.
 
@@ -49,10 +49,10 @@ def compile_cloak_file(input_file_path: str, output_dir: str, **kwargs):
 
     # compile
     with time_measure('compileFull'):
-        compile_cloak(code, input_file_path, output_dir, **kwargs)
+        compile_cloak(code, input_file_path, output_dir, put_enable, **kwargs)
 
 
-def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
+def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: bool, **kwargs):
     """
     Parse, type-check and compile the given cloak code.
 
@@ -96,7 +96,7 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, **kwargs):
 
     # Contract transformation
     with print_step("Transforming cloak contract"):
-        ast = transform_ast(deepcopy(cloak_ast))
+        ast = transform_ast(deepcopy(cloak_ast), put_enable)
         ast.policy_path = os.path.join(output_dir, "policy.json")
 
     # Dump libraries
