@@ -4,6 +4,9 @@ import base64
 from typing import Dict, Optional, List, Tuple
 
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
+from cloak.cloak_ast.visitor.function_visitor import FunctionVisitor
+from cloak.cloak_ast.visitor.visitor import AstVisitor
+from cloak.errors.exceptions import CloakCompilerError
 from cloak.compiler.privacy.transformation.tee_transformer import TeeVarDeclTransformer
 from cloak.config import cfg
 from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFunctionDefinition, FunctionPrivacyType, IdentifierExpr, Mapping, TeeExpr, VariableDeclaration, \
@@ -12,7 +15,7 @@ from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFuncti
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
     Parameter, ForStatement, IfStatement, IndexExpr, \
-    VariableDeclarationStatement, StatementList, ArrayLiteralExpr, MeExpr, StringLiteralExpr, LocationExpr
+    VariableDeclarationStatement, StatementList, ArrayLiteralExpr, MeExpr, StringLiteralExpr, LocationExpr, AssignmentStatement
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.global_defs import GlobalDefs
@@ -21,7 +24,7 @@ from cloak.cloak_ast import ast as ast_module
 from cloak.cloak_ast.build_ast import SOL
 
 
-def transform_ast(ast: AST) -> AST:
+def transform_ast(ast: AST, put_enable: bool) -> AST:
     """
     Convert cloak to solidity AST + proof circuits
 
@@ -29,7 +32,26 @@ def transform_ast(ast: AST) -> AST:
     :return: solidity AST and dictionary which maps all function definitions which require verification
              to the corresponding circuit helper instance.
     """
-    ct = CloakTransformer()
+
+    # collect state names
+    snc = StateNameCollector()
+    snc.visit(ast)
+
+    # collect function names
+    fnc = FunctionNameCollector()
+    fnc.visit(ast)
+
+    # generate call graph
+    cgg = CallGraphGenerator(list(fnc.getFunctionNames()), snc.getPrivacyRelatedStates())
+    cgg.visit(ast)
+    cgg.markPrivacyIteratively()
+
+    # mark privacy-related function
+    prm = PrivacyRelatedMarker(cgg.privacy_related_funciton_set)
+    prm.visit(ast)
+
+    # transformer
+    ct = CloakTransformer(put_enable)
     new_ast = ct.visit(ast)
 
     # restore all parent pointers and identifier targets
@@ -37,6 +59,79 @@ def transform_ast(ast: AST) -> AST:
     # XYZ link_identifiers(new_ast)
     return new_ast
 
+
+class StateNameCollector(AstVisitor):
+    def __init__(self):
+        super().__init__()
+        self.privacy_related_states_set = set()
+
+    def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
+        if ast.annotated_type.is_private():
+            self.privacy_related_states_set.add(ast.idf.name)
+    
+    def getPrivacyRelatedStates(self):
+        return self.privacy_related_states_set
+
+class FunctionNameCollector(FunctionVisitor):
+    def __init__(self):
+        super().__init__()
+        self.function_names = set()
+
+    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+        self.function_names.add(ast.name)
+    
+    def getFunctionNames(self):
+        return self.function_names
+class CallGraphGenerator(FunctionVisitor):
+    def __init__(self, function_names: list, privacy_related_states_set: set):
+        super().__init__()
+        self.function_names = function_names
+        self.call_graph = [[False for i in range(len(function_names))] for i in range(len(function_names))]
+        self.privacy_related_funciton_set = set()
+        self.privacy_related_states_set = privacy_related_states_set
+    
+    def visitAST(self, ast: AST):
+        for child in ast.children():
+            self.visit(child)
+
+    def functionName2Index(self, function_name: str):
+        return self.function_names.index(function_name)
+
+    def functionIndex2Name(self, index: int):
+        return self.function_names[index]
+
+    def visitFunctionCallExpr(self, ast: FunctionCallExpr):
+        self.visitAST(ast)
+        if isinstance(ast.func, LocationExpr):
+            if ast.func.target.idf.name in self.function_names:
+                self.call_graph[self.functionName2Index(ast.get_related_function().idf.name)][self.functionName2Index(ast.func.target.idf.name)] = True
+
+    def visitAssignmentStatement(self, ast: AssignmentStatement):
+        if str(ast.lhs) in self.privacy_related_states_set or str(ast.rhs) in self.privacy_related_states_set:
+            self.privacy_related_funciton_set.add(ast.get_related_function().idf.name)
+
+    def markPrivacyIteratively(self):
+        privacy_related_funciton_num = len(self.privacy_related_funciton_set)
+        while True:
+            for function_name in self.function_names:
+                if function_name in self.privacy_related_funciton_set:
+                    for i in range(len(self.function_names)):
+                        if self.call_graph[i][self.functionName2Index(function_name)]:
+                            self.privacy_related_funciton_set.add(self.functionIndex2Name(i))
+            if privacy_related_funciton_num == len(self.privacy_related_funciton_set):
+                # Convergence
+                break
+            else:
+                privacy_related_funciton_num = len(self.privacy_related_funciton_set)
+
+class PrivacyRelatedMarker(FunctionVisitor):
+    def __init__(self, privacy_related_funciton_set: set):
+        super().__init__()
+        self.privacy_related_funciton_set = privacy_related_funciton_set
+
+    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+        if ast.name in self.privacy_related_funciton_set:
+            ast.is_privacy_related_function = True
 
 class CloakTransformer(AstTransformerVisitor):
     """
@@ -52,7 +147,8 @@ class CloakTransformer(AstTransformerVisitor):
     * For every function and constructor, the parameters and the body are transformed using the transformers defined in zkp_transformer.py
     """
 
-    def __init__(self):
+    def __init__(self, put_enable):
+        self.put_enable = put_enable
         super().__init__()
 
     @staticmethod
@@ -66,11 +162,11 @@ class CloakTransformer(AstTransformerVisitor):
         import_filename = f'./{cname}.sol'
         su.extra_head_parts.append(ast_module.ImportDirective(import_filename))
 
-    def add_extra_head_parts(self, su: SourceUnit, c: ContractDefinition):
+    def add_extra_tail_parts(self, su: SourceUnit, c: ContractDefinition):
         # Add constant state variables for tee external contracts
         code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
         policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
-        c.extra_head_parts += [
+        c.extra_tail_parts += [
             Comment("CloakService Variable"),
             SOL(f"CloakService constant CloakService_inst = CloakService({cfg.blockchain_service_address});"),
             SOL(f"address tee_addr = CloakService_inst.getTEEAddress();"),
@@ -83,7 +179,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         for c in ast.contracts:
             self.transform_contract(ast, c)
-
+            self.visitAST(ast)
         return ast
 
     def transform_contract(self, su: SourceUnit, c: ContractDefinition) -> ContractDefinition:
@@ -100,7 +196,7 @@ class CloakTransformer(AstTransformerVisitor):
         :param c: [SIDE EFFECTS] The contract to transform
         :return: The contract itself
         """
-        self.add_extra_head_parts(su, c)
+        self.add_extra_tail_parts(su, c)
         c = self.transform_tee_functions(su, c)
 
         return c
@@ -125,10 +221,15 @@ class CloakTransformer(AstTransformerVisitor):
 
         """Transformer for state variable declarations and parameters"""
         var_decl_trafo = TeeVarDeclTransformer().visit_list(c.state_variable_declarations)
-
-        # remove all origin function except constructor
-        is_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function
-        c.units[:] = filter(lambda u: not is_function(u), c.units)
+        # remove function except constructor
+        if self.put_enable:
+            # remove all privacy-related function except constructor
+            is_privacy_related_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function and u.is_privacy_related_function
+            c.units[:] = filter(lambda u: not is_privacy_related_function(u), c.units)
+        else:
+            # remove all origin function except constructor
+            is_function = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_function
+            c.units[:] = filter(lambda u: not is_function(u), c.units)
 
         # append get_states and set_states
         c.extra_tail_parts += [self.get_states(su, c), self.set_states(su, c)]

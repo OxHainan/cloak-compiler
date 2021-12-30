@@ -1714,6 +1714,9 @@ class ConstructorOrFunctionDefinition(NamespaceDefinition):
         
         self.privacy_type: FunctionPrivacyType = FunctionPrivacyType.PUB
 
+        # True if this funtion inside contains privacy variable
+        self.is_privacy_related_function = False
+
         # assigned by type_checker
         self.privacy_related_params = None
         self.mutate_states = []
