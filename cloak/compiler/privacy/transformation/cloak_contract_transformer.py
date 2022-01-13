@@ -42,7 +42,7 @@ def transform_ast(ast: AST, put_enable: bool) -> AST:
     fnc.visit(ast)
 
     # generate call graph
-    cgg = CallGraphGenerator(list(fnc.getFunctionNames()), snc.getPrivacyRelatedStates())
+    cgg = CallGraphGenerator(list(fnc.getFunctionNames()), snc.getStates(), snc.getPrivacyRelatedStates())
     cgg.visit(ast)
     cgg.markPrivacyIteratively()
 
@@ -64,11 +64,19 @@ class StateNameCollector(AstVisitor):
     def __init__(self):
         super().__init__()
         self.privacy_related_states_set = set()
+        self.states_set = set()
 
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
-        if ast.annotated_type.is_private():
+        self.states_set.add(ast.idf.name)
+        if self.isPrivacyRelatedState(str(ast.annotated_type)):
             self.privacy_related_states_set.add(ast.idf.name)
+
+    def isPrivacyRelatedState(self, name: str):
+        return name.count('@') != name.count('@all')
     
+    def getStates(self):
+        return self.states_set
+
     def getPrivacyRelatedStates(self):
         return self.privacy_related_states_set
 
@@ -83,11 +91,12 @@ class FunctionNameCollector(FunctionVisitor):
     def getFunctionNames(self):
         return self.function_names
 class CallGraphGenerator(FunctionVisitor):
-    def __init__(self, function_names: list, privacy_related_states_set: set):
+    def __init__(self, function_names: list, states_set: set, privacy_related_states_set: set):
         super().__init__()
         self.function_names = function_names
         self.call_graph = [[False for i in range(len(function_names))] for i in range(len(function_names))]
         self.privacy_related_funciton_set = set()
+        self.states_set = states_set
         self.privacy_related_states_set = privacy_related_states_set
     
     def visitAST(self, ast: AST):
@@ -106,8 +115,8 @@ class CallGraphGenerator(FunctionVisitor):
             if ast.func.target.idf.name in self.function_names:
                 self.call_graph[self.functionName2Index(ast.get_related_function().idf.name)][self.functionName2Index(ast.func.target.idf.name)] = True
 
-    def visitAssignmentStatement(self, ast: AssignmentStatement):
-        if str(ast.lhs) in self.privacy_related_states_set or str(ast.rhs) in self.privacy_related_states_set:
+    def visitIdentifier(self, ast: Identifier):
+        if str(ast) in self.states_set and str(ast) in self.privacy_related_states_set:
             self.privacy_related_funciton_set.add(ast.get_related_function().idf.name)
 
     def markPrivacyIteratively(self):
@@ -161,21 +170,20 @@ class CloakTransformer(AstTransformerVisitor):
         """
         import_filename = f'./{cname}.sol'
         su.extra_head_parts.append(ast_module.ImportDirective(import_filename))
-
+# 
     def add_extra_tail_parts(self, su: SourceUnit, c: ContractDefinition):
         # Add constant state variables for tee external contracts
         code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
         policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
         c.extra_tail_parts += [
             Comment("CloakService Variable"),
-            SOL(f"CloakService constant CloakService_inst = CloakService({cfg.blockchain_service_address});"),
-            SOL(f"address tee_addr = CloakService_inst.getTEEAddress();"),
+            SOL(f"address owner = msg.sender;"),
             SOL(f"uint constant teeCHash = {code_hash_hb.hex()};"),
             SOL(f"uint constant teePHash = {policy_hash_hb.hex()};"),
         ]
 
     def visitSourceUnit(self, ast: SourceUnit):
-        self.import_contract(cfg.service_contract_name, ast)
+        #self.import_contract(cfg.service_contract_name, ast)
 
         for c in ast.contracts:
             self.transform_contract(ast, c)
@@ -319,7 +327,7 @@ class CloakTransformer(AstTransformerVisitor):
         params = "bytes[] memory data"
         if is_cipher:
             guard = """
-                require(msg.sender == tee_addr, 'msg.sender is not tee');
+                require(msg.sender == owner, 'msg.sender is not tee');
                 require(proof[0] == teeCHash, 'code hash error');
                 require(proof[1] == teePHash, 'policy hash error');
                 uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
