@@ -72,8 +72,8 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # get ast
     cloak_ast = build_ast(code)
 
-    # dump solified code to output
-    _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")
+    # # dump solified code to output
+    # _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")
 
     # check with solc
     check_with_solc(cloak_ast)
@@ -99,9 +99,9 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
         ast = transform_ast(deepcopy(cloak_ast), put_enable)
         ast.policy_path = os.path.join(output_dir, "policy.json")
 
-    # Dump libraries
-    with print_step("Write library contract files"):
-        _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
+    # # Dump libraries
+    # with print_step("Write library contract files"):
+    #     _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
 
     # Write public contract file
     with print_step('Write public solidity code'):
