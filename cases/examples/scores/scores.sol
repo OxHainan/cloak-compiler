@@ -20,32 +20,32 @@ contract Scores {
     constructor(
 		uint pass,
 		uint point
-	) public {
+	) {
         examinator = me;
         passPoints = pass;
     }
 
-    // // CT
-    // function recordAnswer(
-	// 	uint task, 
-	// 	uint@me ans
-	// ) public {
-    //     answers[me][task] = reveal(ans, examinator);
-    //     passed[me] = false;
-    //     points[me] = 0;
-    // }
+    // CT
+    function recordAnswer(
+		uint task, 
+		uint@me ans
+	) public {
+        answers[me][task] = reveal(ans, examinator);
+        passed[me] = false;
+        points[me] = 0;
+    }
 
-    // // CT
-    // function gradeTask(
-	// 	uint task, 
-	// 	address examinee
-	// ) public {
-    //     require(examinator == me);
-    //     uint@me p;
-    //     p = answers[examinee][task] == solutions[task] ? 1 : 0;
-    //     points[examinee] = points[examinee] + p;
-    //     passed[examinee] = reveal(points[examinee] > passPoints, examinee);
-    // }
+    // CT
+    function gradeTask(
+		uint task, 
+		address examinee
+	) public {
+        require(examinator == me);
+        uint@me p;
+        p = answers[examinee][task] == solutions[task] ? 1 : 0;
+        points[examinee] = points[examinee] + p;
+        passed[examinee] = reveal(points[examinee] > passPoints, examinee);
+    }
 
     // TEE
     function setSolution(
