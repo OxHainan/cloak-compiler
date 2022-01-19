@@ -159,6 +159,7 @@ class PrivacyPolicy(json.JSONEncoder):
         n_elem = {}
         if var.idf:
             n_elem["name"] = var.idf.name
+        n_elem["is_constant"] =  var.is_constant
         n_elem["type"] = type_pure.delete_cloak_annotation(
             self.__ppv.visit(var.annotated_type.type_name))
         n_elem["structural_type"] = TypeFormatter().visit(var.annotated_type.type_name)
