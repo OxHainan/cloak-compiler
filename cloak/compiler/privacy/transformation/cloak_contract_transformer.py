@@ -267,6 +267,8 @@ class CloakTransformer(AstTransformerVisitor):
         basic_type = ""
         idx = 0
         for i, state in enumerate(states):
+            if state['is_constant']:
+                continue
             state_type = states_types[state["name"]]
             if not state_type.is_mapping:
                 basic_type += f"oldStates[{idx}] = abi.encode({i});\n"
@@ -284,6 +286,8 @@ class CloakTransformer(AstTransformerVisitor):
     def get_states_mapping_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], idx: int, is_cipher = True) -> (str, int):
         mapping_type = ""
         for si, state in enumerate(states):
+            if state['is_constant']:
+                continue
             state_type = states_types[state["name"]]
             if state_type.is_mapping:
                 mapping_type += "oldStates[os_idx] = read[read_idx];\n"
@@ -351,17 +355,17 @@ class CloakTransformer(AstTransformerVisitor):
         basic_type = ""
         idx = 0
         for i, state in enumerate(states):
+            if state['is_constant']:
+                continue
             state_type = states_types[state["name"]]
             if not state_type.is_mapping:
                 if state["owner"]["owner"] != "all" and is_cipher:
-                    if state['is_constant']:
-                        basic_type += f"{state['name']}[0] = data[{idx+1}] ;\n"
-                        basic_type += f"{state['name']}[1] = data[{idx+2}] ;\n"
-                        basic_type += f"{state['name']}[2] = data[{idx+3}] ;\n"
+                    basic_type += f"{state['name']}[0] = data[{idx+1}] ;\n"
+                    basic_type += f"{state['name']}[1] = data[{idx+2}] ;\n"
+                    basic_type += f"{state['name']}[2] = data[{idx+3}] ;\n"
                     idx += 4
                 else:
-                    if not state['is_constant']:
-                        basic_type += f"{state['name']} = abi.decode(data[{idx+1}], ({state_type}));\n"
+                    basic_type += f"{state['name']} = abi.decode(data[{idx+1}], ({state_type}));\n"
                     idx += 2
         return basic_type, idx
 
@@ -370,6 +374,8 @@ class CloakTransformer(AstTransformerVisitor):
     def set_states_mapping_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], idx: int, is_cipher = True) -> (str, int):
         mapping_type = ""
         for si, state in enumerate(states):
+            if state['is_constant']:
+                continue
             state_type = states_types[state["name"]]
             if state_type.is_mapping:
                 mapping_depth, mapping_keys, value_type = state_type.split()
@@ -379,13 +385,11 @@ class CloakTransformer(AstTransformerVisitor):
                     key_expr += f"[abi.decode(data[data_idx + {2+i} + i * {factor}], ({mapping_keys[i]}))]"
                 for_body = ""
                 if state["owner"]["owner"] != "all" and is_cipher:
-                    if not state['is_constant']:
-                        for_body += f"{state['name']}{key_expr}[0] = data[data_idx +{2+mapping_depth} + i * {factor}];\n"
-                        for_body += f"{state['name']}{key_expr}[1] = data[data_idx +{3+mapping_depth} + i * {factor}];\n"
-                        for_body += f"{state['name']}{key_expr}[2] = data[data_idx +{4+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[0] = data[data_idx +{2+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[1] = data[data_idx +{3+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[2] = data[data_idx +{4+mapping_depth} + i * {factor}];\n"
                 else:
-                    if not state['is_constant']:
-                        for_body += f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
+                    for_body += f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
                 mapping_type += f"""
                     keys_count = abi.decode(data[data_idx + 1], (uint));
                     for (uint i = 0; i < keys_count; i = i + 1) {{
