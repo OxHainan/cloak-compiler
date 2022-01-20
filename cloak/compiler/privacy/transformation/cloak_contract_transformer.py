@@ -42,7 +42,7 @@ def transform_ast(ast: AST, put_enable: bool) -> AST:
     fnc.visit(ast)
 
     # generate call graph
-    cgg = CallGraphGenerator(list(fnc.getFunctionNames()), snc.getStates(), snc.getPrivacyRelatedStates())
+    cgg = CallGraphGenerator(list(fnc.getFunctionNames()), fnc.getPrivacyRelatedFunctions(), snc.getStates(), snc.getPrivacyRelatedStates())
     cgg.visit(ast)
     cgg.markPrivacyIteratively()
 
@@ -84,18 +84,29 @@ class FunctionNameCollector(FunctionVisitor):
     def __init__(self):
         super().__init__()
         self.function_names = set()
+        self.privacy_related_funciton_set = set()
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         self.function_names.add(ast.name)
-    
+        for param in ast.parameters:
+            if self.isPrivacyRelatedParam(str(param.annotated_type)):
+                self.privacy_related_funciton_set.add(ast.name)
+                break
+
+    def isPrivacyRelatedParam(self, name: str):
+        return name.count('@') != name.count('@all')
+
     def getFunctionNames(self):
         return self.function_names
+
+    def getPrivacyRelatedFunctions(self):
+        return self.privacy_related_funciton_set
 class CallGraphGenerator(FunctionVisitor):
-    def __init__(self, function_names: list, states_set: set, privacy_related_states_set: set):
+    def __init__(self, function_names: list, privacy_related_functions_set: set, states_set: set, privacy_related_states_set: set):
         super().__init__()
         self.function_names = function_names
         self.call_graph = [[False for i in range(len(function_names))] for i in range(len(function_names))]
-        self.privacy_related_funciton_set = set()
+        self.privacy_related_funciton_set = privacy_related_functions_set
         self.states_set = states_set
         self.privacy_related_states_set = privacy_related_states_set
     
