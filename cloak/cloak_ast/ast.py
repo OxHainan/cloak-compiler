@@ -2325,9 +2325,12 @@ class CodeVisitor(AstVisitor):
             key = self.visit(ast.key)
         return f'{self.visit(ast.arr)}[{key}]'
 
-    def visitMeExpr(self, _: MeExpr):
+    def visitMeExpr(self, ast: MeExpr):
         if self.for_solidity:
-            return 'msg.sender'
+            if ast.parent and ast.get_related_function().is_constructor:
+                return 'tx.origin'
+            else:
+                return 'msg.sender'
         return 'me'
 
     def visitAllExpr(self, _: AllExpr):
