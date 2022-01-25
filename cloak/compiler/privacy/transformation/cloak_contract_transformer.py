@@ -315,7 +315,7 @@ class CloakTransformer(AstTransformerVisitor):
                 mapping_type += "oldStates[os_idx+1] = read[read_idx+1];\n"
 
                 mapping_depth, mapping_keys, _ = state_type.split()
-                factor = mapping_depth + (3 if state["owner"]["owner"] != "all" and is_cipher else 1)
+                factor = mapping_depth + (5 if state["owner"]["owner"] != "all" and is_cipher else 1)
                 for_body = ""
                 key_expr = ""
                 for i in range(mapping_depth):
@@ -404,7 +404,7 @@ class CloakTransformer(AstTransformerVisitor):
             state_type = states_types[state["name"]]
             if state_type.is_mapping:
                 mapping_depth, mapping_keys, value_type = state_type.split()
-                factor = mapping_depth + (3 if state["owner"]["owner"] != "all" and is_cipher else 1)
+                factor = mapping_depth + (5 if state["owner"]["owner"] != "all" and is_cipher else 1)
                 key_expr = ""
                 for i in range(mapping_depth):
                     key_expr += f"[abi.decode(data[data_idx + {2+i} + i * {factor}], ({mapping_keys[i]}))]"
