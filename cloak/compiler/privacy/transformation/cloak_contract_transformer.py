@@ -295,7 +295,9 @@ class CloakTransformer(AstTransformerVisitor):
                     basic_type += f"oldStates[{idx+1}] = {state['name']}[0];\n"
                     basic_type += f"oldStates[{idx+2}] = {state['name']}[1];\n"
                     basic_type += f"oldStates[{idx+3}] = {state['name']}[2];\n"
-                    idx += 4
+                    basic_type += f"oldStates[{idx+4}] = {state['name']}[3];\n"
+                    basic_type += f"oldStates[{idx+5}] = {state['name']}[4];\n"
+                    idx += 6
                 else:
                     basic_type += f"oldStates[{idx+1}] = abi.encode({state['name']});"
                     idx += 2
@@ -324,6 +326,8 @@ class CloakTransformer(AstTransformerVisitor):
                     for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[0];\n"
                     for_body += f"oldStates[os_idx + {3 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[1];\n"
                     for_body += f"oldStates[os_idx + {4 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[2];\n"
+                    for_body += f"oldStates[os_idx + {5 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[3];\n"
+                    for_body += f"oldStates[os_idx + {6 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[4];\n"
                 else:
                     for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = abi.encode({state['name']}{key_expr});\n"
                 mapping_type += f"""
@@ -382,7 +386,9 @@ class CloakTransformer(AstTransformerVisitor):
                     basic_type += f"{state['name']}[0] = data[{idx+1}] ;\n"
                     basic_type += f"{state['name']}[1] = data[{idx+2}] ;\n"
                     basic_type += f"{state['name']}[2] = data[{idx+3}] ;\n"
-                    idx += 4
+                    basic_type += f"{state['name']}[3] = data[{idx+4}] ;\n"
+                    basic_type += f"{state['name']}[4] = data[{idx+5}] ;\n"
+                    idx += 6
                 else:
                     basic_type += f"{state['name']} = abi.decode(data[{idx+1}], ({state_type}));\n"
                     idx += 2
@@ -407,6 +413,8 @@ class CloakTransformer(AstTransformerVisitor):
                     for_body += f"{state['name']}{key_expr}[0] = data[data_idx +{2+mapping_depth} + i * {factor}];\n"
                     for_body += f"{state['name']}{key_expr}[1] = data[data_idx +{3+mapping_depth} + i * {factor}];\n"
                     for_body += f"{state['name']}{key_expr}[2] = data[data_idx +{4+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[3] = data[data_idx +{5+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[4] = data[data_idx +{6+mapping_depth} + i * {factor}];\n"
                 else:
                     for_body += f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
                 mapping_type += f"""
