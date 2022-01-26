@@ -196,7 +196,7 @@ class CloakTransformer(AstTransformerVisitor):
         policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
         c.extra_tail_parts += [
             Comment("CloakService Variable"),
-            SOL(f"address owner = msg.sender;"),
+            SOL(f"address cloakServiceAddr = msg.sender;"),
             SOL(f"uint constant teeCHash = {code_hash_hb.hex()};"),
             SOL(f"uint constant teePHash = {policy_hash_hb.hex()};"),
         ]
@@ -354,7 +354,7 @@ class CloakTransformer(AstTransformerVisitor):
         params = "bytes[] memory data"
         if is_cipher:
             guard = """
-                require(msg.sender == owner, 'msg.sender is not tee');
+                require(msg.sender == cloakServiceAddr, 'msg.sender is not cloak-service address');
                 require(proof[0] == teeCHash, 'code hash error');
                 require(proof[1] == teePHash, 'policy hash error');
                 uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
