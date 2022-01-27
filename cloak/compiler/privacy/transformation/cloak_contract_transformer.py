@@ -15,7 +15,7 @@ from cloak.cloak_ast.ast import AddressTypeName, Expression, ConstructorOrFuncti
     Comment, NumberLiteralExpr, StructDefinition, Array, FunctionCallExpr, StructTypeName, PrimitiveCastExpr, TypeName, \
     ContractTypeName, BlankLine, Block, RequireStatement, NewExpr, ContractDefinition, TupleExpr, PrivacyLabelExpr, \
     Parameter, ForStatement, IfStatement, IndexExpr, \
-    VariableDeclarationStatement, StatementList, ArrayLiteralExpr, MeExpr, StringLiteralExpr, LocationExpr, AssignmentStatement, IdentifierDeclaration
+    VariableDeclarationStatement, StatementList, ArrayLiteralExpr, MeExpr, StringLiteralExpr, LocationExpr, AssignmentStatement
 from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast.global_defs import GlobalDefs
@@ -38,7 +38,7 @@ def transform_ast(ast: AST, put_enable: bool) -> AST:
     snc.visit(ast)
 
     # collect function names
-    fnc = FunctionNameCollector(snc.getPrivacyRelatedFunctions())
+    fnc = FunctionNameCollector()
     fnc.visit(ast)
 
     # generate call graph
@@ -64,19 +64,14 @@ class StateNameCollector(AstVisitor):
     def __init__(self):
         super().__init__()
         self.privacy_related_states_set = set()
-        self.privacy_related_functions_set = set()
         self.states_set = set()
 
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
         self.states_set.add(ast.idf.name)
-        if self.isPrivacyRelated(str(ast.annotated_type)):
+        if self.isPrivacyRelatedState(str(ast.annotated_type)):
             self.privacy_related_states_set.add(ast.idf.name)
 
-    def visitIdentifierDeclaration(self, ast: IdentifierDeclaration):
-        if self.isPrivacyRelated(str(ast.annotated_type)):
-            self.privacy_related_functions_set.add(ast.get_related_function().idf.name)
-
-    def isPrivacyRelated(self, name: str):
+    def isPrivacyRelatedState(self, name: str):
         return name.count('@') != name.count('@all')
     
     def getStates(self):
@@ -85,23 +80,20 @@ class StateNameCollector(AstVisitor):
     def getPrivacyRelatedStates(self):
         return self.privacy_related_states_set
 
-    def getPrivacyRelatedFunctions(self):
-        return self.privacy_related_functions_set
-
 class FunctionNameCollector(FunctionVisitor):
-    def __init__(self, privacy_related_functions_set: set):
+    def __init__(self):
         super().__init__()
         self.function_names = set()
-        self.privacy_related_funciton_set = privacy_related_functions_set
+        self.privacy_related_funciton_set = set()
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         self.function_names.add(ast.name)
         for param in ast.parameters:
-            if self.isPrivacyRelated(str(param.annotated_type)):
+            if self.isPrivacyRelatedParam(str(param.annotated_type)):
                 self.privacy_related_funciton_set.add(ast.name)
                 break
 
-    def isPrivacyRelated(self, name: str):
+    def isPrivacyRelatedParam(self, name: str):
         return name.count('@') != name.count('@all')
 
     def getFunctionNames(self):
