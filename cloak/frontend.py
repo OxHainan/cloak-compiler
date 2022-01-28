@@ -99,10 +99,6 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
         ast = transform_ast(deepcopy(cloak_ast), put_enable)
         ast.policy_path = os.path.join(output_dir, "policy.json")
 
-    # # Dump libraries
-    # with print_step("Write library contract files"):
-    #     _dump_to_output(library_contracts.get_service_contract(), output_dir, f'{cfg.service_contract_name}.sol')
-
     # Write public contract file
     with print_step('Write public solidity code'):
         output_filename = 'public_contract.sol'
