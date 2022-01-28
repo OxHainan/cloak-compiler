@@ -14,7 +14,6 @@ from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
 
 from cloak import my_logging
-from cloak.compiler.privacy import library_contracts
 from cloak.compiler.privacy.transformation.cloak_contract_transformer import transform_ast
 from cloak.compiler.privacy.transformation.private_contract_transformer import PrivateContractTransformer
 from cloak.compiler.solidity.compiler import check_compilation
