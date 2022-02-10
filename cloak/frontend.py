@@ -25,6 +25,7 @@ from cloak.cloak_ast.process_ast import process_ast, check_with_solc
 from cloak.cloak_ast.build_ast import build_ast
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
+from cloak.cloak_ast.visitor.type_check_visitor import check_with_cloak
 
 
 def compile_cloak_file(input_file_path: str, output_dir: str, put_enable : bool, **kwargs):
@@ -73,6 +74,9 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
 
     # # dump solified code to output
     # _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")
+
+    # check with cloak
+    check_with_cloak(cloak_ast)
 
     # check with solc
     check_with_solc(cloak_ast)
