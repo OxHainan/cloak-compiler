@@ -11,7 +11,7 @@ class TypeCheckVisitor(AstVisitor):
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         for param in ast.parameters:
             if self.include_tee_param(str(param)):
-                raise CloakCompilerError(f"Type check with cloak failed! Fobbiden using @tee in param. function: {ast.idf}, param: {param}")
+                raise CloakCompilerError(f"Type check with cloak failed! Forbid using @tee in param. function: {ast.idf}, param: {param}")
 
     def include_tee_param(self, param):
         if '@tee' in param:

@@ -45,6 +45,8 @@ def transform_ast(ast: AST, put_enable: bool) -> AST:
     cgg = CallGraphGenerator(list(fnc.getFunctionNames()), fnc.getPrivacyRelatedFunctions(), snc.getStates(), snc.getPrivacyRelatedStates())
     cgg.visit(ast)
     cgg.markPrivacyIteratively()
+    if 'constructor' in cgg.privacy_related_funciton_set:
+        raise CloakCompilerError(f"Type check with cloak failed! Forbid using privacy-related state in constructor.")
 
     # mark privacy-related function
     prm = PrivacyRelatedMarker(cgg.privacy_related_funciton_set)
