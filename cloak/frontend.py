@@ -75,9 +75,6 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # # dump solified code to output
     # _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")
 
-    # check with cloak
-    check_with_cloak(cloak_ast)
-
     # check with solc
     check_with_solc(cloak_ast)
 

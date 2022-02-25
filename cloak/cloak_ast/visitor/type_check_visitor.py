@@ -1,6 +1,6 @@
 from cloak.cloak_ast.visitor.visitor import AstVisitor
 from cloak.cloak_ast.ast import ConstructorOrFunctionDefinition
-from cloak.errors.exceptions import CloakCompilerError
+from cloak.type_check.type_exceptions import TypeException
 
 
 class TypeCheckVisitor(AstVisitor): 
@@ -11,7 +11,7 @@ class TypeCheckVisitor(AstVisitor):
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         for param in ast.parameters:
             if self.include_tee_param(str(param)):
-                raise CloakCompilerError(f"Type check with cloak failed! Forbid using @tee in param. function: {ast.idf}, param: {param}")
+                raise TypeException(f"Type check with cloak failed! Forbid using @tee in param. function: {ast.idf}, param: {param}", ast)
 
     def include_tee_param(self, param):
         if '@tee' in param:

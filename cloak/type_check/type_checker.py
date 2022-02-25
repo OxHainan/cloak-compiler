@@ -71,16 +71,17 @@ class TypeCheckVisitor(AstVisitor):
         #    if not ast.lhs.instanceof(expected_rhs_type):
         #        raise TypeException("Only owner can assign to its private variables", ast)
 
-        if not isinstance(ast.lhs, (TupleExpr, LocationExpr)):
-            raise TypeException("Assignment target is not a location", ast.lhs)
+        pass
+        # if not isinstance(ast.lhs, (TupleExpr, LocationExpr)):
+        #     raise TypeException("Assignment target is not a location", ast.lhs)
 
-        expected_type = ast.lhs.annotated_type
-        ast.rhs = self.get_rhs(ast.rhs, expected_type)
+        # expected_type = ast.lhs.annotated_type
+        # ast.rhs = self.get_rhs(ast.rhs, expected_type)
 
-        # prevent modifying final
-        f = ast.function
-        if isinstance(ast.lhs, (IdentifierExpr, TupleExpr)):
-            self.check_final(f, ast.lhs)
+        # # prevent modifying final
+        # f = ast.function
+        # if isinstance(ast.lhs, (IdentifierExpr, TupleExpr)):
+        #     self.check_final(f, ast.lhs)
 
     def visitVariableDeclarationStatement(self, ast: VariableDeclarationStatement):
         if ast.expr:
@@ -232,31 +233,31 @@ class TypeCheckVisitor(AstVisitor):
         cast.annotated_type = AnnotatedTypeName(t.clone(), expr.annotated_type.privacy_annotation.clone()).override(parent=cast)
         return cast
 
-    def visitFunctionCallExpr(self, ast: FunctionCallExpr):
-        if isinstance(ast.func, BuiltinFunction):
-            self.handle_builtin_function_call(ast, ast.func)
-        elif ast.is_cast:
-            if not isinstance(ast.func.target, EnumDefinition):
-                raise NotImplementedError('User type casts only implemented for enums')
-            ast.annotated_type = self.handle_cast(ast.args[0], ast.func.target.annotated_type.type_name)
-        elif isinstance(ast.func, LocationExpr):
-            ft = ast.func.annotated_type.type_name
+    # def visitFunctionCallExpr(self, ast: FunctionCallExpr):
+    #     if isinstance(ast.func, BuiltinFunction):
+    #         self.handle_builtin_function_call(ast, ast.func)
+    #     elif ast.is_cast:
+    #         if not isinstance(ast.func.target, EnumDefinition):
+    #             raise NotImplementedError('User type casts only implemented for enums')
+    #         ast.annotated_type = self.handle_cast(ast.args[0], ast.func.target.annotated_type.type_name)
+    #     elif isinstance(ast.func, LocationExpr):
+    #         ft = ast.func.annotated_type.type_name
 
-            if len(ft.parameters) != len(ast.args):
-                raise TypeException("Wrong number of arguments", ast.func)
+    #         if len(ft.parameters) != len(ast.args):
+    #             raise TypeException("Wrong number of arguments", ast.func)
 
-            # Check arguments
-            for i in range(len(ast.args)):
-                ast.args[i] = self.get_rhs(ast.args[i], ft.parameters[i].annotated_type)
+    #         # Check arguments
+    #         for i in range(len(ast.args)):
+    #             ast.args[i] = self.get_rhs(ast.args[i], ft.parameters[i].annotated_type)
 
-            # Set expression type to return type
-            if len(ft.return_parameters) == 1:
-                ast.annotated_type = ft.return_parameters[0].annotated_type.clone()
-            else:
-                # TODO maybe not None label in the future
-                ast.annotated_type = AnnotatedTypeName(TupleType([t.annotated_type for t in ft.return_parameters]), None)
-        else:
-            raise TypeException('Invalid function call', ast)
+    #         # Set expression type to return type
+    #         if len(ft.return_parameters) == 1:
+    #             ast.annotated_type = ft.return_parameters[0].annotated_type.clone()
+    #         else:
+    #             # TODO maybe not None label in the future
+    #             ast.annotated_type = AnnotatedTypeName(TupleType([t.annotated_type for t in ft.return_parameters]), None)
+    #     else:
+    #         raise TypeException('Invalid function call', ast)
 
     def visitPrimitiveCastExpr(self, ast: PrimitiveCastExpr):
         ast.annotated_type = self.handle_cast(ast.expr, ast.elem_type)
@@ -277,7 +278,7 @@ class TypeCheckVisitor(AstVisitor):
 
     def visitMemberAccessExpr(self, ast: MemberAccessExpr):
         assert ast.target is not None
-        if ast.expr.annotated_type.is_address() and ast.expr.annotated_type.is_private():
+        if ast.expr.annotated_type != None and ast.expr.annotated_type.is_address() and ast.expr.annotated_type.is_private():
             raise TypeException("Cannot access members of private address variable", ast)
         ast.annotated_type = ast.target.annotated_type.clone()
 
@@ -329,66 +330,66 @@ class TypeCheckVisitor(AstVisitor):
     def visitTeeExpr(self, ast: TeeExpr):
         ast.annotated_type = AnnotatedTypeName.address_all()
 
-    def visitIdentifierExpr(self, ast: IdentifierExpr):
-        if isinstance(ast.target, Mapping):
-            # no action necessary, the identifier will be replaced later
-            pass
-        else:
-            target = ast.target
-            if isinstance(target, ContractDefinition):
-                raise TypeException(f'Unsupported use of contract type in expression', ast)
-            ast.annotated_type = target.annotated_type.clone()
+    # def visitIdentifierExpr(self, ast: IdentifierExpr):
+    #     if isinstance(ast.target, Mapping):
+    #         # no action necessary, the identifier will be replaced later
+    #         pass
+    #     else:
+    #         target = ast.target
+    #         if isinstance(target, ContractDefinition):
+    #             raise TypeException(f'Unsupported use of contract type in expression', ast)
+    #         ast.annotated_type = target.annotated_type.clone()
 
-            if not self.is_accessible_by_invoker(ast):
-                raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
+    #         if not self.is_accessible_by_invoker(ast):
+    #             raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
 
-    def visitIndexExpr(self, ast: IndexExpr):
-        arr = ast.arr
-        index = ast.key
+    # def visitIndexExpr(self, ast: IndexExpr):
+    #     arr = ast.arr
+    #     index = ast.key
 
-        map_t = arr.annotated_type
-        # should have already been checked
-        # assert (map_t.privacy_annotation.is_all_expr())
+    #     map_t = arr.annotated_type
+    #     # should have already been checked
+    #     # assert (map_t.privacy_annotation.is_all_expr())
 
-        # do actual type checking
-        if isinstance(map_t.type_name, Mapping):
-            key_type = map_t.type_name.key_type
-            expected = AnnotatedTypeName(key_type, Expression.all_expr())
-            instance = index.instanceof(expected)
-            if not instance and not ast.get_related_function().is_tee():
-                raise TypeMismatchException(expected, index.annotated_type, ast)
+    #     # do actual type checking
+    #     if isinstance(map_t.type_name, Mapping):
+    #         key_type = map_t.type_name.key_type
+    #         expected = AnnotatedTypeName(key_type, Expression.all_expr())
+    #         instance = index.instanceof(expected)
+    #         if not instance and not ast.get_related_function().is_tee():
+    #             raise TypeMismatchException(expected, index.annotated_type, ast)
 
-            # record indexing information
-            if map_t.type_name.key_label is not None: # TODO modification correct?
-                if index.privacy_annotation_label():
-                    map_t.type_name.instantiated_key = index
-                else:
-                    raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
+    #         # record indexing information
+    #         if map_t.type_name.key_label is not None: # TODO modification correct?
+    #             if index.privacy_annotation_label():
+    #                 map_t.type_name.instantiated_key = index
+    #             else:
+    #                 raise TypeException(f'Index cannot be used as a privacy type for array of type {map_t}', ast)
 
-            # determine value type
-            ast.annotated_type = map_t.type_name.value_type
+    #         # determine value type
+    #         ast.annotated_type = map_t.type_name.value_type
 
-            if not self.is_accessible_by_invoker(ast):
-                raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
-        elif isinstance(map_t.type_name, Array):
-            if ast.key.annotated_type.is_private():
-                raise TypeException('No private array index', ast)
-            if not ast.key.instanceof_data_type(TypeName.number_type()):
-                raise TypeException('Array index must be numeric', ast)
-            # ast.annotated_type = map_t.type_name.annotate(map_t.privacy_annotation)
-            ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
-        else:
-            raise TypeException('Indexing into non-mapping', ast)
+    #         if not self.is_accessible_by_invoker(ast):
+    #             raise TypeException("Tried to read value which cannot be proven to be owned by the transaction invoker", ast)
+    #     elif isinstance(map_t.type_name, Array):
+    #         if ast.key.annotated_type.is_private():
+    #             raise TypeException('No private array index', ast)
+    #         if not ast.key.instanceof_data_type(TypeName.number_type()):
+    #             raise TypeException('Array index must be numeric', ast)
+    #         # ast.annotated_type = map_t.type_name.annotate(map_t.privacy_annotation)
+    #         ast.annotated_type = map_t.type_name.value_type.annotate(map_t.privacy_annotation)
+    #     else:
+    #         raise TypeException('Indexing into non-mapping', ast)
 
-    # def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
-    #     for t in ast.parameter_types:
-    #         if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-    #             raise TypeException('Only me/tee/all accepted as privacy type of function parameters', ast)
+    def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
+        for t in ast.parameter_types:
+            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr)):
+                raise TypeException('Only me/all accepted as privacy type of function parameters', ast)
 
-    #     if ast.can_be_external:
-    #         for t in ast.return_type:
-    #             if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
-    #                 raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
+        if ast.can_be_external:
+            for t in ast.return_type:
+                if not isinstance(t.privacy_annotation, (MeExpr, AllExpr, TeeExpr)):
+                    raise TypeException('Only me/tee/all accepted as privacy type of return values for public functions', ast)
 
     def visitEnumDefinition(self, ast: EnumDefinition):
         ast.annotated_type = AnnotatedTypeName(EnumTypeName(ast.qualified_name).override(target=ast))
@@ -405,18 +406,14 @@ class TypeCheckVisitor(AstVisitor):
             # check type
             self.get_rhs(ast.expr, ast.annotated_type)
 
-        # prevent "me" annotation
-        p = ast.annotated_type.privacy_annotation
-        if p.is_me_expr():
-            raise TypeException(f'State variables cannot be annotated as me', ast)
-
     def visitMapping(self, ast: Mapping):
         if ast.key_label is not None:
             if ast.key_type != TypeName.address_type():
                 raise TypeException(f'Only addresses can be annotated', ast)
 
     def visitRequireStatement(self, ast: RequireStatement):
-        if not ast.condition.annotated_type.privacy_annotation.is_all_expr():
+        b = ast.condition
+        if b.instanceof_data_type(TypeName.bool_type()) and not b.annotated_type.privacy_annotation.is_all_expr():
             raise TypeException(f'require needs public argument', ast)
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):

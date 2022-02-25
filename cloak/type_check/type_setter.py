@@ -122,7 +122,8 @@ class FunctionTypeVisitor(AstVisitor):
                 raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
             exprs = [self.get_rhs(a, e) for e, a, in zip(expected_type.type_name.types, rhs.elements)]
             return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
-
+        print('test1', rhs)
+        print('test2', expected_type)
         instance = rhs.instanceof(expected_type)
         self.set_function_privacy_type(
             expected_type, rhs, rhs.parent, instance)
@@ -204,6 +205,7 @@ class FunctionTypeVisitor(AstVisitor):
         # Check that argument types conform to op signature
         parameter_types = func.input_types()
         if not func.is_eq():
+            print('test', type(ast.args))
             for arg, t in zip(ast.args, parameter_types):
                 if not arg.instanceof_data_type(t):
                     raise TypeMismatchException(t, arg.annotated_type.type_name, arg)
@@ -277,7 +279,8 @@ class FunctionTypeVisitor(AstVisitor):
 
     def visitFunctionCallExpr(self, ast: FunctionCallExpr):
         if isinstance(ast.func, BuiltinFunction):
-            self.handle_builtin_function_call(ast, ast.func)
+            # self.handle_builtin_function_call(ast, ast.func)
+            pass
         elif ast.is_cast:
             if not isinstance(ast.func.target, EnumDefinition):
                 raise NotImplementedError('User type casts only implemented for enums')
@@ -409,10 +412,10 @@ class FunctionTypeVisitor(AstVisitor):
             # check type
             self.get_rhs(ast.expr, ast.annotated_type)
 
-        # prevent "me" annotation
-        p = ast.annotated_type.privacy_annotation
-        if p.is_me_expr():
-            raise TypeException(f'State variables cannot be annotated as me', ast)
+        # # prevent "me" annotation
+        # p = ast.annotated_type.privacy_annotation
+        # if p.is_me_expr():
+        #     raise TypeException(f'State variables cannot be annotated as me', ast)
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
         if type(ast.type_name) == UserDefinedTypeName:

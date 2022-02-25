@@ -124,6 +124,9 @@ class AST:
     def __str__(self):
         return self.code()
 
+    def clone(self):
+        from cloak.cloak_ast.visitor.deep_copy import deep_copy
+        return deep_copy(self)
 
 class Identifier(AST):
 
@@ -236,6 +239,8 @@ class Expression(AST):
             return None
 
     def instanceof_data_type(self, expected: TypeName) -> bool:
+        if self.annotated_type == None:
+            self.annotated_type = AnnotatedTypeName(expected)
         return self.annotated_type.type_name.implicitly_convertible_to(expected)
 
     def unop(self, op: str) -> FunctionCallExpr:

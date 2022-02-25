@@ -6,14 +6,14 @@ from cloak.config import cfg
 from cloak.errors.exceptions import CloakCompilerError, PreprocessAstException, TypeCheckException, AnalysisException, \
     CloakSyntaxError
 from cloak.solidity_parser.parse import SyntaxException
-# from cloak.type_check.type_setter import set_type
-# from cloak.type_check.type_checker import check_type, generate_policy
-# from cloak.type_check.type_exceptions import TypeMismatchException, TypeException, RequireException, ReclassifyException
+from cloak.type_check.type_setter import set_type
+from cloak.type_check.type_checker import check_type
+from cloak.type_check.type_exceptions import TypeMismatchException, TypeException, RequireException, ReclassifyException
 from cloak.utils.progress_printer import print_step
 from cloak.cloak_ast.analysis.alias_analysis import analyze_alias
 from cloak.cloak_ast.analysis.call_graph import analyze_call_graph
 from cloak.cloak_ast.analysis.circuit_compatibility_checker import check_circuit_compliance
-# from cloak.cloak_ast.analysis.hybrid_function_detector import detect_hybrid_functions
+from cloak.cloak_ast.analysis.hybrid_function_detector import detect_hybrid_functions
 from cloak.cloak_ast.analysis.loop_checker import check_loops
 from cloak.cloak_ast.analysis.return_checker import check_return
 from cloak.cloak_ast.analysis.side_effects import compute_modified_sets, check_for_undefined_behavior_due_to_eval_order
@@ -83,13 +83,13 @@ def process_ast(ast, parents=True, identifier_link=True, return_check=True, alia
             generate_policy(ast)
         except AstException as e:
             raise AnalysisException(f'\n\nANALYSIS ERROR: {e}')
-    # if type_check:
-    #     with print_step("Checking type"):
-    #         try:
-    #             # set_type(ast)
-    #             # detect_hybrid_functions(ast)
-    #             # check_type(ast)
-    #             # check_circuit_compliance(ast)
-    #             # check_loops(ast)
-    #         except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:
-    #             raise TypeCheckException(f'\n\nCOMPILER ERROR: {e}')
+    if type_check:
+        with print_step("Checking type"):
+            try:
+                # set_type(ast)
+                # detect_hybrid_functions(ast)
+                check_type(ast)
+                # check_circuit_compliance(ast)
+                # check_loops(ast)
+            except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:
+                raise TypeCheckException(f'\n\nCOMPILER ERROR: {e}')
