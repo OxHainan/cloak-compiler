@@ -29,7 +29,6 @@ class TypeCheckVisitor(AstVisitor):
                 raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
             exprs = [self.get_rhs(a, e) for e, a, in zip(expected_type.type_name.types, rhs.elements)]
             return replace_expr(rhs, TupleExpr(exprs)).as_type(TupleType([e.annotated_type for e in exprs]))
-
         instance = rhs.instanceof(expected_type)
         if not instance and not rhs.get_related_function().is_tee():
             raise TypeMismatchException(expected_type, rhs.annotated_type, rhs)
@@ -287,6 +286,8 @@ class TypeCheckVisitor(AstVisitor):
             raise TypeException('Second argument of "reveal" cannot be used as a privacy type', ast)
 
         # NB prevent any redundant reveal (not just for public)
+        if ast.expr.annotated_type == None:
+            return
         ast.annotated_type = AnnotatedTypeName(ast.expr.annotated_type.type_name, ast.privacy)
         if ast.instanceof(ast.expr.annotated_type) is True:
             raise TypeException(f'Redundant "reveal": Expression is already "@{ast.privacy.code()}"', ast)
@@ -321,8 +322,8 @@ class TypeCheckVisitor(AstVisitor):
         else:
             ast.expr = self.get_rhs(ast.expr, rt)
 
-    def visitTupleExpr(self, ast: TupleExpr):
-        ast.annotated_type = AnnotatedTypeName(TupleType([elem.annotated_type.clone() for elem in ast.elements]))
+    # def visitTupleExpr(self, ast: TupleExpr):
+    #     ast.annotated_type = AnnotatedTypeName(TupleType([elem.annotated_type.clone() for elem in ast.elements]))
 
     def visitMeExpr(self, ast: MeExpr):
         ast.annotated_type = AnnotatedTypeName.address_all()

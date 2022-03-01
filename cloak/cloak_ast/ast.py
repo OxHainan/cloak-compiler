@@ -261,9 +261,11 @@ class Expression(AST):
         assert (isinstance(expected, AnnotatedTypeName))
 
         actual = self.annotated_type
-
         if not self.instanceof_data_type(expected.type_name):
             return False
+
+        if actual == None:
+            return True
 
         # check privacy type
         combined_label = actual.combined_privacy(self.analysis, expected)
