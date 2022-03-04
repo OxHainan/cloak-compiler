@@ -6,6 +6,7 @@ from cloak.cloak_ast.pointers.parent_setter import set_parents
 from cloak.cloak_ast.pointers.symbol_table import link_identifiers
 from cloak.cloak_ast import ast as ast_module
 from copy import deepcopy
+import pickle
 
 T = TypeVar('T')
 
@@ -18,7 +19,8 @@ def deep_copy(ast: T, with_types=False, with_analysis=False) -> T:
     Only parents and identifiers are updated in the returned ast (e.g., inferred types are not preserved)
     """
     assert isinstance(ast, AST)
-    ast_copy = deepcopy(ast)
+    # ast_copy = deepcopy(ast)
+    ast_copy = pickle.loads(pickle.dumps(ast))
     ast_copy.parent = ast.parent
     set_parents(ast_copy)
     link_identifiers(ast_copy)

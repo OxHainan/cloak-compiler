@@ -225,11 +225,11 @@ class TypeCheckVisitor(AstVisitor):
     @staticmethod
     def implicitly_converted_to(expr: Expression, t: TypeName) -> Expression:
         assert expr.annotated_type.type_name.is_primitive_type()
-        cast = PrimitiveCastExpr(t.clone(), expr, is_implicit=True).override(
+        cast = PrimitiveCastExpr(t, expr, is_implicit=True).override(
             parent=expr.parent, statement=expr.statement, line=expr.line, column=expr.column)
         cast.elem_type.parent = cast
         expr.parent = cast
-        cast.annotated_type = AnnotatedTypeName(t.clone(), expr.annotated_type.privacy_annotation.clone()).override(parent=cast)
+        cast.annotated_type = AnnotatedTypeName(t, expr.annotated_type.privacy_annotation.clone()).override(parent=cast)
         return cast
 
     # def visitFunctionCallExpr(self, ast: FunctionCallExpr):
@@ -384,8 +384,8 @@ class TypeCheckVisitor(AstVisitor):
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
         for t in ast.parameter_types:
-            if not isinstance(t.privacy_annotation, (MeExpr, AllExpr)):
-                raise TypeException('Only me/all accepted as privacy type of function parameters', ast)
+            if isinstance(t.privacy_annotation, (TeeExpr)):
+                raise TypeException('Tee is not accepted as privacy type of function parameters', ast)
 
         if ast.can_be_external:
             for t in ast.return_type:
