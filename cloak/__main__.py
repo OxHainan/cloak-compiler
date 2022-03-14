@@ -86,11 +86,13 @@ def parse_arguments():
     # 'compile' parser
     compile_parser = subparsers.add_parser('compile', parents=[config_parser], help='Compile a cloak contract.', formatter_class=ShowSuppressedInHelpFormatter)
     msg = 'The directory to output the compiled contract to. Default: Current directory'
-    compile_parser.add_argument('-o', '--output', default=os.getcwd(), help=msg, metavar='<output_directory>').completer = DirectoriesCompleter()
+    compile_parser.add_argument('-o', '--output', default=os.getcwd()+'/build', help=msg, metavar='<output_directory>').completer = DirectoriesCompleter()
     compile_parser.add_argument('input', help='The cloak source file', metavar='<cloak_file>').completer = FilesCompleter(cloak_files)
     compile_parser.add_argument('--log', action='store_true', help='enable logging')
     compile_parser.add_argument('--solc-version', help=solc_version_help, metavar='<cfg_val>')
     compile_parser.add_argument('--put-enable', action='store_true', help='enable PUT and reserve public function')
+    compile_parser.add_argument('--combined-json', action='store_true', help='output a single json document containing information compiled by solc')
+    compile_parser.add_argument('--contract', action='store_true', help='output public contract and private contract')
 
     # 'check' parser
     typecheck_parser = subparsers.add_parser('check', parents=[config_parser], help='Only type-check, do not compile.', formatter_class=ShowSuppressedInHelpFormatter)
@@ -222,7 +224,7 @@ def main():
         # compile
         with log_context('inputfile', os.path.basename(a.input)):
             try:
-                frontend.compile_cloak_file(str(input_path), str(output_dir), a.put_enable)
+                frontend.compile_cloak_file(str(input_path), str(output_dir), a.put_enable, a.combined_json, a.contract)
             except CloakCompilerError as e:
                 with fail_print():
                     print(f'{e}')

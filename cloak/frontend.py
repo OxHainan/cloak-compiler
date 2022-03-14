@@ -9,6 +9,7 @@ import shutil
 import sys
 import tempfile
 import zipfile
+import solcx
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
@@ -25,15 +26,16 @@ from cloak.cloak_ast.process_ast import process_ast, check_with_solc
 from cloak.cloak_ast.build_ast import build_ast
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
-from cloak.cloak_ast.visitor.type_check_visitor import check_with_cloak
 
 
-def compile_cloak_file(input_file_path: str, output_dir: str, put_enable : bool, **kwargs):
+def compile_cloak_file(input_file_path: str, output_dir: str, put_enable: bool, combined_json: bool, output_contract: bool, **kwargs):
     """
     Parse, type-check and compile the given cloak contract file.
 
     :param input_file_path: path to the cloak contract file
     :param output_dir: path to a directory where the compilation output should be generated
+    :param put_enable: reserve PUT function if true
+    :param combined_json: output a combined json file if true
     :raise CloakCompilerError: if any compilation stage fails
     """
     code = read_file(input_file_path)
@@ -49,10 +51,10 @@ def compile_cloak_file(input_file_path: str, output_dir: str, put_enable : bool,
 
     # compile
     with time_measure('compileFull'):
-        compile_cloak(code, input_file_path, output_dir, put_enable, **kwargs)
+        compile_cloak(code, input_file_path, output_dir, put_enable, combined_json, output_contract, **kwargs)
 
 
-def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: bool, **kwargs):
+def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: bool, combined_json: bool, output_contract: bool, **kwargs):
     """
     Parse, type-check and compile the given cloak code.
 
@@ -80,10 +82,8 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
 
     # process ast
     process_ast(cloak_ast)
-
     with print_step("Generate privacy policy"):
         cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':'))
-        _dump_to_output(cloak_ast.generated_policy, output_dir, f'policy.json')
 
     # Write private contract file
     with print_step('Write private solidity code'):
@@ -92,17 +92,30 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
         PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
         # for code Hash
         cloak_ast.private_contract_code = private_ast.code(for_solidity=True)
-        solidity_code_output = _dump_to_output(cloak_ast.private_contract_code, output_dir, output_filename)
+        private_solidity_code_str = cloak_ast.private_contract_code
+        if output_contract:
+            _dump_to_output(private_solidity_code_str, output_dir, output_filename)
 
     # Contract transformation
     with print_step("Transforming cloak contract"):
         ast = transform_ast(deepcopy(cloak_ast), put_enable)
-        ast.policy_path = os.path.join(output_dir, "policy.json")
+        # ast.policy_path = os.path.join(output_dir, "policy.json")
 
     # Write public contract file
     with print_step('Write public solidity code'):
         output_filename = 'public_contract.sol'
-        solidity_code_output = _dump_to_output(ast.code(True), output_dir, output_filename)
+        public_solidity_code_str = ast.code(True)
+        if output_contract:
+            _dump_to_output(public_solidity_code_str, output_dir, output_filename)
+
+    # output contract json
+    if combined_json:
+        output_json = dict()
+        contract_name = cloak_ast.contracts[0].idf.name
+        output_json["private"] = solcx.compile_source(private_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
+        output_json["public"] = solcx.compile_source(public_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
+        output_json["policy"] = json.loads(cloak_ast.generated_policy)
+        _dump_to_output(json.dumps(output_json, cls=PrivacyPolicyEncoder, indent=2), output_dir, contract_name + '.json')
 
 
 def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=False) -> str:

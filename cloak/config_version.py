@@ -22,12 +22,13 @@ class Versions:
         import solcx
         from solcx.exceptions import SolcNotInstalled
         if version == 'latest':
-            try:
-                solcx.set_solc_version_pragma(Versions.CLOAK_SOLC_VERSION_COMPATIBILITY.expression, silent=True, check_new=False)
-            except SolcNotInstalled:
-                print('ERROR: No compatible solc version is installed.\n'
-                      'Please use "zkay update-solc" to install the latest compatible solc version.')
-                sys.exit(100)
+            pass
+            # try:
+                # solcx.set_solc_version_pragma(Versions.CLOAK_SOLC_VERSION_COMPATIBILITY.expression, silent=True, check_new=False)
+            # except SolcNotInstalled:
+            #     print('ERROR: No compatible solc version is installed.\n'
+            #           'Please use "zkay update-solc" to install the latest compatible solc version.')
+            #     sys.exit(100)
         else:
             try:
                 v = Version(version)
