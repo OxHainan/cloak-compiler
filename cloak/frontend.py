@@ -66,8 +66,8 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
 
     # input_file_dir, filename = os.path.split(input_file_path)
     # Copy cloak code to output
-    cloak_filename = 'contract.cloak'
-    _dump_to_output(code, output_dir, cloak_filename)
+    # cloak_filename = 'contract.cloak'
+    # _dump_to_output(code, output_dir, cloak_filename)
 
     # get ast
     cloak_ast = build_ast(code)
@@ -82,7 +82,7 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     process_ast(cloak_ast)
 
     with print_step("Generate privacy policy"):
-        cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, indent=2)
+        cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':'))
         _dump_to_output(cloak_ast.generated_policy, output_dir, f'policy.json')
 
     # Write private contract file
