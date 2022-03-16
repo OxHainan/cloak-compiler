@@ -1,6 +1,7 @@
 import web3
 import json
 import base64
+import solcx
 from typing import Dict, Optional, List, Tuple
 
 from cloak.cloak_ast.visitor.transformer_visitor import AstTransformerVisitor
@@ -186,7 +187,7 @@ class CloakTransformer(AstTransformerVisitor):
 # 
     def add_extra_tail_parts(self, su: SourceUnit, c: ContractDefinition):
         # Add constant state variables for tee external contracts
-        code_hash_hb = web3.Web3.keccak(su.private_contract_code.encode())
+        code_hash_hb = web3.Web3.keccak(solcx.compile_source(su.private_contract_code, ["bin"])["<stdin>:" + c.idf.name]["bin"].encode())
         policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
         c.extra_tail_parts += [
             Comment("CloakService Variable"),
