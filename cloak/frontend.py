@@ -83,7 +83,7 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # process ast
     process_ast(cloak_ast)
     with print_step("Generate privacy policy"):
-        cloak_ast.generated_policy = json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':'))
+        cloak_ast.generated_policy = format_policy(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':')))
 
     # Write private contract file
     with print_step('Write private solidity code'):
@@ -132,3 +132,16 @@ def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=Fa
     if dryrun_solc:
         check_compilation(path, show_errors=False)
     return content
+
+def format_policy(old_policy: str) -> str:
+    policy_json = json.loads(old_policy)["functions"]
+    for function in policy_json:
+        if "read" in function:
+            for read in function["read"]:
+                read["keys"].sort(key=lambda x: x)
+            function["read"].sort(key=lambda x: x['name'])
+        if "mutate" in function:
+            for mutate in function["mutate"]:
+                mutate["keys"].sort(key=lambda x: x)
+            function["mutate"].sort(key=lambda x: x['name'])
+    return json.dumps(policy_json, separators=(',', ':'))
