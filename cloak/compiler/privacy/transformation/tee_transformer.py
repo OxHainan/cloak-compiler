@@ -32,7 +32,7 @@ class TeeVarDeclTransformer(AstTransformerVisitor):
 
     def visitAnnotatedTypeName(self, ast: AnnotatedTypeName):
         if ast.is_private():
-            t = BytesTypeName()
+            t = Array(BytesTypeName(), 3)
         else:
             t = self.visit(ast.type_name)
         return AnnotatedTypeName(t)

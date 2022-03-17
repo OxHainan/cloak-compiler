@@ -286,8 +286,14 @@ class CloakTransformer(AstTransformerVisitor):
             state_type = states_types[state["name"]]
             if not state_type.is_mapping:
                 basic_type += f"oldStates[{idx}] = abi.encode({i});\n"
-                basic_type += f"oldStates[{idx+1}] = abi.encode({state['name']});"
-                idx += 2
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    basic_type += f"oldStates[{idx+1}] = {state['name']}[0];\n"
+                    basic_type += f"oldStates[{idx+2}] = {state['name']}[1];\n"
+                    basic_type += f"oldStates[{idx+3}] = {state['name']}[2];\n"
+                    idx += 4
+                else:
+                    basic_type += f"oldStates[{idx+1}] = abi.encode({state['name']});"
+                    idx += 2
         return basic_type, idx
 
     @staticmethod
@@ -309,7 +315,12 @@ class CloakTransformer(AstTransformerVisitor):
                     key_type = mapping_keys[i]
                     for_body += f"oldStates[os_idx + {2+i} + i * {factor}] = read[read_idx + {2+i} + i];\n"
                     key_expr += f"[abi.decode(read[read_idx + {2+i} + i], ({key_type}))]"
-                for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = abi.encode({state['name']}{key_expr});\n"
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[0];\n"
+                    for_body += f"oldStates[os_idx + {3 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[1];\n"
+                    for_body += f"oldStates[os_idx + {4 + mapping_depth} + i * {factor}] = {state['name']}{key_expr}[2];\n"
+                else:
+                    for_body += f"oldStates[os_idx + {2 + mapping_depth} + i * {factor}] = abi.encode({state['name']}{key_expr});\n"
                 mapping_type += f"""
                     keys_count = abi.decode(read[read_idx + 1], (uint));
                     for (uint i = 0; i < keys_count; i = i + 1) {{
@@ -362,8 +373,14 @@ class CloakTransformer(AstTransformerVisitor):
                 continue
             state_type = states_types[state["name"]]
             if not state_type.is_mapping:
-                basic_type += f"{state['name']} = abi.decode(data[{idx+1}], ({state_type}));\n"
-                idx += 2
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    basic_type += f"{state['name']}[0] = data[{idx+1}] ;\n"
+                    basic_type += f"{state['name']}[1] = data[{idx+2}] ;\n"
+                    basic_type += f"{state['name']}[2] = data[{idx+3}] ;\n"
+                    idx += 4
+                else:
+                    basic_type += f"{state['name']} = abi.decode(data[{idx+1}], ({state_type}));\n"
+                    idx += 2
         return basic_type, idx
 
 
@@ -380,7 +397,13 @@ class CloakTransformer(AstTransformerVisitor):
                 key_expr = ""
                 for i in range(mapping_depth):
                     key_expr += f"[abi.decode(data[data_idx + {2+i} + i * {factor}], ({mapping_keys[i]}))]"
-                for_body = f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
+                for_body = ""
+                if state["owner"]["owner"] != "all" and is_cipher:
+                    for_body += f"{state['name']}{key_expr}[0] = data[data_idx +{2+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[1] = data[data_idx +{3+mapping_depth} + i * {factor}];\n"
+                    for_body += f"{state['name']}{key_expr}[2] = data[data_idx +{4+mapping_depth} + i * {factor}];\n"
+                else:
+                    for_body += f"{state['name']}{key_expr} = abi.decode(data[data_idx + {2+mapping_depth} + i * {factor}], ({value_type}));\n"
                 mapping_type += f"""
                     keys_count = abi.decode(data[data_idx + 1], (uint));
                     for (uint i = 0; i < keys_count; i = i + 1) {{

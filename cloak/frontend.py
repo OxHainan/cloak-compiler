@@ -10,6 +10,7 @@ import sys
 import tempfile
 import zipfile
 import solcx
+import copy
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
@@ -134,8 +135,9 @@ def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=Fa
     return content
 
 def format_policy(old_policy: str) -> str:
-    policy_json = json.loads(old_policy)["functions"]
-    for function in policy_json:
+    new_policy = copy.deepcopy(json.loads(old_policy))
+    function_json = new_policy["functions"]
+    for function in function_json:
         if "read" in function:
             for read in function["read"]:
                 read["keys"].sort(key=lambda x: x)
@@ -144,4 +146,5 @@ def format_policy(old_policy: str) -> str:
             for mutate in function["mutate"]:
                 mutate["keys"].sort(key=lambda x: x)
             function["mutate"].sort(key=lambda x: x['name'])
-    return json.dumps(policy_json, separators=(',', ':'))
+    new_policy["functions"] = function_json
+    return json.dumps(new_policy, separators=(',', ':'))
