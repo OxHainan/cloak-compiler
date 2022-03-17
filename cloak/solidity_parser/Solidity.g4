@@ -56,6 +56,7 @@ symbolAliases: '{' aliases+=importAliases (',' aliases+=importAliases)* '}';
 
 contractDefinition
   : ( 'contract' ) idf=identifier
+    ( 'is' inheritanceSpecifier (',' inheritanceSpecifier )* )?
     '{' parts+=contractBodyElement* '}' ;
 
 /**

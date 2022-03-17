@@ -9,8 +9,23 @@ import shutil
 import sys
 import tempfile
 import zipfile
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import solcx
 import copy
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 from contextlib import contextmanager
 from copy import deepcopy
 from typing import Tuple, List, Type, Dict, Optional, Any, ContextManager
@@ -27,6 +42,8 @@ from cloak.cloak_ast.process_ast import process_ast, check_with_solc
 from cloak.cloak_ast.build_ast import build_ast
 from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
+from cloak.cloak_ast.split_ast import split_ast
+from cloak.solidity_parser.parse import MyParser
 
 
 def compile_cloak_file(input_file_path: str, output_dir: str, put_enable: bool, combined_json: bool, output_contract: bool, **kwargs):
@@ -81,42 +98,48 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # check with solc
     check_with_solc(cloak_ast)
 
-    # process ast
-    process_ast(cloak_ast)
-    with print_step("Generate privacy policy"):
-        cloak_ast.generated_policy = format_policy(json.dumps(cloak_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':')))
+    # spilt ast for every single contract
+    cloak_asts = split_ast(cloak_ast)
 
-    # Write private contract file
-    with print_step('Write private solidity code'):
-        output_filename = 'private_contract.sol'
-        private_ast = build_ast(code)
-        PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
-        # for code Hash
-        cloak_ast.private_contract_code = private_ast.code(for_solidity=True)
-        private_solidity_code_str = cloak_ast.private_contract_code
-        if output_contract:
-            _dump_to_output(private_solidity_code_str, output_dir, output_filename)
+    for ca in cloak_asts:
+        # build a new ast for every contract(including inheritance)
+        contract_ast = build_ast(ca.code())
+        # process ast
+        process_ast(contract_ast)
+        with print_step("Generate privacy policy"):
+            contract_ast.generated_policy = json.dumps(contract_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':'))
 
-    # Contract transformation
-    with print_step("Transforming cloak contract"):
-        ast = transform_ast(deepcopy(cloak_ast), put_enable)
-        # ast.policy_path = os.path.join(output_dir, "policy.json")
+        # # Write private contract file
+        # with print_step('Write private solidity code'):
+        #     output_filename = 'private_contract.sol'
+        #     private_ast = build_ast(code)
+        #     PrivateContractTransformer(cloak_ast.privacy_policy).visit(private_ast)
+        #     # for code Hash
+        #     cloak_ast.private_contract_code = private_ast.code(for_solidity=True)
+        #     private_solidity_code_str = cloak_ast.private_contract_code
+        #     if output_contract:
+        #         _dump_to_output(private_solidity_code_str, output_dir, output_filename)
 
-    # Write public contract file
-    with print_step('Write public solidity code'):
-        output_filename = 'public_contract.sol'
-        public_solidity_code_str = ast.code(True)
-        if output_contract:
-            _dump_to_output(public_solidity_code_str, output_dir, output_filename)
+        # # Contract transformation
+        # with print_step("Transforming cloak contract"):
+        #     ast = transform_ast(deepcopy(cloak_ast), put_enable)
+        #     # ast.policy_path = os.path.join(output_dir, "policy.json")
 
-    # output contract json
-    if combined_json:
-        output_json = dict()
-        contract_name = cloak_ast.contracts[0].idf.name
-        output_json["private"] = solcx.compile_source(private_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
-        output_json["public"] = solcx.compile_source(public_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
-        output_json["policy"] = json.loads(cloak_ast.generated_policy)
-        _dump_to_output(json.dumps(output_json, cls=PrivacyPolicyEncoder, indent=2), output_dir, contract_name + '.json')
+        # # Write public contract file
+        # with print_step('Write public solidity code'):
+        #     output_filename = 'public_contract.sol'
+        #     public_solidity_code_str = ast.code(True)
+        #     if output_contract:
+        #         _dump_to_output(public_solidity_code_str, output_dir, output_filename)
+
+        # output contract json
+        if combined_json:
+            output_json = dict()
+            contract_name = contract_ast.contracts[0].idf.name
+            # output_json["private"] = solcx.compile_source(private_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
+            # output_json["public"] = solcx.compile_source(public_solidity_code_str, ["abi","bin"])["<stdin>:" + contract_name]
+            output_json["policy"] = json.loads(contract_ast.generated_policy)
+            _dump_to_output(json.dumps(output_json, cls=PrivacyPolicyEncoder, indent=2), output_dir, contract_name + '.json')
 
 
 def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=False) -> str:

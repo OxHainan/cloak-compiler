@@ -278,6 +278,8 @@ class CloakTransformer(AstTransformerVisitor):
 
     @staticmethod
     def get_states_basic_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], is_cipher = True) -> (str, int):
+        print('states', states)
+        print('states_types', states_types)
         basic_type = ""
         idx = 0
         for i, state in enumerate(states):
@@ -295,6 +297,7 @@ class CloakTransformer(AstTransformerVisitor):
                     basic_type += f"oldStates[{idx+1}] = abi.encode({state['name']});"
                     idx += 2
         return basic_type, idx
+
 
     @staticmethod
     def get_states_mapping_type(states: [Dict[str, any]], states_types: Dict[str, TypeName], idx: int, is_cipher = True) -> (str, int):

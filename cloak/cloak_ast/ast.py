@@ -2622,6 +2622,7 @@ class CodeVisitor(AstVisitor):
         return f'import "{ast.path}";'
 
     def visitInheritanceSpecifier(self, ast: InheritanceSpecifier) -> str:
+        print('visitInheritanceSpecifier', ast.idf.name)
         return f"{self.visit_list(ast.path, '.')}({self.visit(ast.args)})"
 
     def visitInterfaceDefinition(self, ast: InterfaceDefinition) -> str:

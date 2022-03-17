@@ -148,6 +148,7 @@ class BuildASTVisitor(SolidityVisitor):
     def visitContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
         identifier = self.visit(ctx.idf)
         units = [self.visit(c) for c in ctx.parts]
+        print('cccccc', units)
         return ContractDefinition(identifier, units)
 
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):

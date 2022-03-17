@@ -50,3 +50,4 @@ def generate_policy(ast):
     ptv = PrivacyTypeVisitor()
     ptv.visit(ast)
     ast.privacy_policy.sort_states()
+    ast.privacy_policy.cal_slot()
