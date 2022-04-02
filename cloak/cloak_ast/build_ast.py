@@ -82,7 +82,7 @@ class BuildASTVisitor(SolidityVisitor):
             visited_fields[f] = self.handle_field(d[f])
 
         # may be able to return the result for a SINGLE, NAMED CHILD without wrapping it in an object
-        direct = ['ModifierList', 'ParameterList', 'ReturnParameters', 'FunctionCallArguments']
+        direct = ['ModifierList', 'ParameterList', 'ReturnParameters', 'FunctionCallArguments', 'InheritanceSpecifierList']
         if t in direct:
             if len(visited_fields) != 1:
                 raise TypeError(t + ' does not have a single, named child')
@@ -148,8 +148,10 @@ class BuildASTVisitor(SolidityVisitor):
     def visitContractDefinition(self, ctx: SolidityParser.ContractDefinitionContext):
         identifier = self.visit(ctx.idf)
         units = [self.visit(c) for c in ctx.parts]
-        print('cccccc', units)
-        return ContractDefinition(identifier, units)
+        inheritanceSpecifiers = []
+        if ctx.inheritanceSpecifierList():
+            inheritanceSpecifiers = self.handle_field(ctx.inheritanceSpecifierList())
+        return ContractDefinition(identifier, units, inheritanceSpecifiers)
 
     def visitFunctionDefinition(self, ctx:SolidityParser.FunctionDefinitionContext):
         name = self.handle_field(ctx.getChild(1))
@@ -495,7 +497,9 @@ class BuildASTVisitor(SolidityVisitor):
 
     def visitInheritanceSpecifier(self, ctx: SolidityParser.InheritanceSpecifierContext):
         path = self.visit(ctx.identifierPath())
-        args = self.visit(ctx.callArgumentList())
+        args = {}
+        if ctx.callArgumentList():
+            args = self.visit(ctx.callArgumentList())
         return ast_module.InheritanceSpecifier(path, args)
 
     def visitInterfaceDefinition(self, ctx: SolidityParser.InterfaceDefinitionContext):

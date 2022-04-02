@@ -205,6 +205,31 @@ class PrivacyPolicy(json.JSONEncoder):
     def sort_states(self):
         self.policy["states"].sort(key=lambda x: x["type"].find("mapping"))
 
+    # def sort_states(self, state_dict):
+    #     if len(self.policy["states"]) == 0:
+    #         return 
+    #     new_policy_states = []
+    #     current_contract = self.find_contract_for_state(self.policy["states"][0]["name"], state_dict)
+    #     mapping_queue = []
+    #     for state in self.policy["states"]:
+    #         if current_contract == self.find_contract_for_state(state["name"], state_dict):
+    #             if "mapping" in state["type"]:
+    #                 mapping_queue.append(state)
+    #             else:
+    #                 new_policy_states.append(state)
+    #         else:
+    #             new_policy_states.extend(mapping_queue)
+    #             mapping_queue = []
+    #             current_contract = self.find_contract_for_state(state["name"], state_dict)
+    #     if len(mapping_queue) > 0:
+    #         new_policy_states.extend(mapping_queue)
+    #     self.policy["states"] = new_policy_states
+    
+    def find_contract_for_state(self, state, state_dict):
+        for contract in state_dict:
+            if state in state_dict[contract]:
+                return contract
+
     def cal_slot(self):
         slot = 0
         bits_count = 0

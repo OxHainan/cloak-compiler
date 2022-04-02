@@ -13,25 +13,20 @@ class PrivateContractTransformer(AstTransformerVisitor):
     2. add get_states/set_states function for tee
     """
 
-    def __init__(self, pp: PrivacyPolicy, log=False):
+    def __init__(self, pp: PrivacyPolicy, depoly_constract: str, family_tree: dict, log=False):
         self.pp = pp
+        self.depoly_constract = depoly_constract
+        self.family_tree = family_tree
         super().__init__(log)
-
-    # def visitSourceUnit(self, su: ast.SourceUnit):
-    #     su.privacy_policy = self.pp
-    #     for cd in su.contracts:
-    #         cd.extra_tail_parts += [
-    #             CloakTransformer.get_states(su, cd, False),
-    #             CloakTransformer.set_states(su, cd, False),
-    #         ]
 
     def visitSourceUnit(self, su: ast.SourceUnit):
         su.privacy_policy = self.pp
+        cts = CloakTransformer(False, self.depoly_constract, self.family_tree)
         for cd in su.contracts:
-            cd.extra_tail_parts += [
-                CloakTransformer.get_states(su, cd, False),
-                CloakTransformer.set_states(su, cd, False),
-            ]
             # remove constructor
             is_constructor = lambda u: isinstance(u, ConstructorOrFunctionDefinition) and u.is_constructor
             cd.units[:] = filter(lambda u: not is_constructor(u), cd.units)
+            cd.extra_tail_parts += [
+                cts.get_states(su, cd, False),
+                cts.set_states(su, cd, False),
+            ]

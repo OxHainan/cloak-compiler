@@ -56,8 +56,14 @@ symbolAliases: '{' aliases+=importAliases (',' aliases+=importAliases)* '}';
 
 contractDefinition
   : ( 'contract' ) idf=identifier
-    ( 'is' inheritanceSpecifier (',' inheritanceSpecifier )* )?
+    inheritanceSpecifierList?
     '{' parts+=contractBodyElement* '}' ;
+
+// newinheritanceSpecifier
+//   : userDefinedTypeName ( '(' expressionList? ')' )? ;
+
+// expressionList
+//   : expression (',' expression)* ;
 
 /**
  * Top-level definition of an interface.
@@ -74,8 +80,8 @@ libraryDefinition: 'library' name=identifier '{' contractBodyElement* '}';
 
 //@doc:inline
 inheritanceSpecifierList:
-    'is' inheritanceSpecifiers+=inheritanceSpecifier
-    (',' inheritanceSpecifiers+=inheritanceSpecifier)*?;
+    'is' inheritanceSpecifiers+=inheritanceSpecifier (',' inheritanceSpecifiers+=inheritanceSpecifier)*;
+
 /**
  * Inheritance specifier for contracts and interfaces.
  * Can optionally supply base constructor arguments.

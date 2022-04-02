@@ -1956,10 +1956,10 @@ class StructDefinition(NamespaceDefinition):
 
 
 class ContractDefinition(NamespaceDefinition):
-
-    def __init__(self, idf: Identifier, units: List[AST]):
+    def __init__(self, idf: Identifier, units: List[AST], inheritanceSpecifiers: List[InheritanceSpecifier]):
         super().__init__(idf)
         self.units = units
+        self.inheritanceSpecifiers = inheritanceSpecifiers or []
 
         # extra body parts
         self.extra_head_parts: Liast[AST] = []
@@ -2591,7 +2591,13 @@ class CodeVisitor(AstVisitor):
         extra_head_parts = indent(self.visit_list(ast.extra_head_parts))
         units = indent(self.visit_list(ast.units))
         extra_tail_parts = indent(self.visit_list(ast.extra_tail_parts))
-        return f"contract {ast.idf} {{\n{extra_head_parts}\n\n{units}\n\n{extra_tail_parts}\n}}"
+        is_statement = ""
+        if len(ast.inheritanceSpecifiers) > 0:
+            is_statement = " is"
+            for inheritanceSpecifier in ast.inheritanceSpecifiers:
+                is_statement += f" {inheritanceSpecifier.path[0]},"
+            is_statement = is_statement[:-1]
+        return f"contract {ast.idf}{is_statement} {{\n{extra_head_parts}\n\n{units}\n\n{extra_tail_parts}\n}}"
 
     def visitPragmaDirective(self, ast: PragmaDirective) -> str:
         if self.for_solidity:
@@ -2622,7 +2628,6 @@ class CodeVisitor(AstVisitor):
         return f'import "{ast.path}";'
 
     def visitInheritanceSpecifier(self, ast: InheritanceSpecifier) -> str:
-        print('visitInheritanceSpecifier', ast.idf.name)
         return f"{self.visit_list(ast.path, '.')}({self.visit(ast.args)})"
 
     def visitInterfaceDefinition(self, ast: InterfaceDefinition) -> str:

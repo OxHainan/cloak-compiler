@@ -120,12 +120,23 @@ class SymbolTableLinker(AstVisitor):
     @staticmethod
     def _find_next_decl(ast: AST, name: str) -> Tuple[AST, TargetDefinition]:
         ancestor = ast.parent
+        inheritContractNames = []
+        inheritContracts = []
         while ancestor is not None:
+            for inheritContractName in inheritContractNames:
+                if inheritContractName in ancestor.names:
+                    inheritContracts.append(ancestor.names[inheritContractName])
+            if isinstance(ancestor, ContractDefinition) and len(ancestor.inheritanceSpecifiers) > 0:
+                inheritContractNames.append(ancestor.inheritanceSpecifiers[0].path[0])
             if name in ancestor.names:
                 decl = ancestor.names[name].parent
                 if not isinstance(decl.parent, VariableDeclarationStatement) or not decl.parent.is_parent_of(ast):
                     return ancestor, decl
-            ancestor = ancestor.parent
+            if len(inheritContracts) > 0:
+                ancestor = inheritContracts[0]
+                del inheritContracts[0]
+            else:
+                ancestor = ancestor.parent
         raise UnknownIdentifierException(f'Undefined identifier {name}', ast)
 
     @staticmethod

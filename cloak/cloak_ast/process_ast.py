@@ -63,7 +63,7 @@ def get_processed_ast(code, parents=True, identifier_link=True, return_check=Tru
     return ast
 
 
-def process_ast(ast, parents=True, identifier_link=True, return_check=True, alias_analysis=True, type_check=True):
+def process_ast(ast, parents=True, identifier_link=True, return_check=True, alias_analysis=True, type_check=False):
     with print_step("Preprocessing AST"):
         if parents:
             set_parents(ast)
@@ -88,8 +88,7 @@ def process_ast(ast, parents=True, identifier_link=True, return_check=True, alia
             try:
                 # set_type(ast)
                 # detect_hybrid_functions(ast)
-                # check_type(ast)
-                pass
+                check_type(ast)
                 # check_circuit_compliance(ast)
                 # check_loops(ast)
             except (TypeMismatchException, TypeException, RequireException, ReclassifyException) as e:

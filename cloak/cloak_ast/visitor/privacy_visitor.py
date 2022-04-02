@@ -8,8 +8,11 @@ class PrivacyTypeVisitor(AstVisitor):
     def __init__(self, traversal='post', log=False):
         super().__init__(traversal=traversal, log=log)
         self.privacy_policy = PrivacyPolicy()
+        self.state_dict = {}
+        self.state_queue = []
 
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
+        self.state_queue.append(ast.idf.name)
         self.privacy_policy.add_state(ast)
 
     def visitConstructorOrFunctionDefinition(self, ast: ConstructorOrFunctionDefinition):
@@ -41,6 +44,8 @@ class PrivacyTypeVisitor(AstVisitor):
         self.privacy_policy.add_function(ast.function_policy)
 
     def visitContractDefinition(self, ast: ContractDefinition):
+        self.state_dict[ast.idf.name] = self.state_queue
+        self.state_queue = []
         self.privacy_policy.policy["contract"] = ast.idf.name
         ast.get_related_sourceuint().privacy_policy = self.privacy_policy
 
@@ -49,5 +54,5 @@ def generate_policy(ast):
     # generate privacy policy
     ptv = PrivacyTypeVisitor()
     ptv.visit(ast)
-    ast.privacy_policy.sort_states()
     ast.privacy_policy.cal_slot()
+    ast.privacy_policy.sort_states()

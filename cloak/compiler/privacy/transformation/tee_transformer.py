@@ -56,7 +56,7 @@ class TeeVarDeclTransformer(AstTransformerVisitor):
     def visitStateVariableDeclaration(self, ast: StateVariableDeclaration):
         ast.keywords = [k for k in ast.keywords if k != 'public']
         # make sure every state var gets a public getter (required for simulation)
-        ast.keywords.append('public')
+        # ast.keywords.append('public')
         ast.expr = self.expr_trafo.visit(ast.expr)
         return self.visit_children(ast)
 
