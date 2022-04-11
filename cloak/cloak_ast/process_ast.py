@@ -45,6 +45,7 @@ def get_parsed_ast_and_fake_code(code, solc_check=True) -> Tuple[AST, str]:
 
 def check_with_solc(ast: AST):
     fake_code = ast.code(for_solidity=True)
+    print('code', fake_code)
     # Solc type checking
     with print_step("Type checking with solc"):
         try:

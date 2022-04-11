@@ -263,40 +263,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         return c
 
-    # def get_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
-    #     states = su.privacy_policy.policy["states"]
-    #     states_types = c.states_types()
-    #     call_parent = ""
-    #     if c.idf.name in self.family_tree:
-    #         for parent in self.family_tree[c.idf.name]:
-    #             call_parent += f"get_states_for_{parent}(oldStates, read, return_len);\n"
-    #     basic_type = self.get_states_basic_type(states, states_types, is_cipher)
-    #     mapping_type = self.get_states_mapping_type(states, states_types, is_cipher)
-    #     if c.idf.name == self.depoly_constract:
-    #         return SOL(f"""
-    #             function get_states(bytes[] memory read, uint return_len) public view returns (bytes[] memory) {{
-    #                 bytes[] memory oldStates = new bytes[](return_len);
-    #                 {call_parent}
-    #                 {basic_type}
-    #                 uint read_idx = 0;
-    #                 uint os_idx = {self.old_states_idx};
-    #                 uint keys_count = 0;
-    #                 {mapping_type}
-    #                 return oldStates;
-    #             }}
-    #         """)
-    #     else:
-    #         return SOL(f"""
-    #             function get_states_for_{c.idf.name}(bytes[] memory oldStates, bytes[] memory read, uint return_len) public view returns (bytes[] memory) {{
-    #                 {call_parent}
-    #                 {basic_type}
-    #                 uint read_idx = 0;
-    #                 uint os_idx = {self.old_states_idx};
-    #                 uint keys_count = 0;
-    #                 {mapping_type}
-    #                 return oldStates;
-    #             }}
-    #         """)
+
 
     def get_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
         states = su.privacy_policy.policy["states"]
@@ -323,7 +290,7 @@ class CloakTransformer(AstTransformerVisitor):
             """)
         else:
             return SOL(f"""
-                function get_states_for_{c.idf.name}(bytes[] memory oldStates, bytes[] memory read, uint return_len) public view returns (bytes[] memory) {{
+                function get_states_for_{c.idf.name}(bytes[] memory oldStates, bytes[] memory read, uint return_len) internal view returns (bytes[] memory) {{
                     {call_parent}
                     {basic_type}
                     return oldStates;
@@ -390,55 +357,7 @@ class CloakTransformer(AstTransformerVisitor):
 
         return mapping_type
 
-    # def set_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
-    #     states = su.privacy_policy.policy["states"]
-    #     states_types = c.states_types()
-    #     call_parent = ""
-    #     if c.idf.name in self.family_tree:
-    #         for parent in self.family_tree[c.idf.name]:
-    #             if is_cipher:
-    #                 call_parent += f"set_states_for_{parent}(read, old_states_len, data);\n"
-    #             else:
-    #                 call_parent += f"set_states_for_{parent}(data);\n"
-    #     basic_type = self.set_states_basic_type(states, states_types, is_cipher)
-    #     mapping_type = self.set_states_mapping_type(states, states_types, is_cipher)
-    #     guard = ""
-    #     params = "bytes[] memory data"
-    #     if is_cipher:
-    #         if c.idf.name == self.depoly_constract:
-    #             guard = """
-    #             require(msg.sender == owner, 'msg.sender is not tee');
-    #             require(proof[0] == teeCHash, 'code hash error');
-    #             require(proof[1] == teePHash, 'policy hash error');
-    #             uint256 osHash = uint256(keccak256(abi.encode(get_states(read, old_states_len))));
-    #             require(proof[2] == osHash, 'old states hash error');
-    #         """
-    #             params = "bytes[] memory read, uint old_states_len, bytes[] memory data, uint[] memory proof"
-    #         else:
-    #             params = "bytes[] memory read, uint old_states_len, bytes[] memory data"
-    #     if c.idf.name == self.depoly_constract:
-    #         res = SOL(f"""
-    #         function set_states({params}) public {{
-    #             {guard}
-    #             {call_parent}
-    #             {basic_type}
-    #             uint data_idx = {self.new_states_idx};
-    #             uint keys_count = 0;
-    #             {mapping_type}
-    #         }}
-    #         """)
-    #     else:
-    #         res = SOL(f"""
-    #         function set_states_for_{c.idf.name}({params}) public {{
-    #             {guard}
-    #             {call_parent}
-    #             {basic_type}
-    #             uint data_idx = {self.new_states_idx};
-    #             uint keys_count = 0;
-    #             {mapping_type}
-    #         }}
-    #         """)
-    #     return res
+
 
     def set_states(self, su: SourceUnit, c: ContractDefinition, is_cipher = True) -> ConstructorOrFunctionDefinition:
         states = su.privacy_policy.policy["states"]
@@ -469,7 +388,7 @@ class CloakTransformer(AstTransformerVisitor):
                 params = "bytes[] memory read, uint old_states_len, bytes[] memory data"
         if c.idf.name == self.depoly_constract:
             res = SOL(f"""
-            function set_states({params}) public {{
+            function set_states({params}) external {{
                 {guard}
                 {call_parent}
                 {basic_type}
@@ -480,7 +399,7 @@ class CloakTransformer(AstTransformerVisitor):
             """)
         else:
             res = SOL(f"""
-            function set_states_for_{c.idf.name}({params}) public {{
+            function set_states_for_{c.idf.name}({params}) internal {{
                 {guard}
                 {call_parent}
                 {basic_type}
