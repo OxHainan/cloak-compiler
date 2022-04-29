@@ -2593,10 +2593,13 @@ class CodeVisitor(AstVisitor):
         extra_tail_parts = indent(self.visit_list(ast.extra_tail_parts))
         is_statement = ""
         if len(ast.inheritanceSpecifiers) > 0:
-            is_statement = " is"
+            is_statement = " is "
             for inheritanceSpecifier in ast.inheritanceSpecifiers:
-                is_statement += f" {inheritanceSpecifier.path[0]},"
-            is_statement = is_statement[:-1]
+                path = ''
+                for p in inheritanceSpecifier.path:
+                    path += p + '_'
+                is_statement += path[:-1] + ', '
+            is_statement = is_statement[:-2]
         return f"contract {ast.idf}{is_statement} {{\n{extra_head_parts}\n\n{units}\n\n{extra_tail_parts}\n}}"
 
     def visitPragmaDirective(self, ast: PragmaDirective) -> str:

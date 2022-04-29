@@ -28,6 +28,7 @@ from cloak.policy.privacy_policy import PrivacyPolicyEncoder
 from cloak.type_check.type_pure import delete_cloak_annotation
 from cloak.cloak_ast.split_ast import split_ast
 from cloak.solidity_parser.parse import MyParser
+from cloak.cloak_ast.import_ast import import_ast
 
 
 def compile_cloak_file(input_file_path: str, output_dir: str, put_enable: bool, combined_json: bool, output_contract: bool, **kwargs):
@@ -74,7 +75,11 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # _dump_to_output(code, output_dir, cloak_filename)
 
     # get ast
-    cloak_ast = build_ast(code)
+    # cloak_ast = build_ast(code)
+
+    # process import
+    merged_code = import_ast(input_file_path)
+    cloak_ast = build_ast(merged_code)
 
     # # dump solified code to output
     # _dump_to_output(cloak_ast.code(for_solidity=True), output_dir, "contract.sol")

@@ -124,6 +124,13 @@ class BuildASTVisitor(SolidityVisitor):
             raise SyntaxException(f'Identifiers must not end with reserved suffix {cfg.zk_reserved_name_prefix}', ctx, self.code)
         return ast.Identifier(name)
 
+    def visitImportDirective(self, ctx: SolidityParser.ImportDirectiveContext):
+        aliases = dict()
+        if ctx.symbolAliases():
+            for symbol_alias in ctx.symbolAliases().aliases:
+                aliases[str(self.handle_field(symbol_alias.symbol))] = str(self.handle_field(symbol_alias.alias)) if symbol_alias.alias else ''
+        return ast_module.ImportDirective(self.handle_field(ctx.import_path), self.handle_field(ctx.unitAlias), aliases)
+
     def visitPragmaDirective(self, ctx: SolidityParser.PragmaDirectiveContext):
         return ast_module.PragmaDirective(self.handle_field(ctx.name), ctx.ver.getText())
 
