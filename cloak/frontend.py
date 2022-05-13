@@ -74,9 +74,6 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
     # cloak_filename = 'contract.cloak'
     # _dump_to_output(code, output_dir, cloak_filename)
 
-    # get ast
-    # cloak_ast = build_ast(code)
-
     # process import
     merged_code = import_ast(input_file_path)
     cloak_ast = build_ast(merged_code)
@@ -98,8 +95,6 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
         
         # process ast
         process_ast(contract_ast)
-        with print_step("Generate privacy policy"):
-            contract_ast.generated_policy = format_policy(json.dumps(contract_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':')))
 
         # Write private contract file
         with print_step('Write private solidity code'):
@@ -110,11 +105,22 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
             # for code Hash
             contract_ast.private_contract_code = private_ast.code(for_solidity=True)
             private_solidity_code_str = contract_ast.private_contract_code
+            private_storage_layout = get_storage_layout(private_solidity_code_str, contract_name)
             if output_contract:
                 _dump_to_output(private_solidity_code_str, output_dir, output_filename)
 
         # Contract transformation
         with print_step("Transforming cloak contract"):
+            public_ast = transform_ast(deepcopy(contract_ast), put_enable, contract_name, family_tree)
+            public_solidity_code_str = public_ast.code(True)
+            public_storage_layout = get_storage_layout(public_solidity_code_str, contract_name)
+
+        # add storage layout for policy
+        with print_step('Add storage layout for policy'):
+            addStorageLayout(contract_ast, private_storage_layout, public_storage_layout)
+
+        # Contract retransformation
+        with print_step("Retransforming cloak contract with policy hash"):
             public_ast = transform_ast(deepcopy(contract_ast), put_enable, contract_name, family_tree)
 
         # Write public contract file
@@ -132,6 +138,21 @@ def compile_cloak(code: str, input_file_path: str, output_dir: str, put_enable: 
             output_json["policy"] = json.loads(contract_ast.generated_policy)
             _dump_to_output(json.dumps(output_json, cls=PrivacyPolicyEncoder, indent=2), output_dir, contract_name + '.json')
 
+def addStorageLayout(contract_ast, private_storage_layout, public_storage_layout):
+    policy = json.loads(format_policy(json.dumps(contract_ast.privacy_policy, cls=PrivacyPolicyEncoder, separators=(',', ':'))))
+    for state in policy["states"]:
+        state["onchain_slot"] = public_storage_layout[state["name"]]["slot"]
+        state["onchain_offset"] = public_storage_layout[state["name"]]["offset"]
+        state["offchain_slot"] = private_storage_layout[state["name"]]["slot"]
+        state["offchain_offset"] = private_storage_layout[state["name"]]["offset"]
+    contract_ast.generated_policy = format_policy(json.dumps(policy, cls=PrivacyPolicyEncoder, separators=(',', ':')))
+
+def get_storage_layout(code: str, contract_name: str) -> dict:
+        storage_layout = solcx.compile_source(code, ["storage-layout"])["<stdin>:" + contract_name]
+        var_dict = dict()
+        for var in storage_layout["storage-layout"]["storage"]:
+            var_dict[var["label"]] = var
+        return var_dict
 
 def _dump_to_output(content: str, output_dir: str, filename: str, dryrun_solc=False) -> str:
     """

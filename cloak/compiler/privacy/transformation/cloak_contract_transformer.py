@@ -194,13 +194,16 @@ class CloakTransformer(AstTransformerVisitor):
     def add_extra_tail_parts(self, su: SourceUnit, c: ContractDefinition):
         # Add constant state variables for tee external contracts
         code_hash_hb = web3.Web3.keccak(solcx.compile_source(su.private_contract_code, ["bin"])["<stdin>:" + c.idf.name]["bin"].encode())
-        policy_hash_hb = web3.Web3.keccak(su.generated_policy.encode())
+        if su.generated_policy != '':
+            policy_hash = web3.Web3.keccak(su.generated_policy.encode()).hex()
+        else:
+            policy_hash = '0x0'
         if c.idf.name == self.depoly_constract:
             c.extra_tail_parts += [
                 Comment("CloakService Variable"),
                 SOL(f"address owner = msg.sender;"),
                 SOL(f"uint constant teeCHash = {code_hash_hb.hex()};"),
-                SOL(f"uint constant teePHash = {policy_hash_hb.hex()};"),
+                SOL(f"uint constant teePHash = {policy_hash};"),
             ]
 
     def visitSourceUnit(self, ast: SourceUnit):

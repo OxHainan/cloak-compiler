@@ -2060,7 +2060,7 @@ class SourceUnit(AST):
         self.sba = sba
 
         self.privacy_policy = None
-        self.generated_policy: Optional[str] = None
+        self.generated_policy: Optional[str] = ''
         self.original_code: List[str] = []
 
     @property
